@@ -2304,7 +2304,7 @@ if (isset($_POST['submit-transaksi'])) {
     $komponen_qty_json = json_encode($komponen_qty);
 
     // Default field
-    $type_scan = "";
+    $type_scan = "CREATE_BARCODE";
     $status    = "PENDING";
 
     // === Hitung total_order dari tbl_master_data ===
@@ -2438,6 +2438,535 @@ if (isset($_POST['submit-transaksi'])) {
         $conn->rollback();
         $_SESSION['red_notif'] = "Terjadi kesalahan: " . $e->getMessage();
         header("Location: /isubcont/pages/trans-barcode.php");
+        exit;
+    }
+}
+
+// === Approve / Reject Transaksi ===
+if (isset($_POST['action-transaksi'])) {
+    $id_trans   = $_POST['id_trans'] ?? null;
+    $status     = $_POST['status'] ?? null; // "APPROVED" / "REJECTED"
+    $validated_by = $_SESSION['username'] ?? 'unknown';
+
+    if ($id_trans && in_array($status, ['APPROVED', 'REJECTED'])) {
+        $conn->begin_transaction();
+        try {
+            // Ambil data lama untuk log
+            $stmt_old = $conn->prepare("SELECT * FROM tbl_transaksi WHERE id_trans=?");
+            $stmt_old->bind_param("i", $id_trans);
+            $stmt_old->execute();
+            $res_old = $stmt_old->get_result();
+            $old_data = $res_old->fetch_assoc();
+            $json_old_data = $old_data ? json_encode($old_data) : null;
+
+            // Update status + validasi
+            $stmt_upd = $conn->prepare("
+                UPDATE tbl_transaksi
+                SET status=?, validated_by=?, validated_at=NOW()
+                WHERE id_trans=?
+            ");
+            $stmt_upd->bind_param("ssi", $status, $validated_by, $id_trans);
+            $stmt_upd->execute();
+
+            // Ambil data baru untuk log
+            $stmt_new = $conn->prepare("SELECT * FROM tbl_transaksi WHERE id_trans=?");
+            $stmt_new->bind_param("i", $id_trans);
+            $stmt_new->execute();
+            $res_new = $stmt_new->get_result();
+            $new_data = $res_new->fetch_assoc();
+            $json_new_data = $new_data ? json_encode($new_data) : null;
+
+            // Logging
+            $stmt_log = $conn->prepare("
+                INSERT INTO tlog_transaksi 
+                (id_trans, updated_by, action_type, old_data, new_data, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, NOW(), NOW())
+            ");
+            $action_type = strtoupper($status) === 'APPROVED' ? 'APPROVE' : 'REJECT';
+            $stmt_log->bind_param("issss", $id_trans, $validated_by, $action_type, $json_old_data, $json_new_data);
+            $stmt_log->execute();
+
+            $conn->commit();
+
+            $_SESSION['green_notif'] = "Transaksi #$id_trans berhasil di-$status";
+            header("Location: /isubcont/pages/approval-lead.php");
+            exit;
+        } catch (Exception $e) {
+            $conn->rollback();
+            $_SESSION['red_notif'] = "Gagal update transaksi: " . $e->getMessage();
+            header("Location: /isubcont/pages/approval-lead.php");
+            exit;
+        }
+    } else {
+        $_SESSION['red_notif'] = "Data tidak valid untuk approve/reject.";
+        header("Location: /isubcont/pages/approval-lead.php");
+        exit;
+    }
+}
+
+// === Scan In Warehouse ===
+if (isset($_POST['scan-barcode'])) {
+    $barcode   = $_POST['barcode'] ?? null;
+    $scan_with = $_SESSION['username'] ?? 'unknown';
+
+    if ($barcode) {
+        $conn->begin_transaction();
+        try {
+            // --- Flow urutan scan
+            $scan_flow = [
+                "SCAN_IN_WAREHOUSE",
+                "SCAN_OUT_TO_VENDOR",
+                "SCAN_IN_VENDOR",
+                "SCAN_OUT_VENDOR",
+                "SCAN_IN_INCOMING",
+                "SCAN_CHECK_QC",
+                "SCAN_OUT_TO_PRODUCTION"
+            ];
+
+            // --- Ambil data lama
+            $stmt_old = $conn->prepare("SELECT * FROM tbl_transaksi WHERE barcode = ?");
+            $stmt_old->bind_param("s", $barcode);
+            $stmt_old->execute();
+            $res_old = $stmt_old->get_result();
+            $old_data = $res_old->fetch_assoc();
+
+            if (!$old_data) {
+                $_SESSION['red_notif'] = "QR Code $barcode tidak ditemukan.";
+                header("Location: /isubcont/pages/trans-scan-in-wh.php");
+                exit;
+            }
+
+            $json_old_data = json_encode($old_data, JSON_UNESCAPED_UNICODE);
+
+            // --- Validasi urutan scan
+            $current_state = strtoupper($old_data['type_scan'] ?? '');
+            $current_index = array_search($current_state, $scan_flow);
+
+            // Kalau belum pernah scan (NULL), posisikan index = -1
+            if ($current_index === false) {
+                $current_index = -1;
+            }
+
+            $next_state = $scan_flow[$current_index + 1] ?? null;
+
+            if ($next_state !== "SCAN_IN_WAREHOUSE") {
+                $_SESSION['red_notif'] = "QR Code tidak bisa di-scan di tahap ini. 
+                    Current: $current_state, Next workflow: $next_state";
+                header("Location: /isubcont/pages/trans-scan-in-wh.php");
+                exit;
+            }
+
+            // --- Cari hour sesuai waktu aktual
+            $stmt_hour = $conn->prepare("
+                SELECT id_time, hour 
+                FROM tbl_time 
+                WHERE TIME(NOW()) BETWEEN start_hour AND end_hour
+                ORDER BY id_time LIMIT 1
+            ");
+            $stmt_hour->execute();
+            $res_hour = $stmt_hour->get_result();
+            $hour_row = $res_hour->fetch_assoc();
+            $hour = $hour_row['hour'] ?? null;
+
+            // --- Update transaksi
+            $stmt_upd = $conn->prepare("
+                UPDATE tbl_transaksi
+                SET type_scan = 'SCAN_IN_WAREHOUSE',
+                    scan_with = ?,
+                    scan_at   = NOW(),
+                    hour      = ?
+                WHERE barcode = ?
+            ");
+            $stmt_upd->bind_param("sis", $scan_with, $hour, $barcode);
+            $stmt_upd->execute();
+
+            // --- Ambil data baru
+            $stmt_new = $conn->prepare("SELECT * FROM tbl_transaksi WHERE barcode = ?");
+            $stmt_new->bind_param("s", $barcode);
+            $stmt_new->execute();
+            $res_new = $stmt_new->get_result();
+            $new_data = $res_new->fetch_assoc();
+            $json_new_data = $new_data ? json_encode($new_data, JSON_UNESCAPED_UNICODE) : null;
+
+            // --- Insert log
+            $stmt_log = $conn->prepare("
+                INSERT INTO tlog_transaksi
+                (id_trans, updated_by, action_type, old_data, new_data, created_at, updated_at)
+                VALUES (?, ?, 'SCAN_IN_WAREHOUSE', ?, ?, NOW(), NOW())
+            ");
+            $id_trans = (int)$old_data['id_trans'];
+            $stmt_log->bind_param("isss", $id_trans, $scan_with, $json_old_data, $json_new_data);
+            $stmt_log->execute();
+
+            $conn->commit();
+
+            $_SESSION['green_notif'] = "QR Code berhasil di-scan (Scan In Warehouse).";
+            header("Location: /isubcont/pages/trans-scan-in-wh.php?success=$barcode");
+            exit;
+        } catch (Exception $e) {
+            $conn->rollback();
+            $_SESSION['red_notif'] = "Gagal scan QR Code: " . $e->getMessage();
+            header("Location: /isubcont/pages/trans-scan-in-wh.php");
+            exit;
+        }
+    } else {
+        $_SESSION['red_notif'] = "QR Code tidak boleh kosong.";
+        header("Location: /isubcont/pages/trans-scan-in-wh.php");
+        exit;
+    }
+}
+
+// === Scan Out to Vendor ===
+if (isset($_POST['scan-out-to-vendor'])) {
+    $barcode   = $_POST['barcode'] ?? null;
+    $scan_with = $_SESSION['username'] ?? 'unknown';
+
+    if ($barcode) {
+        $conn->begin_transaction();
+        try {
+            // --- Flow urutan scan
+            $scan_flow = [
+                "SCAN_IN_WAREHOUSE",
+                "SCAN_OUT_TO_VENDOR",
+                "SCAN_IN_VENDOR",
+                "SCAN_OUT_VENDOR",
+                "SCAN_IN_INCOMING",
+                "SCAN_CHECK_QC",
+                "SCAN_OUT_TO_PRODUCTION"
+            ];
+
+            // --- Ambil data lama
+            $stmt_old = $conn->prepare("SELECT * FROM tbl_transaksi WHERE barcode = ?");
+            $stmt_old->bind_param("s", $barcode);
+            $stmt_old->execute();
+            $res_old = $stmt_old->get_result();
+            $old_data = $res_old->fetch_assoc();
+
+            if (!$old_data) {
+                $_SESSION['red_notif'] = "QR Code $barcode tidak ditemukan.";
+                header("Location: /isubcont/pages/trans-scan-out-to-vendor.php");
+                exit;
+            }
+
+            $json_old_data = json_encode($old_data, JSON_UNESCAPED_UNICODE);
+
+            // --- Validasi urutan scan
+            $current_state = strtoupper($old_data['type_scan'] ?? '');
+            $current_index = array_search($current_state, $scan_flow);
+
+            // Kalau belum pernah scan (NULL), posisikan index = -1
+            if ($current_index === false) {
+                $current_index = -1;
+            }
+
+            $next_state = $scan_flow[$current_index + 1] ?? null;
+
+            if ($next_state !== "SCAN_OUT_TO_VENDOR") {
+                $_SESSION['red_notif'] = "QR Code tidak bisa di-scan di tahap ini. 
+                    Current: $current_state, Next workflow: $next_state";
+                header("Location: /isubcont/pages/trans-scan-out-to-vendor.php");
+                exit;
+            }
+
+            // --- Cari hour sesuai waktu aktual
+            $stmt_hour = $conn->prepare("
+                SELECT id_time, hour 
+                FROM tbl_time 
+                WHERE TIME(NOW()) BETWEEN start_hour AND end_hour
+                ORDER BY id_time LIMIT 1
+            ");
+            $stmt_hour->execute();
+            $res_hour = $stmt_hour->get_result();
+            $hour_row = $res_hour->fetch_assoc();
+            $hour = $hour_row['hour'] ?? null;
+
+            // --- Update transaksi
+            $stmt_upd = $conn->prepare("
+                UPDATE tbl_transaksi
+                SET type_scan = 'SCAN_OUT_TO_VENDOR',
+                    scan_with = ?,
+                    scan_at   = NOW(),
+                    hour      = ?
+                WHERE barcode = ?
+            ");
+            $stmt_upd->bind_param("sis", $scan_with, $hour, $barcode);
+            $stmt_upd->execute();
+
+            // --- Ambil data baru
+            $stmt_new = $conn->prepare("SELECT * FROM tbl_transaksi WHERE barcode = ?");
+            $stmt_new->bind_param("s", $barcode);
+            $stmt_new->execute();
+            $res_new = $stmt_new->get_result();
+            $new_data = $res_new->fetch_assoc();
+            $json_new_data = $new_data ? json_encode($new_data, JSON_UNESCAPED_UNICODE) : null;
+
+            // --- Insert log
+            $stmt_log = $conn->prepare("
+                INSERT INTO tlog_transaksi
+                (id_trans, updated_by, action_type, old_data, new_data, created_at, updated_at)
+                VALUES (?, ?, 'SCAN_OUT_TO_VENDOR', ?, ?, NOW(), NOW())
+            ");
+            $id_trans = (int)$old_data['id_trans'];
+            $stmt_log->bind_param("isss", $id_trans, $scan_with, $json_old_data, $json_new_data);
+            $stmt_log->execute();
+
+            $conn->commit();
+
+            $_SESSION['green_notif'] = "QR Code berhasil di-scan (Scan Out to Vendor).";
+            header("Location: /isubcont/pages/trans-scan-out-to-vendor.php?success=$barcode");
+            exit;
+        } catch (Exception $e) {
+            $conn->rollback();
+            $_SESSION['red_notif'] = "Gagal scan QR Code: " . $e->getMessage();
+            header("Location: /isubcont/pages/trans-scan-out-to-vendor.php");
+            exit;
+        }
+    } else {
+        $_SESSION['red_notif'] = "QR Code tidak boleh kosong.";
+        header("Location: /isubcont/pages/trans-scan-out-to-vendor.php");
+        exit;
+    }
+}
+
+// === Confirm In Vendor ===
+if (isset($_POST['confirm-in-vendor'])) {
+    $barcode   = $_POST['barcode'] ?? null;
+    $qty_data = $_POST['qty'] ?? []; // array komponen => qty
+    $qty_json = json_encode(
+        array_map(function ($komponen, $qty) {
+            return ["komponen" => $komponen, "qty" => (int)$qty];
+        }, array_keys($qty_data), $qty_data),
+        JSON_UNESCAPED_UNICODE
+    );
+
+    $scan_with = $_SESSION['username'] ?? 'unknown';
+
+    if ($barcode) {
+        $conn->begin_transaction();
+        try {
+            // --- Flow urutan scan
+            $scan_flow = [
+                "SCAN_IN_WAREHOUSE",
+                "SCAN_OUT_TO_VENDOR",
+                "SCAN_IN_VENDOR",
+                "SCAN_OUT_VENDOR",
+                "SCAN_IN_INCOMING",
+                "SCAN_CHECK_QC",
+                "SCAN_OUT_TO_PRODUCTION"
+            ];
+
+            // --- Ambil data lama
+            $stmt_old = $conn->prepare("SELECT * FROM tbl_transaksi WHERE barcode = ?");
+            $stmt_old->bind_param("s", $barcode);
+            $stmt_old->execute();
+            $res_old = $stmt_old->get_result();
+            $old_data = $res_old->fetch_assoc();
+
+            if (!$old_data) {
+                $_SESSION['red_notif'] = "QR Code $barcode tidak ditemukan.";
+                header("Location: /isubcont/pages/trans-scan-in-vendor.php");
+                exit;
+            }
+
+            $json_old_data = json_encode($old_data, JSON_UNESCAPED_UNICODE);
+
+            // --- Validasi urutan scan
+            $current_state = strtoupper($old_data['type_scan'] ?? '');
+            $current_index = array_search($current_state, $scan_flow);
+
+            if ($current_index === false) {
+                $current_index = -1;
+            }
+
+            $next_state = $scan_flow[$current_index + 1] ?? null;
+
+            if ($next_state !== "SCAN_IN_VENDOR") {
+                $_SESSION['red_notif'] = "QR Code tidak bisa di-scan di tahap ini. 
+                    Current: $current_state, Next workflow: $next_state";
+                header("Location: /isubcont/pages/trans-scan-in-vendor.php");
+                exit;
+            }
+
+            // --- Cari hour sesuai waktu aktual
+            $stmt_hour = $conn->prepare("
+                SELECT id_time, hour 
+                FROM tbl_time 
+                WHERE TIME(NOW()) BETWEEN start_hour AND end_hour
+                ORDER BY id_time LIMIT 1
+            ");
+            $stmt_hour->execute();
+            $res_hour = $stmt_hour->get_result();
+            $hour_row = $res_hour->fetch_assoc();
+            $hour = $hour_row['hour'] ?? null;
+
+            // --- Update transaksi
+            $stmt_upd = $conn->prepare("
+                UPDATE tbl_transaksi
+                SET type_scan    = 'SCAN_IN_VENDOR',
+                    komponen_qty = ?,
+                    scan_with    = ?,
+                    scan_at      = NOW(),
+                    hour         = ?
+                WHERE barcode = ?
+");
+            $stmt_upd->bind_param("ssis", $qty_json, $scan_with, $hour, $barcode);
+
+            $stmt_upd->execute();
+
+            // --- Ambil data baru
+            $stmt_new = $conn->prepare("SELECT * FROM tbl_transaksi WHERE barcode = ?");
+            $stmt_new->bind_param("s", $barcode);
+            $stmt_new->execute();
+            $res_new = $stmt_new->get_result();
+            $new_data = $res_new->fetch_assoc();
+            $json_new_data = $new_data ? json_encode($new_data, JSON_UNESCAPED_UNICODE) : null;
+
+            // --- Insert log
+            $stmt_log = $conn->prepare("
+                INSERT INTO tlog_transaksi
+                (id_trans, updated_by, action_type, old_data, new_data, created_at, updated_at)
+                VALUES (?, ?, 'SCAN_IN_VENDOR', ?, ?, NOW(), NOW())
+            ");
+            $id_trans = (int)$old_data['id_trans'];
+            $stmt_log->bind_param("isss", $id_trans, $scan_with, $json_old_data, $json_new_data);
+            $stmt_log->execute();
+
+            $conn->commit();
+
+            $_SESSION['green_notif'] = "QR Code berhasil di-scan (Scan In Vendor).";
+            header("Location: /isubcont/pages/trans-scan-in-vendor.php?success=$barcode");
+            exit;
+        } catch (Exception $e) {
+            $conn->rollback();
+            $_SESSION['red_notif'] = "Gagal confirm: " . $e->getMessage();
+            header("Location: /isubcont/pages/trans-scan-in-vendor.php");
+            exit;
+        }
+    } else {
+        $_SESSION['red_notif'] = "QR Code tidak boleh kosong.";
+        header("Location: /isubcont/pages/trans-scan-in-vendor.php");
+        exit;
+    }
+}
+
+// === Pending In Vendor ===
+if (isset($_POST['pending-in-vendor'])) {
+    $barcode     = $_POST['barcode'] ?? null;
+    $qty_data    = $_POST['qty'] ?? []; // array komponen => qty
+    $qty_json    = json_encode(
+        array_map(function ($komponen, $qty) {
+            return ["komponen" => $komponen, "qty" => (int)$qty];
+        }, array_keys($qty_data), $qty_data),
+        JSON_UNESCAPED_UNICODE
+    );
+    $keterangan  = $_POST['keterangan'] ?? null;
+    $scan_with   = $_SESSION['username'] ?? 'unknown';
+
+    if ($barcode) {
+        $conn->begin_transaction();
+        try {
+            // --- Flow urutan scan
+            $scan_flow = [
+                "SCAN_IN_WAREHOUSE",
+                "SCAN_OUT_TO_VENDOR",
+                "SCAN_IN_VENDOR",
+                "SCAN_OUT_VENDOR",
+                "SCAN_IN_INCOMING",
+                "SCAN_CHECK_QC",
+                "SCAN_OUT_TO_PRODUCTION"
+            ];
+
+            // --- Ambil data lama
+            $stmt_old = $conn->prepare("SELECT * FROM tbl_transaksi WHERE barcode = ?");
+            $stmt_old->bind_param("s", $barcode);
+            $stmt_old->execute();
+            $res_old = $stmt_old->get_result();
+            $old_data = $res_old->fetch_assoc();
+
+            if (!$old_data) {
+                $_SESSION['red_notif'] = "QR Code $barcode tidak ditemukan.";
+                header("Location: /isubcont/pages/trans-scan-in-vendor.php");
+                exit;
+            }
+
+            $json_old_data = json_encode($old_data, JSON_UNESCAPED_UNICODE);
+
+            // --- Validasi urutan scan
+            $current_state = strtoupper($old_data['type_scan'] ?? '');
+            $current_index = array_search($current_state, $scan_flow);
+
+            if ($current_index === false) {
+                $current_index = -1;
+            }
+
+            $next_state = $scan_flow[$current_index + 1] ?? null;
+
+            if ($next_state !== "SCAN_IN_VENDOR") {
+                $_SESSION['red_notif'] = "QR Code tidak bisa di-scan di tahap ini. 
+                    Current: $current_state, Next workflow: $next_state";
+                header("Location: /isubcont/pages/trans-scan-in-vendor.php");
+                exit;
+            }
+
+            // --- Cari hour sesuai waktu aktual
+            $stmt_hour = $conn->prepare("
+                SELECT id_time, hour 
+                FROM tbl_time 
+                WHERE TIME(NOW()) BETWEEN start_hour AND end_hour
+                ORDER BY id_time LIMIT 1
+            ");
+            $stmt_hour->execute();
+            $res_hour = $stmt_hour->get_result();
+            $hour_row = $res_hour->fetch_assoc();
+            $hour = $hour_row['hour'] ?? null;
+
+            // --- Update transaksi jadi Pending dengan type_scan SCAN_IN_VENDOR
+            $stmt_upd = $conn->prepare("
+                UPDATE tbl_transaksi
+                SET type_scan    = 'SCAN_IN_VENDOR',
+                    status       = 'PENDING_IN_VENDOR',
+                    komponen_qty = ?,
+                    keterangan   = ?,
+                    scan_with    = ?,
+                    scan_at      = NOW(),
+                    hour         = ?
+                WHERE barcode = ?
+            ");
+            $stmt_upd->bind_param("sssis", $qty_json, $keterangan, $scan_with, $hour, $barcode);
+            $stmt_upd->execute();
+
+            // --- Ambil data baru
+            $stmt_new = $conn->prepare("SELECT * FROM tbl_transaksi WHERE barcode = ?");
+            $stmt_new->bind_param("s", $barcode);
+            $stmt_new->execute();
+            $res_new = $stmt_new->get_result();
+            $new_data = $res_new->fetch_assoc();
+            $json_new_data = $new_data ? json_encode($new_data, JSON_UNESCAPED_UNICODE) : null;
+
+            // --- Insert log
+            $stmt_log = $conn->prepare("
+                INSERT INTO tlog_transaksi
+                (id_trans, updated_by, action_type, old_data, new_data, created_at, updated_at)
+                VALUES (?, ?, 'PENDING_IN_VENDOR', ?, ?, NOW(), NOW())
+            ");
+            $id_trans = (int)$old_data['id_trans'];
+            $stmt_log->bind_param("isss", $id_trans, $scan_with, $json_old_data, $json_new_data);
+            $stmt_log->execute();
+
+            $conn->commit();
+
+            $_SESSION['green_notif'] = "QR Code berhasil di-scan (Scan In Vendor). Status : Quantity tidak sesuai";
+            header("Location: /isubcont/pages/trans-scan-in-vendor.php?success=$barcode");
+            exit;
+        } catch (Exception $e) {
+            $conn->rollback();
+            $_SESSION['red_notif'] = "Gagal simpan pending: " . $e->getMessage();
+            header("Location: /isubcont/pages/trans-scan-in-vendor.php");
+            exit;
+        }
+    } else {
+        $_SESSION['red_notif'] = "QR Code tidak boleh kosong.";
+        header("Location: /isubcont/pages/trans-scan-in-vendor.php");
         exit;
     }
 }

@@ -7,13 +7,21 @@ checkAuth('trans_barcode'); // cek apakah sudah login dan punya akses ke menu in
 $nik = $_SESSION['nik_user'];
 $username = $_SESSION['username'];
 
-// Ambil data transaksi terbaru
+// ambil tanggal pencarian dari GET
+$search_date = $_GET['search_date'] ?? date('Y-m-d'); // default = hari ini
+
+// query transaksi
 $sql = "
   SELECT t.*
   FROM tbl_transaksi t
+  WHERE DATE(t.date_created) = ?
   ORDER BY t.id_trans DESC
 ";
-$result_transaksi = $conn->query($sql);
+
+$stmt = $conn->prepare($sql);
+$stmt->bind_param("s", $search_date);
+$stmt->execute();
+$result_transaksi = $stmt->get_result();
 
 ?>
 
@@ -117,7 +125,7 @@ $result_transaksi = $conn->query($sql);
   <meta charset="utf-8">
   <meta content="width=device-width, initial-scale=1.0" name="viewport">
 
-  <title>iSubcont - Create Barcode</title>
+  <title>iSubcont - QR Code Transaction</title>
   <meta content="" name="description">
   <meta content="" name="keywords">
 
@@ -173,7 +181,7 @@ $result_transaksi = $conn->query($sql);
 
     <div class="pagetitle text-black" style="background-color: #f0e6d2; padding: 10px 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
       <h1 style="font-size: 1.8rem; font-weight: 700; font-family: 'Roboto', sans-serif;">
-        Create Barcode Transaction
+        QR Code
       </h1>
     </div>
 
@@ -185,7 +193,7 @@ $result_transaksi = $conn->query($sql);
           <!-- Header -->
           <div class="modal-header bg-primary text-white">
             <h5 class="modal-title d-flex align-items-center" id="tambahTransaksiLabel">
-              <i class="bi bi-upc me-2"></i> Tambah Transaksi
+              <i class="bi bi-upc me-2"></i> Add Transaction & QR Code
             </h5>
             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
           </div>
@@ -291,94 +299,115 @@ $result_transaksi = $conn->query($sql);
 
             <div class="card-body" style="margin-top: 10px;">
 
-              <!-- Table with stripped rows -->
-              <div class="table-responsive" id="userTable">
-                <table id="example1" class="table table-bordered table-striped text-center align-middle nowrap" style="width:100%">
-                  <thead class="table-light">
+              <div class="d-flex justify-content-end mb-3">
+                <form method="get" class="d-flex align-items-center gap-2">
+                  <!-- Date Picker -->
+                  <input type="date"
+                    name="search_date"
+                    class="form-control form-control-sm"
+                    value="<?= htmlspecialchars($search_date); ?>">
+
+                  <!-- Search Button -->
+                  <button type="submit"
+                    class="btn btn-success btn-sm d-flex align-items-center justify-content-center">
+                    <i class="bi bi-search"></i>
+                  </button>
+
+                  <!-- Reset Button -->
+                  <a href="trans-barcode.php"
+                    class="btn btn-secondary btn-sm d-flex align-items-center justify-content-center">
+                    <i class="bi bi-arrow-repeat"></i>
+                  </a>
+                </form>
+              </div>
+
+              <table id="example1" class="table table-bordered table-striped text-center align-middle nowrap" style="width:100%">
+                <thead class="table-light">
+                  <tr>
+                    <th class="text-center">#</th>
+                    <th class="text-center">Job Order</th>
+                    <th class="text-center">Bucket</th>
+                    <th class="text-center">PO Code</th>
+                    <th class="text-center">PO Item</th>
+                    <th class="text-center">Model</th>
+                    <th class="text-center">Style</th>
+                    <th class="text-center">NCVS</th>
+                    <th class="text-center">Lot</th>
+                    <th class="text-center">Komponen & Qty</th>
+                    <th class="text-center">Total Order</th>
+                    <th class="text-center">Remaining</th>
+                    <th class="text-center">Status Validasi</th>
+                    <th class="text-center">Workflow Stage</th>
+                    <th class="text-center">Created By</th>
+                    <th class="text-center">Validated By</th>
+                    <th class="text-center">Options</th>
+                    <th class="text-center">Count</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <?php $i = 1; ?>
+                  <?php foreach ($result_transaksi as $row) : ?>
                     <tr>
-                      <th class="text-center">#</th>
-                      <th class="text-center">Job Order</th>
-                      <th class="text-center">Bucket</th>
-                      <th class="text-center">PO Code</th>
-                      <th class="text-center">PO Item</th>
-                      <th class="text-center">Model</th>
-                      <th class="text-center">Style</th>
-                      <th class="text-center">NCVS</th>
-                      <th class="text-center">Lot</th>
-                      <th class="text-center">Komponen & Qty</th>
-                      <th class="text-center">Total Order</th>
-                      <th class="text-center">Remaining</th>
-                      <th class="text-center">Status</th>
-                      <th class="text-center">Created By</th>
-                      <th class="text-center">Validated By</th>
-                      <th class="text-center">Options</th>
-                      <th class="text-center">Count</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <?php $i = 1; ?>
-                    <?php foreach ($result_transaksi as $row) : ?>
-                      <tr>
-                        <td><?= $i ?></td>
-                        <td><?= htmlspecialchars($row["job_order"]); ?></td>
-                        <td><?= htmlspecialchars($row["bucket"]); ?></td>
-                        <td><?= htmlspecialchars($row["po_code"]); ?></td>
-                        <td><?= htmlspecialchars($row["po_item"]); ?></td>
-                        <td><?= htmlspecialchars($row["model"]); ?></td>
-                        <td><?= htmlspecialchars($row["style"]); ?></td>
-                        <td><?= htmlspecialchars($row["ncvs"]); ?></td>
-                        <td>
-                          <?php
-                          $lots = json_decode($row["lot"], true);
-                          echo is_array($lots) ? implode(", ", $lots) : htmlspecialchars($row["lot"]);
-                          ?>
-                        </td>
+                      <td><?= $i ?></td>
+                      <td><?= htmlspecialchars($row["job_order"]); ?></td>
+                      <td><?= htmlspecialchars($row["bucket"]); ?></td>
+                      <td><?= htmlspecialchars($row["po_code"]); ?></td>
+                      <td><?= htmlspecialchars($row["po_item"]); ?></td>
+                      <td><?= htmlspecialchars($row["model"]); ?></td>
+                      <td><?= htmlspecialchars($row["style"]); ?></td>
+                      <td><?= htmlspecialchars($row["ncvs"]); ?></td>
+                      <td>
+                        <?php
+                        $lots = json_decode($row["lot"], true);
+                        echo is_array($lots) ? implode(", ", $lots) : htmlspecialchars($row["lot"]);
+                        ?>
+                      </td>
 
-                        <!-- Kolom Komponen & Qty -->
-                        <td>
-                          <?php
-                          $komponen_qty = json_decode($row["komponen_qty"], true);
+                      <!-- Kolom Komponen & Qty -->
+                      <td>
+                        <?php
+                        $komponen_qty = json_decode($row["komponen_qty"], true);
 
-                          if ($komponen_qty && is_array($komponen_qty)) {
-                            $ids = array_column($komponen_qty, 'komponen');
-                            if (!empty($ids)) {
-                              $id_list = implode(",", array_map('intval', $ids));
-                              $sql_komp = "SELECT id_komponen, nama_komponen 
+                        if ($komponen_qty && is_array($komponen_qty)) {
+                          $ids = array_column($komponen_qty, 'komponen');
+                          if (!empty($ids)) {
+                            $id_list = implode(",", array_map('intval', $ids));
+                            $sql_komp = "SELECT id_komponen, nama_komponen 
                            FROM tbl_komponen 
                            WHERE id_komponen IN ($id_list)";
-                              $res_komp = $conn->query($sql_komp);
+                            $res_komp = $conn->query($sql_komp);
 
-                              $mapKomponen = [];
-                              while ($k = $res_komp->fetch_assoc()) {
-                                $mapKomponen[$k['id_komponen']] = $k['nama_komponen'];
-                              }
-
-                              echo "<ul class='list-unstyled m-0'>";
-                              foreach ($komponen_qty as $kq) {
-                                $id_komp = (int)$kq['komponen'];
-                                $nama = htmlspecialchars($mapKomponen[$id_komp] ?? "Unknown");
-                                $qty_input = (int)$kq['qty'];
-                                echo "<li>$nama ($qty_input)</li>";
-                              }
-                              echo "</ul>";
-                            } else {
-                              echo "-";
+                            $mapKomponen = [];
+                            while ($k = $res_komp->fetch_assoc()) {
+                              $mapKomponen[$k['id_komponen']] = $k['nama_komponen'];
                             }
+
+                            echo "<ul class='list-unstyled m-0'>";
+                            foreach ($komponen_qty as $kq) {
+                              $id_komp = (int)$kq['komponen'];
+                              $nama = htmlspecialchars($mapKomponen[$id_komp] ?? "Unknown");
+                              $qty_input = (int)$kq['qty'];
+                              echo "<li>$nama ($qty_input)</li>";
+                            }
+                            echo "</ul>";
                           } else {
                             echo "-";
                           }
-                          ?>
-                        </td>
+                        } else {
+                          echo "-";
+                        }
+                        ?>
+                      </td>
 
-                        <!-- Kolom Total Order -->
-                        <td>
-                          <?php
-                          $total_order = 0;
-                          $lots = json_decode($row["lot"], true);
+                      <!-- Kolom Total Order -->
+                      <td>
+                        <?php
+                        $total_order = 0;
+                        $lots = json_decode($row["lot"], true);
 
-                          if (is_array($lots) && count($lots) > 0) {
-                            foreach ($lots as $lot_value) {
-                              $sql_total = "
+                        if (is_array($lots) && count($lots) > 0) {
+                          foreach ($lots as $lot_value) {
+                            $sql_total = "
                 SELECT SUM(qty) as total_order
                 FROM tbl_master_data
                 WHERE job_order = '{$row["job_order"]}'
@@ -389,44 +418,44 @@ $result_transaksi = $conn->query($sql);
                   AND style = '{$row["style"]}'
                   AND lot = '{$lot_value}'
               ";
-                              $res_total = $conn->query($sql_total);
-                              if ($res_total && $res_total->num_rows > 0) {
-                                $row_total = $res_total->fetch_assoc();
-                                $total_order += (int)($row_total["total_order"] ?? 0);
-                              }
+                            $res_total = $conn->query($sql_total);
+                            if ($res_total && $res_total->num_rows > 0) {
+                              $row_total = $res_total->fetch_assoc();
+                              $total_order += (int)($row_total["total_order"] ?? 0);
                             }
                           }
-                          echo $total_order;
-                          ?>
-                        </td>
+                        }
+                        echo $total_order;
+                        ?>
+                      </td>
 
-                        <!-- Kolom Remaining -->
-                        <td>
-                          <?php
-                          $komponen_qty = json_decode($row["komponen_qty"], true);
-                          if ($komponen_qty && is_array($komponen_qty)) {
-                            $ids = array_column($komponen_qty, 'komponen');
-                            $id_list = implode(",", array_map('intval', $ids));
+                      <!-- Kolom Remaining -->
+                      <td>
+                        <?php
+                        $komponen_qty = json_decode($row["komponen_qty"], true);
+                        if ($komponen_qty && is_array($komponen_qty)) {
+                          $ids = array_column($komponen_qty, 'komponen');
+                          $id_list = implode(",", array_map('intval', $ids));
 
-                            // Ambil nama komponen
-                            $mapKomponen = [];
-                            if (!empty($id_list)) {
-                              $sql_komp = "SELECT id_komponen, nama_komponen 
+                          // Ambil nama komponen
+                          $mapKomponen = [];
+                          if (!empty($id_list)) {
+                            $sql_komp = "SELECT id_komponen, nama_komponen 
                                 FROM tbl_komponen 
                                 WHERE id_komponen IN ($id_list)";
-                              $res_komp = $conn->query($sql_komp);
-                              while ($k = $res_komp->fetch_assoc()) {
-                                $mapKomponen[$k['id_komponen']] = $k['nama_komponen'];
-                              }
+                            $res_komp = $conn->query($sql_komp);
+                            while ($k = $res_komp->fetch_assoc()) {
+                              $mapKomponen[$k['id_komponen']] = $k['nama_komponen'];
                             }
+                          }
 
-                            echo "<ul class='list-unstyled m-0'>";
-                            foreach ($komponen_qty as $kq) {
-                              $id_komp = (int)$kq['komponen'];
-                              $nama = htmlspecialchars($mapKomponen[$id_komp] ?? "Unknown");
+                          echo "<ul class='list-unstyled m-0'>";
+                          foreach ($komponen_qty as $kq) {
+                            $id_komp = (int)$kq['komponen'];
+                            $nama = htmlspecialchars($mapKomponen[$id_komp] ?? "Unknown");
 
-                              // Hitung total input qty untuk komponen ini di semua transaksi
-                              $sql_used = "
+                            // Hitung total input qty untuk komponen ini di semua transaksi
+                            $sql_used = "
                                 SELECT komponen_qty
                                 FROM tbl_transaksi
                                 WHERE job_order = '{$row["job_order"]}'
@@ -437,132 +466,136 @@ $result_transaksi = $conn->query($sql);
                                   AND style = '{$row["style"]}'
                                   AND lot = '{$row["lot"]}'
                               ";
-                              $res_used = $conn->query($sql_used);
-                              $used_qty = 0;
-                              if ($res_used && $res_used->num_rows > 0) {
-                                while ($row_used = $res_used->fetch_assoc()) {
-                                  $arr_used = json_decode($row_used["komponen_qty"], true);
-                                  if ($arr_used && is_array($arr_used)) {
-                                    foreach ($arr_used as $u) {
-                                      if ((int)$u['komponen'] === $id_komp) {
-                                        $used_qty += (int)$u['qty'];
-                                      }
+                            $res_used = $conn->query($sql_used);
+                            $used_qty = 0;
+                            if ($res_used && $res_used->num_rows > 0) {
+                              while ($row_used = $res_used->fetch_assoc()) {
+                                $arr_used = json_decode($row_used["komponen_qty"], true);
+                                if ($arr_used && is_array($arr_used)) {
+                                  foreach ($arr_used as $u) {
+                                    if ((int)$u['komponen'] === $id_komp) {
+                                      $used_qty += (int)$u['qty'];
                                     }
                                   }
                                 }
                               }
-
-                              $remaining = $total_order - $used_qty;
-                              echo "<li>$nama: $remaining</li>";
                             }
-                            echo "</ul>";
-                          } else {
-                            echo "-";
+
+                            $remaining = $total_order - $used_qty;
+                            echo "<li>$nama: $remaining</li>";
                           }
-                          ?>
-                        </td>
+                          echo "</ul>";
+                        } else {
+                          echo "-";
+                        }
+                        ?>
+                      </td>
 
-                        <!-- Status -->
-                        <td>
-                          <?php if ($row["status"] === "PENDING"): ?>
-                            <span class="badge bg-warning">PENDING</span>
-                          <?php elseif ($row["status"] === "APPROVED"): ?>
-                            <span class="badge bg-success">APPROVED</span>
-                          <?php elseif ($row["status"] === "REJECTED"): ?>
-                            <span class="badge bg-danger">REJECTED</span>
-                          <?php else: ?>
-                            <span class="badge bg-secondary"><?= htmlspecialchars($row["status"]); ?></span>
-                          <?php endif; ?>
-                        </td>
+                      <!-- Status -->
+                      <td>
+                        <?php
+                        $status = strtoupper($row["status"] ?? "");
+                        if (str_contains($status, "PENDING")):
+                        ?>
+                          <span class="badge bg-warning"><?= htmlspecialchars($row["status"]); ?></span>
+                        <?php elseif ($status === "APPROVED"): ?>
+                          <span class="badge bg-success"><?= htmlspecialchars($row["status"]); ?></span>
+                        <?php elseif ($status === "REJECTED"): ?>
+                          <span class="badge bg-danger"><?= htmlspecialchars($row["status"]); ?></span>
+                        <?php else: ?>
+                          <span class="badge bg-secondary"><?= htmlspecialchars($row["status"]); ?></span>
+                        <?php endif; ?>
+                      </td>
 
-                        <td><?= htmlspecialchars($row["created_by"]); ?></td>
-                        <td><?= htmlspecialchars($row["validated_by"] ?? "-"); ?></td>
+                      <td><?= htmlspecialchars($row["type_scan"]); ?></td>
+                      <td><?= htmlspecialchars($row["created_by"]); ?></td>
+                      <td><?= htmlspecialchars($row["validated_by"] ?? "-"); ?></td>
 
-                        <!-- Options -->
-                        <td>
-                          <button class="btn btn-sm btn-primary" data-bs-toggle="modal"
-                            data-bs-target="#barcodeModal<?= $row['id_trans']; ?>">
-                            <i class="bi bi-upc-scan"></i>
-                          </button>
+                      <!-- Options -->
+                      <td>
+                        <button class="btn btn-sm btn-primary" data-bs-toggle="modal"
+                          data-bs-target="#barcodeModal<?= $row['id_trans']; ?>">
+                          <i class="bi bi-upc-scan"></i>
+                        </button>
 
-                          <!-- Modal QR -->
-                          <div class="modal fade" id="barcodeModal<?= $row['id_trans']; ?>" tabindex="-1" aria-hidden="true">
-                            <div class="modal-dialog modal-dialog-centered" style="max-width:220px;">
-                              <div class="modal-content" style="border-radius:12px; font-size:12px;">
-                                <div class="modal-body" style="padding:12px;">
-                                  <div style="text-align:left; margin-left:5px;">
-                                    <!-- Info -->
-                                    <div><strong><?= htmlspecialchars($row['ncvs'] . '-' . $row['po_code'] . '-' . $row['po_item']); ?></strong></div>
-                                    <div><?= htmlspecialchars($row['bucket']); ?></div>
-                                    <div><?= htmlspecialchars($row['style']); ?></div>
-                                    <div><?= htmlspecialchars($row['model']); ?></div>
-                                    <div>Lot: <?= is_array(json_decode($row['lot'], true)) ? implode(", ", json_decode($row['lot'], true)) : htmlspecialchars($row['lot']); ?></div>
+                        <!-- Modal QR -->
+                        <div class="modal fade" id="barcodeModal<?= $row['id_trans']; ?>" tabindex="-1" aria-hidden="true">
+                          <div class="modal-dialog modal-dialog-centered" style="max-width:220px;">
+                            <div class="modal-content" style="border-radius:12px; font-size:12px;">
+                              <div class="modal-body" style="padding:12px;">
+                                <div style="text-align:left; margin-left:5px;">
+                                  <!-- Info -->
+                                  <div><strong><?= htmlspecialchars($row['ncvs'] . '-' . $row['po_code'] . '-' . $row['po_item']); ?></strong></div>
+                                  <div><?= htmlspecialchars($row['bucket']); ?></div>
+                                  <div><?= htmlspecialchars($row['style']); ?></div>
+                                  <div><?= htmlspecialchars($row['model']); ?></div>
+                                  <div>Lot: <?= is_array(json_decode($row['lot'], true)) ? implode(", ", json_decode($row['lot'], true)) : htmlspecialchars($row['lot']); ?></div>
 
-                                    <!-- Komponen & Qty -->
-                                    <div style="margin-top:5px;">
-                                      <?php
-                                      $komponen_qty = json_decode($row["komponen_qty"], true);
-                                      $ids = array_column($komponen_qty, 'komponen');
-                                      $id_list = implode(",", array_map('intval', $ids));
-                                      $mapKomponen = [];
-                                      if (!empty($id_list)) {
-                                        $res_komp = $conn->query("SELECT id_komponen,nama_komponen FROM tbl_komponen WHERE id_komponen IN ($id_list)");
-                                        while ($k = $res_komp->fetch_assoc()) {
-                                          $mapKomponen[$k['id_komponen']] = $k['nama_komponen'];
-                                        }
+                                  <!-- Komponen & Qty -->
+                                  <div style="margin-top:5px;">
+                                    <?php
+                                    $komponen_qty = json_decode($row["komponen_qty"], true);
+                                    $ids = array_column($komponen_qty, 'komponen');
+                                    $id_list = implode(",", array_map('intval', $ids));
+                                    $mapKomponen = [];
+                                    if (!empty($id_list)) {
+                                      $res_komp = $conn->query("SELECT id_komponen,nama_komponen FROM tbl_komponen WHERE id_komponen IN ($id_list)");
+                                      while ($k = $res_komp->fetch_assoc()) {
+                                        $mapKomponen[$k['id_komponen']] = $k['nama_komponen'];
                                       }
-                                      foreach ($komponen_qty as $kq) {
-                                        $id_komp = (int)$kq['komponen'];
-                                        $nama = htmlspecialchars($mapKomponen[$id_komp] ?? "Unknown");
-                                        $qty = htmlspecialchars($kq['qty']);
-                                        echo "<div>$nama ($qty)</div>";
-                                      }
-                                      ?>
-                                    </div>
-
-                                    <!-- QR -->
-                                    <div style="margin-top:10px; text-align:center; width:100%;">
-                                      <div id="qrcode<?= $row['id_trans']; ?>" style="display:inline-block; padding:5px; background:#fff; border-radius:6px;"></div>
-                                    </div>
-
-                                    <!-- Footer -->
-                                    
-                                      <div style="margin-top:20px; text-align:center;">
-                                        <button class="btn btn-primary btn-sm printNow"
-                                          data-id="<?= $row['id_trans']; ?>"
-                                          data-barcode="<?= htmlspecialchars($row['barcode']); ?>">Print</button>
-                                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
-                                      </div>
-
+                                    }
+                                    foreach ($komponen_qty as $kq) {
+                                      $id_komp = (int)$kq['komponen'];
+                                      $nama = htmlspecialchars($mapKomponen[$id_komp] ?? "Unknown");
+                                      $qty = htmlspecialchars($kq['qty']);
+                                      echo "<div>$nama ($qty)</div>";
+                                    }
+                                    ?>
                                   </div>
+
+                                  <!-- QR -->
+                                  <div style="margin-top:10px; text-align:center; width:100%;">
+                                    <div id="qrcode<?= $row['id_trans']; ?>" style="display:inline-block; padding:5px; background:#fff; border-radius:6px;"></div>
+                                  </div>
+
+                                  <!-- Footer -->
+
+                                  <div style="margin-top:20px; text-align:center;">
+                                    <button class="btn btn-primary btn-sm printNow"
+                                      data-id="<?= $row['id_trans']; ?>"
+                                      data-barcode="<?= htmlspecialchars($row['barcode']); ?>">Print</button>
+                                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+                                  </div>
+
                                 </div>
                               </div>
                             </div>
                           </div>
-                        </td>
+                        </div>
+                      </td>
 
 
-                        <td>
-                          <?php
-                          $count = (int)$row["count_barcode"];
-                          if ($count <= 0) {
-                            echo '<span class="badge bg-primary">0 kali print</span>';
-                          } else {
-                            echo '<span class="badge bg-primary">' . $count . ' kali di print</span>';
-                          }
-                          ?>
-                        </td>
-                      </tr>
-                      <?php $i++; ?>
-                    <?php endforeach; ?>
-                  </tbody>
-                </table>
+                      <td>
+                        <?php
+                        $count = (int)$row["count_barcode"];
+                        if ($count <= 0) {
+                          echo '<span class="badge bg-primary">0 kali print</span>';
+                        } else {
+                          echo '<span class="badge bg-primary">' . $count . ' kali di print</span>';
+                        }
+                        ?>
+                      </td>
+                    </tr>
+                    <?php $i++; ?>
+                  <?php endforeach; ?>
+                </tbody>
+              </table>
 
-              </div>
-              <!-- End Table with stripped rows -->
             </div>
+            <!-- End Table with stripped rows -->
           </div>
         </div>
+      </div>
       </div>
     </section>
 
