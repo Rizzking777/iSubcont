@@ -2,7 +2,7 @@
 // menghubungkan php dengan koneksi database
 require_once __DIR__ . '/../config/function.php';
 require_once __DIR__ . '/../config/auth.php';
-checkAuth('scan_out_to_vendor'); // cek apakah sudah login dan punya akses ke menu ini
+checkAuth('scan_out_prod'); // cek apakah sudah login dan punya akses ke menu ini
 
 $nik = $_SESSION['nik_user'];
 $username = $_SESSION['username'];
@@ -141,7 +141,7 @@ $result_transaksi = $stmt->get_result();
 
   <!-- Header -->
   <?php
-  $page = 'scan_out_to_vendor';
+  $page = 'scan_out_prod';
   include_once __DIR__ . '/../includes/header.php';
   ?>
   <!-- End Header -->
@@ -150,7 +150,7 @@ $result_transaksi = $stmt->get_result();
 
     <div class="pagetitle text-black" style="background-color: #f0e6d2; padding: 10px 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
       <h1 style="font-size: 1.8rem; font-weight: 700; font-family: 'Roboto', sans-serif;">
-        Scan-Out to Vendor
+        Scan-Out to Production
       </h1>
     </div>
 
@@ -160,7 +160,7 @@ $result_transaksi = $stmt->get_result();
           <div class="card">
             <div class="card-body" style="margin-top: 10px;">
               <form action="./../config/function.php" method="post" id="scanForm">
-                <input type="hidden" name="scan-out-to-vendor"> <!-- penting -->
+                <input type="hidden" name="scan-out-production"> <!-- penting -->
                 <div class="row mb-3">
                   <label for="barcode" class="col-sm-2 col-form-label">Scan QR Code</label>
                   <div class="col-sm-10">
@@ -182,7 +182,7 @@ $result_transaksi = $stmt->get_result();
                 ?>
                 <?php if ($row): ?>
                   <div class="alert alert-info mt-3">
-                    <h6>Detail Transaksi Scan Out to Vendor:</h6>
+                    <h6>Detail Transaksi Scan Out to Production:</h6>
                     <ul class="mb-0">
                       <li><strong>Job Order:</strong> <?= htmlspecialchars($row['job_order']); ?></li>
                       <li><strong>PO Code:</strong> <?= htmlspecialchars($row['po_code']); ?></li>
@@ -196,8 +196,7 @@ $result_transaksi = $stmt->get_result();
                         echo is_array($lots) ? implode(", ", $lots) : htmlspecialchars($row['lot']);
                         ?>
                       </li>
-
-                      <li><strong>Komponen Sebelum Proses & Qty:</strong></li>
+                      <li><strong>Komponen Sesudah Proses & Qty:</strong></li>
                       <ul>
                         <?php
                         $qty_data = json_decode($row['komponen_qty'], true);

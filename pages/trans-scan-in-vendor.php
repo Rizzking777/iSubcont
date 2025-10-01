@@ -187,7 +187,7 @@ $result_transaksi = $stmt->get_result();
                   if ($row):
               ?>
                     <div class="alert alert-info mt-3">
-                      <h6>Detail Transaksi</h6>
+                      <h6>Detail Transaksi Scan In Vendor:</h6>
                       <form action="./../config/function.php" method="post" id="confirmForm">
                         <input type="hidden" name="barcode" value="<?= htmlspecialchars($row['barcode']); ?>">
 
@@ -205,7 +205,7 @@ $result_transaksi = $stmt->get_result();
                             ?>
                           </li>
 
-                          <li><strong>Komponen & Qty:</strong></li>
+                          <li><strong>Komponen Sebelum Proses & Qty:</strong></li>
                           <ul>
                             <?php
                             $qty_data = json_decode($row['komponen_qty'], true);

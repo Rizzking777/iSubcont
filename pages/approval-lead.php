@@ -411,8 +411,8 @@ $result_transaksi = $stmt->get_result();
                           <?php
                           $status = strtoupper($row['status'] ?? "");
 
-                          // tombol hanya muncul sesuai status
-                          if (str_contains($status, "PENDING")):
+                          // kalau status pending atau qty_tidak_sesuai → dua tombol
+                          if ($status === "PENDING" || $status === "QTY_TIDAK_SESUAI"):
                           ?>
                             <!-- Approve -->
                             <form method="post" style="display:inline;" onsubmit="return confirm('Yakin ingin approve transaksi ini?');">
@@ -452,6 +452,7 @@ $result_transaksi = $stmt->get_result();
                               </button>
                             </form>
                           <?php endif; ?>
+
                         </td>
 
                       </tr>

@@ -181,7 +181,7 @@ $result_transaksi = $stmt->get_result();
 
     <div class="pagetitle text-black" style="background-color: #f0e6d2; padding: 10px 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
       <h1 style="font-size: 1.8rem; font-weight: 700; font-family: 'Roboto', sans-serif;">
-        QR Code
+        QR Code Transaction
       </h1>
     </div>
 

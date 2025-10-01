@@ -182,7 +182,7 @@ $result_transaksi = $stmt->get_result();
                 ?>
                 <?php if ($row): ?>
                   <div class="alert alert-info mt-3">
-                    <h6>Detail Transaksi</h6>
+                    <h6>Detail Transaksi Scan In Warehouse:</h6>
                     <ul class="mb-0">
                       <li><strong>Job Order:</strong> <?= htmlspecialchars($row['job_order']); ?></li>
                       <li><strong>PO Code:</strong> <?= htmlspecialchars($row['po_code']); ?></li>
@@ -196,6 +196,39 @@ $result_transaksi = $stmt->get_result();
                         echo is_array($lots) ? implode(", ", $lots) : htmlspecialchars($row['lot']);
                         ?>
                       </li>
+                      <li><strong>Komponen Sebelum Proses & Qty:</strong></li>
+                      <ul>
+                        <?php
+                        $qty_data = json_decode($row['komponen_qty'], true);
+                        if (is_array($qty_data)) {
+                          foreach ($qty_data as $index => $item) {
+                            $id_komponen = $item['komponen'];
+                            $qty_val = $item['qty'];
+
+                            // ambil nama komponen dari tbl_komponen
+                            $stmt_kmp = $conn->prepare("SELECT nama_komponen FROM tbl_komponen WHERE id_komponen=?");
+                            $stmt_kmp->bind_param("i", $id_komponen);
+                            $stmt_kmp->execute();
+                            $res_kmp = $stmt_kmp->get_result();
+                            $komponen_row = $res_kmp->fetch_assoc();
+                            $nama_komponen = $komponen_row['nama_komponen'] ?? "Komponen #$id_komponen";
+                        ?>
+                            <li class="mb-2">
+                              <label><strong><?= htmlspecialchars($nama_komponen); ?></strong></label>
+                              <div class="input-group">
+                                <input type="number"
+                                  name="qty[<?= $id_komponen; ?>]"
+                                  class="form-control qty-field"
+                                  value="<?= htmlspecialchars($qty_val); ?>"
+                                  readonly>
+                              </div>
+                            </li>
+                        <?php
+                          }
+                        }
+                        ?>
+                      </ul>
+
                       <li><strong>Type Scan:</strong> <?= htmlspecialchars($row['type_scan']); ?></li>
                       <li><strong>Scan At:</strong> <?= htmlspecialchars($row['scan_at']); ?></li>
                       <li><strong>Scan With:</strong> <?= htmlspecialchars($row['scan_with']); ?></li>

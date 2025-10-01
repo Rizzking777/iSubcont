@@ -2,7 +2,7 @@
 // menghubungkan php dengan koneksi database
 require_once __DIR__ . '/../config/function.php';
 require_once __DIR__ . '/../config/auth.php';
-checkAuth('scan_out_vendor'); // cek apakah sudah login dan punya akses ke menu ini
+checkAuth('scan_in_incoming'); // cek apakah sudah login dan punya akses ke menu ini
 
 $nik = $_SESSION['nik_user'];
 $username = $_SESSION['username'];
@@ -141,7 +141,7 @@ $result_transaksi = $stmt->get_result();
 
   <!-- Header -->
   <?php
-  $page = 'scan_out_vendor';
+  $page = 'scan_in_incoming';
   include_once __DIR__ . '/../includes/header.php';
   ?>
   <!-- End Header -->
@@ -150,7 +150,7 @@ $result_transaksi = $stmt->get_result();
 
     <div class="pagetitle text-black" style="background-color: #f0e6d2; padding: 10px 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
       <h1 style="font-size: 1.8rem; font-weight: 700; font-family: 'Roboto', sans-serif;">
-        Scan-Out Vendor
+        Scan-In Warehouse (Incoming From Vendor)
       </h1>
     </div>
 
@@ -187,7 +187,7 @@ $result_transaksi = $stmt->get_result();
                   if ($row):
               ?>
                     <div class="alert alert-info mt-3">
-                      <h6>Detail Transaksi Scan Out Vendor:</h6>
+                      <h6>Detail Transaksi Scan In Incoming:</h6>
                       <form action="./../config/function.php" method="post" id="confirmForm">
                         <input type="hidden" name="barcode" value="<?= htmlspecialchars($row['barcode']); ?>">
 
@@ -317,10 +317,10 @@ $result_transaksi = $stmt->get_result();
                         </ul>
 
                         <!-- Tombol aksi -->
-                        <button type="submit" name="confirm-out-vendor" class="btn btn-success">
+                        <button type="submit" name="confirm-in-incoming" class="btn btn-success">
                           <i class="bi bi-check-circle"></i> Confirm
                         </button>
-                        <button type="submit" name="pending-out-vendor" class="btn btn-warning">
+                        <button type="submit" name="pending-in-incoming" class="btn btn-warning">
                           <i class="bi bi-check-circle"></i> Confirm (Qty Tidak Sesuai)
                         </button>
                       </form>
@@ -443,8 +443,8 @@ $result_transaksi = $stmt->get_result();
   </script>
 
   <script>
-    const confirmBtn = document.querySelector("button[name='confirm-out-vendor']");
-    const pendingBtn = document.querySelector("button[name='pending-out-vendor']");
+    const confirmBtn = document.querySelector("button[name='confirm-in-incoming']");
+    const pendingBtn = document.querySelector("button[name='pending-in-incoming']");
     const ketWrap = document.getElementById("keterangan-wrap");
 
     // simpan nilai awal qty
