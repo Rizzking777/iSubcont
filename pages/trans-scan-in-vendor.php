@@ -205,14 +205,15 @@ $result_transaksi = $stmt->get_result();
                             ?>
                           </li>
 
-                          <li><strong>Komponen Sebelum Proses & Qty:</strong></li>
+                          <li><strong>Komponen Sebelum Proses, Size & Qty:</strong></li>
                           <ul>
                             <?php
                             $qty_data = json_decode($row['komponen_qty'], true);
                             if (is_array($qty_data)) {
                               foreach ($qty_data as $index => $item) {
                                 $id_komponen = $item['komponen'];
-                                $qty_val = $item['qty'];
+                                $qty_val     = $item['qty'];
+                                $size_val    = $item['size']; // 🔑 ambil size
 
                                 // ambil nama komponen dari tbl_komponen
                                 $stmt_kmp = $conn->prepare("SELECT nama_komponen FROM tbl_komponen WHERE id_komponen=?");
@@ -222,11 +223,15 @@ $result_transaksi = $stmt->get_result();
                                 $komponen_row = $res_kmp->fetch_assoc();
                                 $nama_komponen = $komponen_row['nama_komponen'] ?? "Komponen #$id_komponen";
                             ?>
+
                                 <li class="mb-2">
-                                  <label><strong><?= htmlspecialchars($nama_komponen); ?></strong></label>
+                                  <!-- Nama komponen + size -->
+                                  <label>
+                                    <strong><?= htmlspecialchars($nama_komponen); ?> <?= htmlspecialchars($size_val); ?></strong>
+                                  </label>
                                   <div class="input-group">
                                     <input type="number"
-                                      name="qty[<?= $id_komponen; ?>]"
+                                      name="qty[<?= $id_komponen; ?>][<?= $size_val; ?>]"
                                       class="form-control qty-field"
                                       value="<?= htmlspecialchars($qty_val); ?>"
                                       readonly>
@@ -374,68 +379,68 @@ $result_transaksi = $stmt->get_result();
   </script>
 
   <script>
-  const confirmBtn = document.querySelector("button[name='confirm-in-vendor']");
-  const pendingBtn = document.querySelector("button[name='pending-in-vendor']");
-  const ketWrap = document.getElementById("keterangan-wrap");
+    const confirmBtn = document.querySelector("button[name='confirm-in-vendor']");
+    const pendingBtn = document.querySelector("button[name='pending-in-vendor']");
+    const ketWrap = document.getElementById("keterangan-wrap");
 
-  // simpan nilai awal qty
-  const initialQty = {};
-  document.querySelectorAll(".qty-field").forEach(input => {
-    initialQty[input.name] = input.value;
-  });
+    // simpan nilai awal qty
+    const initialQty = {};
+    document.querySelectorAll(".qty-field").forEach(input => {
+      initialQty[input.name] = input.value;
+    });
 
-  // awalnya sembunyikan Not Approve
-  pendingBtn.style.display = "none";
+    // awalnya sembunyikan Not Approve
+    pendingBtn.style.display = "none";
 
-  document.querySelectorAll(".btn-tidak-sesuai").forEach(btn => {
-    btn.addEventListener("click", function() {
-      const input = this.previousElementSibling;
+    document.querySelectorAll(".btn-tidak-sesuai").forEach(btn => {
+      btn.addEventListener("click", function() {
+        const input = this.previousElementSibling;
 
-      // toggle readonly
-      if (input.hasAttribute("readonly")) {
-        // klik Tidak Sesuai
-        input.removeAttribute("readonly");
-        input.focus();
-        this.classList.remove("btn-danger");
-        this.classList.add("btn-secondary");
-        this.textContent = "Batal";
+        // toggle readonly
+        if (input.hasAttribute("readonly")) {
+          // klik Tidak Sesuai
+          input.removeAttribute("readonly");
+          input.focus();
+          this.classList.remove("btn-danger");
+          this.classList.add("btn-secondary");
+          this.textContent = "Batal";
 
-        // tampilkan keterangan
-        ketWrap.classList.remove("d-none");
+          // tampilkan keterangan
+          ketWrap.classList.remove("d-none");
 
-        // ganti tombol Confirm ke Not Approve
-        confirmBtn.style.display = "none";
-        pendingBtn.style.display = "inline-block";
+          // ganti tombol Confirm ke Not Approve
+          confirmBtn.style.display = "none";
+          pendingBtn.style.display = "inline-block";
 
-      } else {
-        // klik Batal → reset qty
-        input.setAttribute("readonly", true);
-        input.value = initialQty[input.name]; // reset ke nilai awal
-        this.classList.remove("btn-secondary");
-        this.classList.add("btn-danger");
-        this.textContent = "Tidak Sesuai";
+        } else {
+          // klik Batal → reset qty
+          input.setAttribute("readonly", true);
+          input.value = initialQty[input.name]; // reset ke nilai awal
+          this.classList.remove("btn-secondary");
+          this.classList.add("btn-danger");
+          this.textContent = "Tidak Sesuai";
 
-        // cek kalau semua qty readonly lagi
-        const anyNotReadOnly = document.querySelectorAll(".qty-field:not([readonly])").length > 0;
-        if (!anyNotReadOnly) {
-          ketWrap.classList.add("d-none");
-          // tombol kembali ke Confirm
-          confirmBtn.style.display = "inline-block";
-          pendingBtn.style.display = "none";
+          // cek kalau semua qty readonly lagi
+          const anyNotReadOnly = document.querySelectorAll(".qty-field:not([readonly])").length > 0;
+          if (!anyNotReadOnly) {
+            ketWrap.classList.add("d-none");
+            // tombol kembali ke Confirm
+            confirmBtn.style.display = "inline-block";
+            pendingBtn.style.display = "none";
+          }
         }
+      });
+    });
+
+    // validasi keterangan saat klik Not Approve
+    pendingBtn.addEventListener("click", function(e) {
+      const ket = document.querySelector("textarea[name='keterangan']");
+      if (ket.value.trim() === "") {
+        alert("Harap isi keterangan jika ada quantity yang tidak sesuai.");
+        e.preventDefault();
       }
     });
-  });
-
-  // validasi keterangan saat klik Not Approve
-  pendingBtn.addEventListener("click", function(e) {
-    const ket = document.querySelector("textarea[name='keterangan']");
-    if (ket.value.trim() === "") {
-      alert("Harap isi keterangan jika ada quantity yang tidak sesuai.");
-      e.preventDefault();
-    }
-  });
-</script>
+  </script>
 
 </body>
 

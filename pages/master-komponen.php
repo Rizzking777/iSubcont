@@ -14,11 +14,20 @@ $sql = "
     MAX(k.model) AS model,
     MAX(k.style) AS style,
     GROUP_CONCAT(DISTINCT k_in.nama_komponen ORDER BY k_in.nama_komponen SEPARATOR ', ') AS input_komponen,
-    k_out.nama_komponen AS output_komponen
+    GROUP_CONCAT(DISTINCT vp.id_vendor ORDER BY v.name_vendor SEPARATOR ',') AS vendor_ids,
+    k_out.nama_komponen AS output_komponen,
+    GROUP_CONCAT(DISTINCT v.name_vendor ORDER BY v.name_vendor SEPARATOR ', ') AS vendors
 FROM tbl_komponen_proses p
-JOIN tbl_komponen k_in ON p.id_input = k_in.id_komponen
-JOIN tbl_komponen k_out ON p.id_output = k_out.id_komponen
-JOIN tbl_komponen k ON k.id_komponen = p.id_output
+JOIN tbl_komponen k_in 
+      ON p.id_input = k_in.id_komponen
+JOIN tbl_komponen k_out 
+      ON p.id_output = k_out.id_komponen
+JOIN tbl_komponen k 
+      ON k.id_komponen = p.id_output
+LEFT JOIN tbl_vendor_proses vp 
+      ON vp.id_proses = p.id_proses         -- ✅ join sesuai struktur
+LEFT JOIN tbl_vendor v 
+      ON v.id_vendor = vp.id_vendor
 WHERE k_in.is_deleted = 0 
   AND k_out.is_deleted = 0
 GROUP BY k_out.id_komponen
@@ -50,6 +59,26 @@ $result = $conn->query($sql);
     100% {
       width: 0%;
     }
+  }
+
+  /* Samain tinggi select2 sama input bootstrap */
+  .select2-container .select2-selection--single {
+    height: calc(2.25rem + 2px) !important;
+    /* tinggi form-control Bootstrap */
+    padding: 0.375rem 0.75rem;
+    border: 1px solid #ced4da;
+    border-radius: 0.375rem;
+    display: flex;
+    align-items: center;
+  }
+
+  .select2-container--default .select2-selection--single .select2-selection__rendered {
+    line-height: 1.5 !important;
+    /* biar text center */
+  }
+
+  .select2-container--default .select2-selection--single .select2-selection__arrow {
+    height: 100% !important;
   }
 </style>
 
@@ -166,6 +195,22 @@ $result = $conn->query($sql);
                   <input type="text" name="output_komponen" class="form-control" placeholder="Nama komponen output" required>
                 </div>
 
+                <!-- Vendor -->
+                <div class="col-md-12">
+                  <label class="form-label">Vendor</label>
+                  <select name="vendor_id" id="vendorSelect" class="form-select2" required style="width:100%;">
+                    <option value="">Pilih Vendor</option>
+                    <?php
+                    $res_vendor = $conn->query("SELECT id_vendor, name_vendor FROM tbl_vendor WHERE is_deleted = 0 ORDER BY name_vendor");
+                    while ($v = $res_vendor->fetch_assoc()):
+                    ?>
+                      <option value="<?= $v['id_vendor'] ?>">
+                        <?= htmlspecialchars($v['name_vendor']) ?>
+                      </option>
+                    <?php endwhile; ?>
+                  </select>
+                </div>
+
               </div>
             </div>
 
@@ -207,6 +252,7 @@ $result = $conn->query($sql);
                       <th class="text-center">Style</th>
                       <th class="text-center">Komponen Input</th>
                       <th class="text-center">Komponen Output</th>
+                      <th class="text-center">Vendor</th>
                       <th class="text-center">Options</th>
                     </tr>
                   </thead>
@@ -220,6 +266,7 @@ $result = $conn->query($sql);
                         <td><?= htmlspecialchars($row['style']) ?></td>
                         <td><?= htmlspecialchars($row['input_komponen']) ?></td>
                         <td><?= htmlspecialchars($row['output_komponen']) ?></td>
+                        <td><?= htmlspecialchars($row['vendors']) ?></td>
                         <td>
                           <div class="dropdown">
                             <button class="btn btn-sm btn-outline-primary" type="button"
@@ -229,20 +276,20 @@ $result = $conn->query($sql);
                             </button>
                             <ul class="dropdown-menu dropdown-menu-end">
                               <li>
-                                <!-- Tombol Edit -->
                                 <a class="dropdown-item editKomponenBtn"
                                   href="#"
                                   data-bs-toggle="modal"
                                   data-bs-target="#editKomponenModal"
                                   data-id="<?= $row['id_output']; ?>"
-                                  data-model="<?= $row['model']; ?>"
-                                  data-style="<?= $row['style']; ?>"
-                                  data-input="<?= $row['input_komponen']; ?>"
-                                  data-output="<?= $row['output_komponen']; ?>">
+                                  data-model="<?= htmlspecialchars($row['model']); ?>"
+                                  data-style="<?= htmlspecialchars($row['style']); ?>"
+                                  data-input="<?= htmlspecialchars($row['input_komponen']); ?>"
+                                  data-output="<?= htmlspecialchars($row['output_komponen']); ?>"
+                                  data-vendor-id="<?= $row['vendor_ids']; ?>">
                                   <i class="bi bi-pencil me-2"></i> Edit
                                 </a>
-
-                                <!-- Tombol Remove -->
+                              </li>
+                              <li>
                                 <form action="./../config/function.php" method="post"
                                   onsubmit="return confirm('Yakin ingin hapus komponen ini?');">
                                   <input type="hidden" name="id_output" value="<?= htmlspecialchars($row['id_output']); ?>">
@@ -252,6 +299,7 @@ $result = $conn->query($sql);
                                 </form>
                               </li>
                             </ul>
+
                           </div>
                         </td>
                       </tr>
@@ -269,7 +317,7 @@ $result = $conn->query($sql);
       </div>
     </section>
 
-    <!-- Modal Edit User -->
+    <!-- Modal Edit Komponen -->
     <div class="modal fade" id="editKomponenModal" tabindex="-1">
       <div class="modal-dialog modal-lg">
         <form action="./../config/function.php" method="POST" id="formEditKomponen">
@@ -281,28 +329,47 @@ $result = $conn->query($sql);
               </h5>
               <button type="button" class="btn-close btn-close-black" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
+            <!-- Body -->
             <div class="modal-body">
               <input type="hidden" name="id_output" id="edit_id_output">
 
               <div class="row g-3">
+                <!-- Model -->
                 <div class="col-md-6">
                   <label class="form-label">Model</label>
                   <input type="text" class="form-control" name="model" id="edit_model" readonly>
                 </div>
 
+                <!-- Style -->
                 <div class="col-md-6">
                   <label class="form-label">Style</label>
                   <input type="text" class="form-control" name="style" id="edit_style" readonly>
                 </div>
 
+                <!-- Input Komponen -->
                 <div class="col-md-12">
                   <label class="form-label">Input Komponen</label>
                   <div id="editInputWrapper"></div>
                 </div>
 
+                <!-- Output Komponen -->
                 <div class="col-md-12">
                   <label class="form-label">Output Komponen</label>
                   <input type="text" class="form-control" name="output_komponen" id="edit_output" required>
+                </div>
+
+                <!-- Vendor -->
+                <div class="col-md-12">
+                  <label class="form-label">Vendor</label>
+                  <select name="vendor_id" id="edit_vendorSelect" class="form-select2" required style="width:100%;">
+                    <option value="">Pilih Vendor</option>
+                    <?php
+                    $res_vendor = $conn->query("SELECT id_vendor, name_vendor FROM tbl_vendor WHERE is_deleted = 0 ORDER BY name_vendor");
+                    while ($v = $res_vendor->fetch_assoc()):
+                    ?>
+                      <option value="<?= $v['id_vendor']; ?>"><?= htmlspecialchars($v['name_vendor']); ?></option>
+                    <?php endwhile; ?>
+                  </select>
                 </div>
               </div>
             </div>
@@ -402,34 +469,57 @@ $result = $conn->query($sql);
   </script>
 
   <script>
-    $(document).on('click', '.editKomponenBtn', function() {
-      let id_output = $(this).data('id');
-      let model = $(this).data('model');
-      let style = $(this).data('style');
-      let output = $(this).data('output');
+    // Event klik tombol edit
+$(document).on('click', '.editKomponenBtn', function() {
+    // Ambil data dari tombol
+    let id_output = $(this).data('id');
+    let model = $(this).data('model');
+    let style = $(this).data('style');
+    let output = $(this).data('output');
+    let inputs = $(this).data('input').split(',');
+    let vendorId = $(this).data('vendor-id'); // pakai id vendor
 
-      let inputs = $(this).data('input').split(',');
+    // Set field modal
+    $('#edit_id_output').val(id_output);
+    $('#edit_model').val(model);
+    $('#edit_style').val(style);
+    $('#edit_output').val(output);
 
-      $('#edit_id_output').val(id_output);
-      $('#edit_model').val(model);
-      $('#edit_style').val(style);
-      $('#edit_output').val(output);
-
-      // generate input field sesuai jumlah input
-      $('#editInputWrapper').empty();
-      inputs.forEach(function(item) {
+    // Generate input komponen
+    $('#editInputWrapper').empty();
+    inputs.forEach(function(item) {
         $('#editInputWrapper').append(`
-      <div class="mb-2">
-        <input type="text" name="input_komponen[]" class="form-control" value="${item.trim()}">
-      </div>
-    `);
-      });
+            <div class="mb-2">
+                <input type="text" name="input_komponen[]" class="form-control" value="${item.trim()}">
+            </div>
+        `);
     });
+
+    // Set vendor
+    $('#edit_vendorSelect').val(vendorId).trigger('change'); // untuk Select2
+});
+
+// Inisialisasi Select2 saat modal tampil
+$('#editKomponenModal').on('shown.bs.modal', function () {
+    $('#edit_vendorSelect').select2({
+        dropdownParent: $('#editKomponenModal'), // penting supaya dropdown muncul di modal
+        width: '100%'
+    });
+});
+
   </script>
 
   <script>
     $(document).ready(function() {
-      // Tambah input komponen
+      // --- Inisialisasi Select2 untuk Vendor ---
+      $('#vendorSelect').select2({
+        placeholder: "Pilih vendor",
+        allowClear: true,
+        width: '100%',
+        dropdownParent: $('#modalAddKomponen') // ⬅️ ini penting biar nggak kabur keluar modal
+      });
+
+      // --- Tambah input komponen ---
       $(document).on('click', '.btnAddInput', function() {
         let html = `
         <div class="d-flex mb-2">
@@ -441,7 +531,7 @@ $result = $conn->query($sql);
         $('#inputKomponenWrapper').append(html);
       });
 
-      // Hapus input komponen
+      // --- Hapus input komponen ---
       $(document).on('click', '.btnRemoveInput', function() {
         $(this).closest('div').remove();
       });

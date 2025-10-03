@@ -205,7 +205,7 @@ $result_transaksi = $stmt->get_result();
                             ?>
                           </li>
 
-                          <li><strong>Komponen & Qty:</strong></li>
+                          <li><strong>Komponen, Size & Qty:</strong></li>
                           <ul>
                             <li>
                               <!-- Group Input -->
@@ -217,14 +217,14 @@ $result_transaksi = $stmt->get_result();
 
                                   // === Ambil log terakhir untuk SCAN_OUT_TO_VENDOR ===
                                   $stmt_log = $conn->prepare("
-                                      SELECT old_data 
-                                      FROM tlog_transaksi 
-                                      WHERE id_trans = ? 
-                                        AND action_type = 'SCAN_OUT_TO_VENDOR'
-                                        AND old_data IS NOT NULL
-                                      ORDER BY created_at DESC 
-                                      LIMIT 1
-                                  ");
+                                    SELECT old_data 
+                                    FROM tlog_transaksi 
+                                    WHERE id_trans = ? 
+                                      AND action_type = 'SCAN_OUT_TO_VENDOR'
+                                      AND old_data IS NOT NULL
+                                    ORDER BY created_at DESC 
+                                    LIMIT 1
+                                ");
                                   $stmt_log->bind_param("i", $id_trans);
                                   $stmt_log->execute();
                                   $res_log = $stmt_log->get_result();
@@ -237,11 +237,12 @@ $result_transaksi = $stmt->get_result();
                                     }
                                   }
 
-                                  // tampilkan komponen input (readonly)
+                                  // tampilkan komponen input (readonly) + size
                                   if (!empty($komponen_input)) {
                                     foreach ($komponen_input as $item) {
                                       $id_input = (int)$item['komponen'];
                                       $qty_val  = $item['qty'];
+                                      $size_val = $item['size'] ?? "-";
 
                                       // ambil nama komponen input
                                       $stmt_in = $conn->prepare("SELECT nama_komponen FROM tbl_komponen WHERE id_komponen=?");
@@ -253,7 +254,7 @@ $result_transaksi = $stmt->get_result();
                                   ?>
                                       <div class="col-md-6 mb-1">
                                         <input type="text" class="form-control"
-                                          value="<?= htmlspecialchars($nama_input) ?> (<?= $qty_val ?>)" readonly>
+                                          value="<?= htmlspecialchars($nama_input) ?>: <?= htmlspecialchars($size_val) ?> (<?= $qty_val ?>)" readonly>
                                       </div>
                                   <?php
                                     }
@@ -268,12 +269,12 @@ $result_transaksi = $stmt->get_result();
                                 <?php
                                 // ambil dari transaksi sekarang
                                 $qty_data = json_decode($row['komponen_qty'], true);
-                                $outputs = [];
 
                                 if (is_array($qty_data)) {
                                   foreach ($qty_data as $item) {
-                                    $id_out = $item['komponen'];
+                                    $id_out  = $item['komponen'];
                                     $qty_val = $item['qty'];
+                                    $size_val = $item['size'] ?? "-";
 
                                     // ambil nama output
                                     $stmt_out = $conn->prepare("SELECT nama_komponen FROM tbl_komponen WHERE id_komponen=?");
@@ -282,30 +283,24 @@ $result_transaksi = $stmt->get_result();
                                     $res_out = $stmt_out->get_result();
                                     $out_row = $res_out->fetch_assoc();
                                     $nama_output = $out_row['nama_komponen'] ?? "Komponen #$id_out";
-
-                                    $outputs[$id_out] = [
-                                      "nama" => $nama_output,
-                                      "qty"  => $qty_val
-                                    ];
+                                ?>
+                                    <div class="input-group mb-2">
+                                      <span class="input-group-text" style="min-width:180px;">
+                                        <?= htmlspecialchars($nama_output) ?>: <?= htmlspecialchars($size_val) ?>
+                                      </span>
+                                      <input type="number"
+                                        name="qty[<?= $id_out ?>][<?= htmlspecialchars($size_val) ?>]"
+                                        class="form-control qty-field"
+                                        value="<?= htmlspecialchars($qty_val) ?>"
+                                        readonly>
+                                      <button type="button" class="btn btn-danger btn-tidak-sesuai">Tidak Sesuai</button>
+                                    </div>
+                                <?php
                                   }
                                 }
-
-                                foreach ($outputs as $id_out => $out_data) { ?>
-                                  <div class="input-group mb-2">
-                                    <span class="input-group-text" style="min-width:150px;">
-                                      <?= htmlspecialchars($out_data['nama']) ?>
-                                    </span>
-                                    <input type="number"
-                                      name="qty[<?= $id_out ?>]"
-                                      class="form-control qty-field"
-                                      value="<?= htmlspecialchars($out_data['qty']) ?>"
-                                      readonly>
-                                    <button type="button" class="btn btn-danger btn-tidak-sesuai">Tidak Sesuai</button>
-                                  </div>
-                                <?php } ?>
+                                ?>
                               </div>
                             </li>
-
                           </ul>
 
                           <!-- Keterangan (hidden dulu) -->

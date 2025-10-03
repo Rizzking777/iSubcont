@@ -85,6 +85,15 @@ $result_transaksi = $stmt->get_result();
     justify-content: center;
     align-items: center;
   }
+
+  .btn-square {
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
 </style>
 
 <!DOCTYPE html>
@@ -277,36 +286,59 @@ $result_transaksi = $stmt->get_result();
                         ?>
                       </li>
 
-                      <li><strong>Komponen & Qty:</strong></li>
+                      <li><strong>Komponen, Size & Qty:</strong></li>
                       <ul>
                         <li>
                           <!-- Group Input -->
-                          <div class="mb-3">
+                          <div class="mb-2">
                             <label><strong>Komponen Sebelum Proses:</strong></label>
                             <div class="row">
                               <?php
-                              if (!empty($komponen_input) && is_array($komponen_input)) {
+                              $id_trans = $row['id_trans'];
+
+                              // === Ambil log terakhir untuk SCAN_OUT_TO_VENDOR ===
+                              $stmt_log = $conn->prepare("
+                                    SELECT old_data 
+                                    FROM tlog_transaksi 
+                                    WHERE id_trans = ? 
+                                      AND action_type = 'SCAN_OUT_TO_VENDOR'
+                                      AND old_data IS NOT NULL
+                                    ORDER BY created_at DESC 
+                                    LIMIT 1
+                                ");
+                              $stmt_log->bind_param("i", $id_trans);
+                              $stmt_log->execute();
+                              $res_log = $stmt_log->get_result();
+                              $komponen_input = [];
+
+                              if ($row_log = $res_log->fetch_assoc()) {
+                                $old_data = json_decode($row_log['old_data'], true);
+                                if (!empty($old_data['komponen_qty'])) {
+                                  $komponen_input = json_decode($old_data['komponen_qty'], true);
+                                }
+                              }
+
+                              // tampilkan komponen input (readonly) + size
+                              if (!empty($komponen_input)) {
                                 foreach ($komponen_input as $item) {
-                                  $id_in = (int)($item['komponen'] ?? 0);
-                                  $qty_in = (int)($item['qty'] ?? 0);
-                                  if ($id_in <= 0) continue;
+                                  $id_input = (int)$item['komponen'];
+                                  $qty_val  = $item['qty'];
+                                  $size_val = $item['size'] ?? "-";
 
                                   // ambil nama komponen input
-                                  $stmt_in = $conn->prepare("SELECT nama_komponen FROM tbl_komponen WHERE id_komponen = ?");
-                                  $stmt_in->bind_param("i", $id_in);
+                                  $stmt_in = $conn->prepare("SELECT nama_komponen FROM tbl_komponen WHERE id_komponen=?");
+                                  $stmt_in->bind_param("i", $id_input);
                                   $stmt_in->execute();
                                   $res_in = $stmt_in->get_result();
-                                  $r_in = $res_in->fetch_assoc();
-                                  $nama_in = $r_in['nama_komponen'] ?? "Komponen #$id_in";
-                                  $stmt_in->close();
+                                  $in_row = $res_in->fetch_assoc();
+                                  $nama_input = $in_row['nama_komponen'] ?? "Komponen #$id_input";
                               ?>
-                                  <div class="col-md-6 mb-2">
-                                    <input type="text" class="form-control" value="<?= htmlspecialchars($nama_in) ?> (<?= $qty_in ?>)" readonly>
+                                  <div class="col-md-6 mb-1">
+                                    <input type="text" class="form-control"
+                                      value="<?= htmlspecialchars($nama_input) ?>: <?= htmlspecialchars($size_val) ?> (<?= $qty_val ?>)" readonly>
                                   </div>
                               <?php
                                 }
-                              } else {
-                                echo '<div class="col-12"><em>Tidak ada data komponen input pada log SCAN_OUT_TO_VENDOR.</em></div>';
                               }
                               ?>
                             </div>
@@ -319,31 +351,66 @@ $result_transaksi = $stmt->get_result();
                             $options_defect .= '<option value="' . $d['id_defect'] . '">' . htmlspecialchars($d['defect']) . '</option>';
                           }
                           ?>
+
                           <!-- Group Output -->
                           <div class="mb-3">
                             <label><strong>Komponen Sesudah Proses:</strong></label>
-                            <div class="row">
-                              <?php if (!empty($outputs) && is_array($outputs)): ?>
-                                <?php foreach ($outputs as $id_out => $out): ?>
-                                  <div class="col-md-6 mb-2">
-                                    <input type="text" class="form-control"
-                                      value="<?= htmlspecialchars($out['nama']) ?> (<?= (int)$out['qty'] ?>)" readonly>
-                                  </div>
+                            <?php
+                            // ambil dari transaksi sekarang
+                            $qty_data = json_decode($row['komponen_qty'], true);
 
-                                  <!-- Judul & tombol defect -->
-                                  <div class="col-12 mb-2">
-                                    <label><strong>Defect:</strong></label>
-                                    <div id="defect-wrap-<?= $id_out ?>"><!-- kosong dulu, isi via JS --></div>
-                                    <button type="button" class="btn btn-warning btn-add-defect mt-2" data-komponen="<?= $id_out ?>">
-                                      <i class="bi bi-plus-circle"></i> Defect
-                                    </button>
-                                  </div>
-                                <?php endforeach; ?>
-                              <?php else: ?>
-                                <div class="col-12"><em>Tidak ada data komponen output pada transaksi ini.</em></div>
-                              <?php endif; ?>
-                            </div>
+                            if (is_array($qty_data) && !empty($qty_data)) {
+                              foreach ($qty_data as $idx => $item) {
+                                $id_out   = (int)($item['komponen'] ?? 0);
+                                $qty_val  = (int)($item['qty'] ?? 0);
+                                $size_val = $item['size'] ?? "-";
+
+                                // ambil nama komponen
+                                $stmt_out = $conn->prepare("SELECT nama_komponen FROM tbl_komponen WHERE id_komponen=?");
+                                $stmt_out->bind_param("i", $id_out);
+                                $stmt_out->execute();
+                                $res_out = $stmt_out->get_result();
+                                $out_row = $res_out->fetch_assoc();
+                                $nama_output = $out_row['nama_komponen'] ?? "Komponen #$id_out";
+                                $stmt_out->close();
+                            ?>
+
+                                <div class="input-group mb-2">
+                                  <!-- Label Komponen + Size -->
+                                  <span class="input-group-text" style="min-width:180px;">
+                                    <?= htmlspecialchars($nama_output) ?>: <?= htmlspecialchars($size_val) ?>
+                                  </span>
+
+                                  <!-- Qty -->
+                                  <input type="number"
+                                    name="qty[<?= $id_out ?>][<?= htmlspecialchars($size_val) ?>]"
+                                    class="form-control qty-field"
+                                    value="<?= htmlspecialchars($qty_val) ?>"
+                                    readonly>
+
+                                  <!-- Tombol Defect -->
+                                  <button type="button"
+                                    class="btn btn-warning btn-add-defect btn-sm d-flex align-items-center justify-content-center"
+                                    data-komponen="<?= $id_out ?>"
+                                    data-size="<?= htmlspecialchars($size_val) ?>">
+                                    <i class="bi bi-plus-circle me-1"></i> Defect
+                                  </button>
+
+                                </div>
+
+                                <!-- Container untuk defect per komponen+size -->
+                                <div id="defect-wrap-<?= $id_out ?>-<?= htmlspecialchars($size_val) ?>" class="mb-3">
+                                  <!-- nanti diisi via JS -->
+                                </div>
+
+                            <?php
+                              }
+                            } else {
+                              echo '<div><em>Tidak ada data komponen output pada transaksi ini.</em></div>';
+                            }
+                            ?>
                           </div>
+
                         </li>
                       </ul>
                     </ul>
@@ -467,26 +534,31 @@ $result_transaksi = $stmt->get_result();
   </script>
 
   <script>
-    // Template defect row
-    function createDefectRow(komponenId) {
+    // Template defect row (pakai komponenId + size)
+    function createDefectRow(komponenId, sizeVal) {
+      const safeSize = sizeVal.replace(/[^a-zA-Z0-9_-]/g, "_"); // amanin id
+
       const row = document.createElement("div");
       row.classList.add("row", "g-2", "mb-2", "align-items-center", "defect-row");
 
       row.innerHTML = `
       <div class="col-md-6">
-        <select name="defect[${komponenId}][]" 
+        <select name="defect[${komponenId}][${safeSize}][]" 
                 class="form-select defect-select" 
-                data-komponen="${komponenId}" required>
+                data-komponen="${komponenId}" 
+                data-size="${safeSize}" required>
         </select>
       </div>
       <div class="col-md-4">
-        <input type="number" name="defect_qty[${komponenId}][]" 
+        <input type="number" 
+               name="defect_qty[${komponenId}][${safeSize}][]" 
                class="form-control" min="1" step="1" placeholder="Qty" required>
       </div>
       <div class="col-md-2 d-grid">
-        <button type="button" class="btn btn-danger btn-remove-defect">
-          <i class="bi bi-trash"></i>
-        </button>
+        <button type="button" class="btn btn-danger btn-remove-defect btn-square">
+  <i class="bi bi-trash"></i>
+</button>
+
       </div>
     `;
       return row;
@@ -511,8 +583,8 @@ $result_transaksi = $stmt->get_result();
             return {
               results: data.map(function(item) {
                 return {
-                  id: item.id, // pastikan ini sama dengan PHP output
-                  text: item.text // pastikan ini sama dengan PHP output
+                  id: item.id,
+                  text: item.text
                 };
               })
             };
@@ -520,9 +592,7 @@ $result_transaksi = $stmt->get_result();
         }
       }).on('select2:open', function() {
         let searchField = $('.select2-container--open .select2-search__field');
-        if (searchField.length > 0) {
-          searchField[0].focus();
-        }
+        if (searchField.length > 0) searchField[0].focus();
       });
     }
 
@@ -530,8 +600,11 @@ $result_transaksi = $stmt->get_result();
     document.querySelectorAll(".btn-add-defect").forEach(btn => {
       btn.addEventListener("click", function() {
         const komponenId = this.dataset.komponen;
-        const wrap = document.getElementById("defect-wrap-" + komponenId);
-        const newRow = createDefectRow(komponenId);
+        const sizeVal = this.dataset.size;
+        const safeSize = sizeVal.replace(/[^a-zA-Z0-9_-]/g, "_");
+
+        const wrap = document.getElementById(`defect-wrap-${komponenId}-${safeSize}`);
+        const newRow = createDefectRow(komponenId, sizeVal);
         wrap.appendChild(newRow);
 
         // aktifkan select2 pada row baru

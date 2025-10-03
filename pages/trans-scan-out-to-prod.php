@@ -196,14 +196,34 @@ $result_transaksi = $stmt->get_result();
                         echo is_array($lots) ? implode(", ", $lots) : htmlspecialchars($row['lot']);
                         ?>
                       </li>
-                      <li><strong>Komponen Sesudah Proses & Qty:</strong></li>
+                      <li><strong>Komponen Sesudah Check QC, Size & Qty:</strong></li>
                       <ul>
                         <?php
-                        $qty_data = json_decode($row['komponen_qty'], true);
+                        $qty_data    = json_decode($row['komponen_qty'], true);
+                        $defect_data = json_decode($row['defect_qty'], true);
+
+                        // bikin map defect per komponen + size
+                        $map_defect = [];
+                        if (is_array($defect_data)) {
+                          foreach ($defect_data as $d) {
+                            $id_k   = (int)($d['komponen'] ?? 0);
+                            $size   = (string)($d['size'] ?? "-");
+                            $qty_d  = (int)($d['qty'] ?? 0);
+
+                            if (!isset($map_defect[$id_k][$size])) $map_defect[$id_k][$size] = 0;
+                            $map_defect[$id_k][$size] += $qty_d;
+                          }
+                        }
+
                         if (is_array($qty_data)) {
-                          foreach ($qty_data as $index => $item) {
-                            $id_komponen = $item['komponen'];
-                            $qty_val = $item['qty'];
+                          foreach ($qty_data as $item) {
+                            $id_komponen = (int)$item['komponen'];
+                            $qty_val     = (int)$item['qty'];
+                            $size_val    = (string)($item['size'] ?? "-");
+
+                            // cari defect untuk komponen + size ini
+                            $defect_qty  = $map_defect[$id_komponen][$size_val] ?? 0;
+                            $final_qty   = max(0, $qty_val - $defect_qty);
 
                             // ambil nama komponen dari tbl_komponen
                             $stmt_kmp = $conn->prepare("SELECT nama_komponen FROM tbl_komponen WHERE id_komponen=?");
@@ -212,14 +232,15 @@ $result_transaksi = $stmt->get_result();
                             $res_kmp = $stmt_kmp->get_result();
                             $komponen_row = $res_kmp->fetch_assoc();
                             $nama_komponen = $komponen_row['nama_komponen'] ?? "Komponen #$id_komponen";
+                            $stmt_kmp->close();
                         ?>
                             <li class="mb-2">
-                              <label><strong><?= htmlspecialchars($nama_komponen); ?></strong></label>
+                              <label><strong><?= htmlspecialchars($nama_komponen); ?>: <?= htmlspecialchars($size_val); ?></strong></label>
                               <div class="input-group">
                                 <input type="number"
-                                  name="qty[<?= $id_komponen; ?>]"
+                                  name="qty[<?= $id_komponen; ?>][<?= htmlspecialchars($size_val); ?>]"
                                   class="form-control qty-field"
-                                  value="<?= htmlspecialchars($qty_val); ?>"
+                                  value="<?= $final_qty; ?>"
                                   readonly>
                               </div>
                             </li>

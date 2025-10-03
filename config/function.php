@@ -1194,75 +1194,106 @@ if (isset($_POST['delete-vendor'])) {
 
 if (isset($_POST['submit-komponen'])) {
     date_default_timezone_set('Asia/Jakarta');
+
+    // Aktifkan mysqli error reporting supaya mudah debug
+    mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+
     $updated_by      = $_SESSION['username'];
     $model_input     = trim($_POST['model']);
     $style_input     = trim($_POST['style']);
     $input_komponen  = $_POST['input_komponen']; // array
     $output_komponen = trim($_POST['output_komponen']);
+    $vendor_id       = !empty($_POST['vendor_id']) ? (int)$_POST['vendor_id'] : null; // vendor tunggal
 
-    // Cari semua model mirip
-    $stmt = $conn->prepare("SELECT DISTINCT model FROM tbl_master_data WHERE model LIKE CONCAT('%', ?, '%')");
-    $stmt->bind_param("s", $model_input);
-    $stmt->execute();
-    $result = $stmt->get_result();
+    try {
+        // Mulai transaksi
+        $conn->begin_transaction();
 
-    if ($result->num_rows == 0) {
-        $models = [$model_input];
-    } else {
-        $models = [];
-        while ($row = $result->fetch_assoc()) {
-            $models[] = $row['model'];
+        // Cari semua model mirip
+        $stmt = $conn->prepare("SELECT DISTINCT model FROM tbl_master_data WHERE model LIKE CONCAT('%', ?, '%')");
+        $stmt->bind_param("s", $model_input);
+        $stmt->execute();
+        $result = $stmt->get_result();
+
+        if ($result->num_rows == 0) {
+            $models = [$model_input];
+        } else {
+            $models = [];
+            while ($row = $result->fetch_assoc()) {
+                $models[] = $row['model'];
+            }
         }
-    }
 
-    foreach ($models as $similar_model) {
-        // Insert output komponen sekali saja
-        $stmt_insert = $conn->prepare("
-            INSERT INTO tbl_komponen (model, style, nama_komponen, is_deleted, updated_by, timestamp) 
-            VALUES (?, ?, ?, 0, ?, NOW())
-        ");
-        $stmt_insert->bind_param("ssss", $similar_model, $style_input, $output_komponen, $updated_by);
-        $stmt_insert->execute();
-        $id_output = $stmt_insert->insert_id;
-
-        foreach ($input_komponen as $komponen_in) {
-            // Insert input komponen
-            $stmt_insert = $conn->prepare("
+        foreach ($models as $similar_model) {
+            // Insert output komponen sekali saja
+            $stmt_insert_output = $conn->prepare("
                 INSERT INTO tbl_komponen (model, style, nama_komponen, is_deleted, updated_by, timestamp) 
                 VALUES (?, ?, ?, 0, ?, NOW())
             ");
-            $stmt_insert->bind_param("ssss", $similar_model, $style_input, $komponen_in, $updated_by);
-            $stmt_insert->execute();
-            $id_input = $stmt_insert->insert_id;
+            $stmt_insert_output->bind_param("ssss", $similar_model, $style_input, $output_komponen, $updated_by);
+            $stmt_insert_output->execute();
+            $id_output = $stmt_insert_output->insert_id;
 
-            // Relasi input -> output
-            $stmt_rel = $conn->prepare("
-                INSERT INTO tbl_komponen_proses (id_input, id_output) VALUES (?, ?)
-            ");
-            $stmt_rel->bind_param("ii", $id_input, $id_output);
-            $stmt_rel->execute();
+            foreach ($input_komponen as $komponen_in) {
+                $komponen_in = trim($komponen_in);
+                if (empty($komponen_in)) continue; // skip input kosong
 
-            // Log per input
-            $new_data = [
-                "model"   => $similar_model,
-                "style"   => $style_input,
-                "input"   => $komponen_in,
-                "output"  => $output_komponen
-            ];
-            $new_data_json = json_encode($new_data, JSON_UNESCAPED_UNICODE);
+                // Insert input komponen
+                $stmt_insert_input = $conn->prepare("
+                    INSERT INTO tbl_komponen (model, style, nama_komponen, is_deleted, updated_by, timestamp) 
+                    VALUES (?, ?, ?, 0, ?, NOW())
+                ");
+                $stmt_insert_input->bind_param("ssss", $similar_model, $style_input, $komponen_in, $updated_by);
+                $stmt_insert_input->execute();
+                $id_input = $stmt_insert_input->insert_id;
 
-            $stmt_log = $conn->prepare("
-                INSERT INTO tlog_komponen (id_komponen, updated_by, action_type, old_data, new_data, created_at, timestamp) 
-                VALUES (?, ?, 'INSERT', NULL, ?, NOW(), NOW())
-            ");
-            $stmt_log->bind_param("iss", $id_input, $updated_by, $new_data_json);
-            $stmt_log->execute();
+                // Relasi input -> output (tbl_komponen_proses)
+                $stmt_rel = $conn->prepare("
+                    INSERT INTO tbl_komponen_proses (id_input, id_output) VALUES (?, ?)
+                ");
+                $stmt_rel->bind_param("ii", $id_input, $id_output);
+                $stmt_rel->execute();
+                $id_proses = $stmt_rel->insert_id; // untuk FK ke tbl_vendor_proses
+
+                // Relasi vendor -> proses
+                if ($vendor_id) {
+                    $stmt_vendor = $conn->prepare("
+                        INSERT INTO tbl_vendor_proses (id_vendor, id_proses, created_at, updated_at) 
+                        VALUES (?, ?, NOW(), NOW())
+                    ");
+                    $stmt_vendor->bind_param("ii", $vendor_id, $id_proses);
+                    $stmt_vendor->execute();
+                }
+
+                // Log per input
+                $new_data = [
+                    "model"    => $similar_model,
+                    "style"    => $style_input,
+                    "input"    => $komponen_in,
+                    "output"   => $output_komponen,
+                    "vendor"   => $vendor_id
+                ];
+                $new_data_json = json_encode($new_data, JSON_UNESCAPED_UNICODE);
+
+                $stmt_log = $conn->prepare("
+                    INSERT INTO tlog_komponen (id_komponen, updated_by, action_type, old_data, new_data, created_at, timestamp) 
+                    VALUES (?, ?, 'INSERT', NULL, ?, NOW(), NOW())
+                ");
+                $stmt_log->bind_param("iss", $id_input, $updated_by, $new_data_json);
+                $stmt_log->execute();
+            }
         }
-    }
 
-    $_SESSION['green_notif'] = "Komponen & proses berhasil ditambahkan untuk semua model mirip.";
-    header("Location: /isubcont/pages/master-komponen.php");
-    exit;
+        // Commit transaksi jika semua berhasil
+        $conn->commit();
+
+        $_SESSION['green_notif'] = "Komponen, proses & vendor berhasil ditambahkan untuk semua model mirip.";
+        header("Location: /isubcont/pages/master-komponen.php");
+        exit;
+    } catch (Exception $e) {
+        $conn->rollback(); // rollback semua jika gagal
+        die("Gagal insert komponen: " . $e->getMessage());
+    }
 }
 
 if (isset($_POST['update-komponen'])) {
@@ -1271,17 +1302,29 @@ if (isset($_POST['update-komponen'])) {
     $style           = trim($_POST['style']);
     $input_komponen  = $_POST['input_komponen']; // array
     $output_komponen = trim($_POST['output_komponen']);
+    $vendor_id       = $_POST['vendor_id']; // single select
     $updated_by      = $_SESSION['username'];
 
+    // === Ambil id_proses dari tbl_komponen_proses ===
+    $stmt_proc = $conn->prepare("SELECT id_proses FROM tbl_komponen_proses WHERE id_output=? LIMIT 1");
+    $stmt_proc->bind_param("i", $id_output);
+    $stmt_proc->execute();
+    $res_proc = $stmt_proc->get_result()->fetch_assoc();
+    $id_proses = $res_proc['id_proses'] ?? null;
+
+    if (!$id_proses) {
+        $_SESSION['red_notif'] = "Proses terkait komponen tidak ditemukan.";
+        header("Location: /isubcont/pages/master-komponen.php");
+        exit;
+    }
+
     // === Update output komponen ===
-    // Ambil data lama
     $stmt = $conn->prepare("SELECT nama_komponen FROM tbl_komponen WHERE id_komponen=?");
     $stmt->bind_param("i", $id_output);
     $stmt->execute();
     $res_out = $stmt->get_result()->fetch_assoc();
     $old_output = $res_out['nama_komponen'];
 
-    // Update
     $stmt = $conn->prepare("UPDATE tbl_komponen 
                             SET nama_komponen=?, updated_by=?, timestamp=NOW() 
                             WHERE id_komponen=?");
@@ -1289,17 +1332,8 @@ if (isset($_POST['update-komponen'])) {
     $stmt->execute();
 
     // Log perubahan output
-    $old_data_json = json_encode([
-        "model"  => $model,
-        "style"  => $style,
-        "output" => $old_output
-    ], JSON_UNESCAPED_UNICODE);
-
-    $new_data_json = json_encode([
-        "model"  => $model,
-        "style"  => $style,
-        "output" => $output_komponen
-    ], JSON_UNESCAPED_UNICODE);
+    $old_data_json = json_encode(["model" => $model, "style" => $style, "output" => $old_output], JSON_UNESCAPED_UNICODE);
+    $new_data_json = json_encode(["model" => $model, "style" => $style, "output" => $output_komponen], JSON_UNESCAPED_UNICODE);
 
     $stmt_log = $conn->prepare("INSERT INTO tlog_komponen 
         (id_komponen, updated_by, action_type, old_data, new_data, created_at, timestamp) 
@@ -1315,7 +1349,7 @@ if (isset($_POST['update-komponen'])) {
 
     $i = 0;
     while ($row = $res->fetch_assoc()) {
-        if (!isset($input_komponen[$i])) continue; // jaga-jaga
+        if (!isset($input_komponen[$i])) continue;
         $id_input = $row['id_input'];
         $new_name = trim($input_komponen[$i]);
 
@@ -1323,8 +1357,7 @@ if (isset($_POST['update-komponen'])) {
         $stmt_old = $conn->prepare("SELECT nama_komponen FROM tbl_komponen WHERE id_komponen=?");
         $stmt_old->bind_param("i", $id_input);
         $stmt_old->execute();
-        $old = $stmt_old->get_result()->fetch_assoc();
-        $old_input = $old['nama_komponen'];
+        $old_input = $stmt_old->get_result()->fetch_assoc()['nama_komponen'] ?? '';
 
         // Update input komponen
         $stmt_upd = $conn->prepare("UPDATE tbl_komponen 
@@ -1334,17 +1367,8 @@ if (isset($_POST['update-komponen'])) {
         $stmt_upd->execute();
 
         // Log perubahan input
-        $old_data_json = json_encode([
-            "model" => $model,
-            "style" => $style,
-            "input" => $old_input
-        ], JSON_UNESCAPED_UNICODE);
-
-        $new_data_json = json_encode([
-            "model" => $model,
-            "style" => $style,
-            "input" => $new_name
-        ], JSON_UNESCAPED_UNICODE);
+        $old_data_json = json_encode(["model" => $model, "style" => $style, "input" => $old_input], JSON_UNESCAPED_UNICODE);
+        $new_data_json = json_encode(["model" => $model, "style" => $style, "input" => $new_name], JSON_UNESCAPED_UNICODE);
 
         $stmt_log = $conn->prepare("INSERT INTO tlog_komponen 
             (id_komponen, updated_by, action_type, old_data, new_data, created_at, timestamp) 
@@ -1355,6 +1379,36 @@ if (isset($_POST['update-komponen'])) {
         $i++;
     }
 
+    // === Update vendor di tbl_vendor_proses ===
+    // Hapus vendor lama terkait id_proses
+    $stmt = $conn->prepare("DELETE FROM tbl_vendor_proses WHERE id_proses=?");
+    $stmt->bind_param("i", $id_proses);
+    $stmt->execute();
+
+    // Insert vendor baru
+    $stmt = $conn->prepare("INSERT INTO tbl_vendor_proses (id_proses, id_vendor) VALUES (?, ?)");
+    $stmt->bind_param("ii", $id_proses, $vendor_id);
+    $stmt->execute();
+
+    // Log perubahan vendor
+    $stmt_old = $conn->prepare("SELECT v.name_vendor 
+                                FROM tbl_vendor v 
+                                LEFT JOIN tbl_vendor_proses vp ON vp.id_vendor = v.id_vendor 
+                                WHERE vp.id_proses = ?");
+    $stmt_old->bind_param("i", $id_proses);
+    $stmt_old->execute();
+    $old_vendor_res = $stmt_old->get_result()->fetch_assoc();
+    $old_vendor_name = $old_vendor_res['name_vendor'] ?? '';
+
+    $stmt_vlog = $conn->prepare("INSERT INTO tlog_komponen 
+        (id_komponen, updated_by, action_type, old_data, new_data, created_at, timestamp) 
+        VALUES (?, ?, 'UPDATE', ?, ?, NOW(), NOW())");
+    $old_data_json = json_encode(["vendor" => $old_vendor_name]);
+    $new_data_json = json_encode(["vendor" => $vendor_id]);
+    $stmt_vlog->bind_param("isss", $id_output, $updated_by, $old_data_json, $new_data_json);
+    $stmt_vlog->execute();
+
+    // Selesai
     $_SESSION['green_notif'] = "Komponen berhasil diupdate.";
     header("Location: /isubcont/pages/master-komponen.php");
     exit;
@@ -1364,7 +1418,7 @@ if (isset($_POST['remove-komponen'])) {
     $id_output  = $_POST['id_output']; // ambil dari form
     $updated_by = $_SESSION['username'];
 
-    // Ambil semua input + output berdasarkan id_output
+    // Ambil semua input + output + id_proses
     $stmt = $conn->prepare("
         SELECT p.id_proses, p.id_input, p.id_output, 
                k_in.nama_komponen AS input_name, 
@@ -1382,15 +1436,32 @@ if (isset($_POST['remove-komponen'])) {
 
     $inputs = [];
     $outputData = null;
+    $id_proses = null;
 
     while ($row = $result->fetch_assoc()) {
         $inputs[] = $row;
-        $outputData = $row; // output sama aja, cukup satu
+        $outputData = $row; // cukup satu untuk output
+        $id_proses = $row['id_proses']; // ambil id_proses
     }
 
-    // Fungsi bantu untuk soft delete + logging
-    function softDeleteAndLog($conn, $id_komponen, $old_data, $updated_by)
-    {
+    // Ambil vendor terkait id_proses
+    $stmt_vendor = $conn->prepare("
+        SELECT v.name_vendor 
+        FROM tbl_vendor v 
+        JOIN tbl_vendor_proses vp ON vp.id_vendor = v.id_vendor
+        WHERE vp.id_proses = ?
+    ");
+    $stmt_vendor->bind_param("i", $id_proses);
+    $stmt_vendor->execute();
+    $vendor_result = $stmt_vendor->get_result();
+    $vendor_names = [];
+    while ($v = $vendor_result->fetch_assoc()) {
+        $vendor_names[] = $v['name_vendor'];
+    }
+    $vendor_names_str = implode(", ", $vendor_names);
+
+    // Fungsi bantu untuk soft delete + logging (dengan vendor)
+    function softDeleteAndLog($conn, $id_komponen, $old_data, $updated_by, $vendor_names) {
         // Update komponen
         $stmt_del = $conn->prepare("
             UPDATE tbl_komponen 
@@ -1401,7 +1472,7 @@ if (isset($_POST['remove-komponen'])) {
         $stmt_del->execute();
 
         // Prepare new_data
-        $new_data_json = json_encode(array_merge($old_data, ['is_deleted' => 1]), JSON_UNESCAPED_UNICODE);
+        $new_data_json = json_encode(array_merge($old_data, ['is_deleted' => 1, 'vendor' => $vendor_names]), JSON_UNESCAPED_UNICODE);
 
         // Logging
         $stmt_log = $conn->prepare("
@@ -1409,7 +1480,7 @@ if (isset($_POST['remove-komponen'])) {
             (id_komponen, updated_by, action_type, old_data, new_data, created_at, timestamp) 
             VALUES (?, ?, 'REMOVE', ?, ?, NOW(), NOW())
         ");
-        $old_data_json = json_encode($old_data, JSON_UNESCAPED_UNICODE);
+        $old_data_json = json_encode(array_merge($old_data, ['vendor' => $vendor_names]), JSON_UNESCAPED_UNICODE);
         $stmt_log->bind_param("isss", $id_komponen, $updated_by, $old_data_json, $new_data_json);
         $stmt_log->execute();
     }
@@ -1421,7 +1492,7 @@ if (isset($_POST['remove-komponen'])) {
             "style" => $row['input_style'],
             "input" => $row['input_name']
         ];
-        softDeleteAndLog($conn, $row['id_input'], $old_data, $updated_by);
+        softDeleteAndLog($conn, $row['id_input'], $old_data, $updated_by, $vendor_names_str);
     }
 
     // Soft delete output
@@ -1431,7 +1502,7 @@ if (isset($_POST['remove-komponen'])) {
             "style"  => $outputData['output_style'],
             "output" => $outputData['output_name']
         ];
-        softDeleteAndLog($conn, $outputData['id_output'], $old_data, $updated_by);
+        softDeleteAndLog($conn, $outputData['id_output'], $old_data, $updated_by, $vendor_names_str);
     }
 
     $_SESSION['green_notif'] = "Komponen berhasil dihapus.";
@@ -1443,9 +1514,34 @@ if (isset($_POST['restore-komponen'])) {
     $id_output  = $_POST['id_output'];
     $updated_by = $_SESSION['username'];
 
-    // Fungsi bantu restore + logging
-    function restoreAndLog($conn, $id_komponen, $updated_by)
-    {
+    // Ambil id_proses dari tbl_komponen_proses
+    $stmt_proc = $conn->prepare("SELECT id_proses FROM tbl_komponen_proses WHERE id_output=? LIMIT 1");
+    $stmt_proc->bind_param("i", $id_output);
+    $stmt_proc->execute();
+    $res_proc = $stmt_proc->get_result()->fetch_assoc();
+    $id_proses = $res_proc['id_proses'] ?? null;
+
+    // Ambil vendor terkait id_proses
+    $vendor_names_str = "";
+    if ($id_proses) {
+        $stmt_vendor = $conn->prepare("
+            SELECT v.name_vendor 
+            FROM tbl_vendor v 
+            JOIN tbl_vendor_proses vp ON vp.id_vendor = v.id_vendor
+            WHERE vp.id_proses = ?
+        ");
+        $stmt_vendor->bind_param("i", $id_proses);
+        $stmt_vendor->execute();
+        $vendor_result = $stmt_vendor->get_result();
+        $vendor_names = [];
+        while ($v = $vendor_result->fetch_assoc()) {
+            $vendor_names[] = $v['name_vendor'];
+        }
+        $vendor_names_str = implode(", ", $vendor_names);
+    }
+
+    // Fungsi bantu restore + logging (dengan vendor)
+    function restoreAndLog($conn, $id_komponen, $updated_by, $vendor_names) {
         // Ambil data lama sebelum restore
         $stmt_old = $conn->prepare("SELECT * FROM tbl_komponen WHERE id_komponen=?");
         $stmt_old->bind_param("i", $id_komponen);
@@ -1454,7 +1550,7 @@ if (isset($_POST['restore-komponen'])) {
 
         if (!$res_old) return; // kalau ga ada data, skip
 
-        $old_data_json = json_encode($res_old, JSON_UNESCAPED_UNICODE);
+        $old_data_json = json_encode(array_merge($res_old, ['vendor' => $vendor_names]), JSON_UNESCAPED_UNICODE);
 
         // Restore komponen
         $stmt_upd = $conn->prepare("UPDATE tbl_komponen SET is_deleted=0, updated_by=?, timestamp=NOW() WHERE id_komponen=?");
@@ -1466,7 +1562,7 @@ if (isset($_POST['restore-komponen'])) {
         $stmt_new->bind_param("i", $id_komponen);
         $stmt_new->execute();
         $res_new = $stmt_new->get_result()->fetch_assoc();
-        $new_data_json = json_encode($res_new, JSON_UNESCAPED_UNICODE);
+        $new_data_json = json_encode(array_merge($res_new, ['vendor' => $vendor_names]), JSON_UNESCAPED_UNICODE);
 
         // Logging
         $stmt_log = $conn->prepare("
@@ -1479,7 +1575,7 @@ if (isset($_POST['restore-komponen'])) {
     }
 
     // Restore output
-    restoreAndLog($conn, $id_output, $updated_by);
+    restoreAndLog($conn, $id_output, $updated_by, $vendor_names_str);
 
     // Restore semua input terkait output
     $stmt = $conn->prepare("SELECT id_input FROM tbl_komponen_proses WHERE id_output=?");
@@ -1488,7 +1584,7 @@ if (isset($_POST['restore-komponen'])) {
     $res = $stmt->get_result();
 
     while ($row = $res->fetch_assoc()) {
-        restoreAndLog($conn, $row['id_input'], $updated_by);
+        restoreAndLog($conn, $row['id_input'], $updated_by, $vendor_names_str);
     }
 
     $_SESSION['green_notif'] = "Komponen berhasil direstore.";
@@ -1500,9 +1596,34 @@ if (isset($_POST['delete-komponen'])) {
     $id_output  = $_POST['id_output'];
     $updated_by = $_SESSION['username'];
 
-    // Fungsi bantu delete permanen + logging
-    function forceDeleteAndLog($conn, $id_komponen, $updated_by, $action_type = 'DELETE')
-    {
+    // Ambil id_proses dari tbl_komponen_proses
+    $stmt_proc = $conn->prepare("SELECT id_proses FROM tbl_komponen_proses WHERE id_output=? LIMIT 1");
+    $stmt_proc->bind_param("i", $id_output);
+    $stmt_proc->execute();
+    $res_proc = $stmt_proc->get_result()->fetch_assoc();
+    $id_proses = $res_proc['id_proses'] ?? null;
+
+    // Ambil vendor terkait id_proses
+    $vendor_names_str = "";
+    if ($id_proses) {
+        $stmt_vendor = $conn->prepare("
+            SELECT v.name_vendor 
+            FROM tbl_vendor v 
+            JOIN tbl_vendor_proses vp ON vp.id_vendor = v.id_vendor
+            WHERE vp.id_proses = ?
+        ");
+        $stmt_vendor->bind_param("i", $id_proses);
+        $stmt_vendor->execute();
+        $vendor_result = $stmt_vendor->get_result();
+        $vendor_names = [];
+        while ($v = $vendor_result->fetch_assoc()) {
+            $vendor_names[] = $v['name_vendor'];
+        }
+        $vendor_names_str = implode(", ", $vendor_names);
+    }
+
+    // Fungsi bantu delete permanen + logging vendor
+    function forceDeleteAndLog($conn, $id_komponen, $updated_by, $vendor_names, $action_type = 'DELETE') {
         // Ambil data lama sebelum dihapus
         $stmt_old = $conn->prepare("SELECT * FROM tbl_komponen WHERE id_komponen=?");
         $stmt_old->bind_param("i", $id_komponen);
@@ -1510,9 +1631,9 @@ if (isset($_POST['delete-komponen'])) {
         $res_old = $stmt_old->get_result()->fetch_assoc();
 
         if ($res_old) {
-            $old_data_json = json_encode($res_old, JSON_UNESCAPED_UNICODE);
+            $old_data_json = json_encode(array_merge($res_old, ['vendor' => $vendor_names]), JSON_UNESCAPED_UNICODE);
         } else {
-            $old_data_json = '{}';
+            $old_data_json = json_encode(['vendor' => $vendor_names]);
         }
 
         // Hapus komponen
@@ -1524,7 +1645,8 @@ if (isset($_POST['delete-komponen'])) {
         $new_data = [
             'deleted_by' => $updated_by,
             'deleted_at' => date('Y-m-d H:i:s'),
-            'permanent'  => true
+            'permanent'  => true,
+            'vendor'     => $vendor_names
         ];
         $new_data_json = json_encode($new_data, JSON_UNESCAPED_UNICODE);
 
@@ -1545,11 +1667,11 @@ if (isset($_POST['delete-komponen'])) {
     $res = $stmt->get_result();
 
     while ($row = $res->fetch_assoc()) {
-        forceDeleteAndLog($conn, $row['id_input'], $updated_by, 'DELETE');
+        forceDeleteAndLog($conn, $row['id_input'], $updated_by, $vendor_names_str, 'DELETE');
     }
 
     // Delete output
-    forceDeleteAndLog($conn, $id_output, $updated_by, 'DELETE');
+    forceDeleteAndLog($conn, $id_output, $updated_by, $vendor_names_str, 'DELETE');
 
     // Delete relasi proses
     $stmt_rel = $conn->prepare("DELETE FROM tbl_komponen_proses WHERE id_output=?");
@@ -2261,17 +2383,19 @@ if (isset($_POST['submit-transaksi'])) {
     $style      = $_POST['style'];
     $ncvs       = $_POST['ncvs'];
     $lot_input  = $_POST['lot'];
+
     $komponen   = $_POST['komponen']; // array
+    $size       = $_POST['size'];     // array
     $qty        = $_POST['qty'];      // array
 
-    // === Validasi komponen & qty sama panjang ===
-    if (count($komponen) !== count($qty)) {
-        $_SESSION['red_notif'] = "Jumlah row komponen dan qty tidak konsisten.";
+    // === Validasi panjang array ===
+    if (!(count($komponen) === count($size) && count($size) === count($qty))) {
+        $_SESSION['red_notif'] = "Jumlah komponen, size, dan qty tidak konsisten.";
         header("Location: /isubcont/pages/trans-barcode.php");
         exit;
     }
 
-    // === Fungsi parsing LOT ===
+    // === Parsing LOT input ===
     function parseLotInput($input)
     {
         $lots = [];
@@ -2293,26 +2417,122 @@ if (isset($_POST['submit-transaksi'])) {
     $lots = parseLotInput($lot_input);
     $lot_json = json_encode($lots);
 
-    // === Susun komponen + qty jadi JSON ===
+    // === Validasi LOT dari master_data ===
+    $sql_valid_lot = "
+        SELECT DISTINCT lot 
+        FROM tbl_master_data 
+        WHERE job_order = ? AND bucket = ? AND po_code = ? 
+          AND po_item = ? AND model = ? AND style = ?
+    ";
+    $stmt_valid_lot = $conn->prepare($sql_valid_lot);
+    $stmt_valid_lot->bind_param("ssssss", $job_order, $bucket, $po_code, $po_item, $model, $style);
+    $stmt_valid_lot->execute();
+    $res_valid_lot = $stmt_valid_lot->get_result();
+
+    $valid_lots = [];
+    while ($row = $res_valid_lot->fetch_assoc()) {
+        $valid_lots[] = (int)$row['lot'];
+    }
+
+    foreach ($lots as $lt) {
+        if (!in_array($lt, $valid_lots, true)) {
+            $_SESSION['red_notif'] = "Lot $lt tidak valid untuk Job Order $job_order.";
+            header("Location: /isubcont/pages/trans-barcode.php");
+            exit;
+        }
+    }
+
+    // === Susun komponen + size + qty jadi JSON ===
     $komponen_qty = [];
     for ($i = 0; $i < count($komponen); $i++) {
         $komponen_qty[] = [
             'komponen' => $komponen[$i],
+            'size'     => $size[$i],
             'qty'      => (int) $qty[$i],
         ];
     }
     $komponen_qty_json = json_encode($komponen_qty);
 
+    // === Validasi Duplicate Transaksi (pakai nama komponen + size) ===
+    for ($i = 0; $i < count($komponen); $i++) {
+        $idKomponen = $komponen[$i];
+        $sz         = $size[$i];
+
+        // ambil nama komponen dari tabel master
+        $stmt_k = $conn->prepare("SELECT nama_komponen FROM tbl_komponen WHERE id_komponen = ?");
+        $stmt_k->bind_param("i", $idKomponen);
+        $stmt_k->execute();
+        $row_k = $stmt_k->get_result()->fetch_assoc();
+        $namaKomponen = $row_k['nama_komponen'] ?? "Unknown";
+
+        $sql_dup = "
+        SELECT COUNT(*) as cnt
+        FROM tbl_transaksi
+        WHERE job_order = ?
+          AND bucket = ?
+          AND po_code = ?
+          AND po_item = ?
+          AND model = ?
+          AND style = ?
+          AND lot = ?
+          AND komponen_qty LIKE ?
+    ";
+
+        $stmt_dup = $conn->prepare($sql_dup);
+        $likePattern = '%"komponen":"' . $idKomponen . '","size":"' . $sz . '"%';
+        $stmt_dup->bind_param("ssssssss", $job_order, $bucket, $po_code, $po_item, $model, $style, $lot_json, $likePattern);
+        $stmt_dup->execute();
+        $res_dup = $stmt_dup->get_result()->fetch_assoc();
+
+        if ($res_dup['cnt'] > 0) {
+            $_SESSION['red_notif'] = "Transaksi ditolak. <br>
+            Job Order: <b>$job_order</b><br>
+            Komponen: <b>$namaKomponen</b><br>
+            Size: <b>$sz</b><br>
+            Lot: <b>$lot_input</b> <br>
+            sudah pernah dibuat QR sebelumnya.";
+            header("Location: /isubcont/pages/trans-barcode.php");
+            exit;
+        }
+    }
+
     // Default field
     $type_scan = "CREATE_BARCODE";
     $status    = "PENDING";
 
-    // === Hitung total_order dari tbl_master_data ===
-    $total_order = 0;
-    foreach ($lots as $lot_value) {
-        $sql_total = "
-        SELECT SUM(qty) as total_order
+    // === Ambil total_order per size dari master_data ===
+    $placeholders = implode(",", array_fill(0, count($lots), "?"));
+    $types = str_repeat("i", count($lots));
+    $sql_total = "
+        SELECT size, SUM(qty) as total_order
         FROM tbl_master_data
+        WHERE job_order = ?
+          AND bucket = ?
+          AND po_code = ?
+          AND po_item = ?
+          AND model = ?
+          AND style = ?
+          AND lot IN ($placeholders)
+        GROUP BY size
+    ";
+
+    $stmt_total = $conn->prepare($sql_total);
+    $bind_types = "ssssss" . $types;
+    $bind_params = [$job_order, $bucket, $po_code, $po_item, $model, $style];
+    $bind_params = array_merge($bind_params, $lots);
+    $stmt_total->bind_param($bind_types, ...$bind_params);
+    $stmt_total->execute();
+    $res_total = $stmt_total->get_result();
+
+    $total_order_per_size = [];
+    while ($row = $res_total->fetch_assoc()) {
+        $total_order_per_size[$row['size']] = (int)$row['total_order'];
+    }
+
+    // === Hitung total_used per size dari transaksi sebelumnya ===
+    $sql_used = "
+        SELECT komponen_qty
+        FROM tbl_transaksi
         WHERE job_order = ?
           AND bucket = ?
           AND po_code = ?
@@ -2321,52 +2541,40 @@ if (isset($_POST['submit-transaksi'])) {
           AND style = ?
           AND lot = ?
     ";
-        $stmt_total = $conn->prepare($sql_total);
-        $stmt_total->bind_param("sssssss", $job_order, $bucket, $po_code, $po_item, $model, $style, $lot_value);
-        $stmt_total->execute();
-        $res_total = $stmt_total->get_result();
-        if ($row_total = $res_total->fetch_assoc()) {
-            $total_order += (int)($row_total['total_order'] ?? 0);
-        }
-    }
-
-    // === Hitung total input qty yang sudah ada di tbl_transaksi untuk kombinasi yang sama ===
-    $total_used = 0;
-    $sql_used = "
-    SELECT komponen_qty
-    FROM tbl_transaksi
-    WHERE job_order = ?
-      AND bucket = ?
-      AND po_code = ?
-      AND po_item = ?
-      AND model = ?
-      AND style = ?
-      AND lot = ?
-";
     $stmt_used = $conn->prepare($sql_used);
     $stmt_used->bind_param("sssssss", $job_order, $bucket, $po_code, $po_item, $model, $style, $lot_json);
     $stmt_used->execute();
     $res_used = $stmt_used->get_result();
 
+    $total_used_per_size = [];
     if ($res_used && $res_used->num_rows > 0) {
         while ($row_used = $res_used->fetch_assoc()) {
             $arr_used = json_decode($row_used['komponen_qty'], true);
             if ($arr_used && is_array($arr_used)) {
                 foreach ($arr_used as $u) {
-                    $total_used += (int)$u['qty'];
+                    $sz = $u['size'];
+                    $total_used_per_size[$sz] = ($total_used_per_size[$sz] ?? 0) + (int)$u['qty'];
                 }
             }
         }
     }
 
-    // === Hitung total qty input baru ===
-    $total_new = array_sum(array_map('intval', $qty));
+    // === Hitung total input baru per size ===
+    $new_input_per_size = [];
+    for ($i = 0; $i < count($size); $i++) {
+        $sz = $size[$i];
+        $new_input_per_size[$sz] = ($new_input_per_size[$sz] ?? 0) + (int)$qty[$i];
+    }
 
-    // === Validasi: tidak boleh lebih dari total_order ===
-    if (($total_used + $total_new) > $total_order) {
-        $_SESSION['red_notif'] = "Transaksi ditolak. Total qty ($total_used + $total_new) melebihi total order ($total_order).";
-        header("Location: /isubcont/pages/trans-barcode.php");
-        exit;
+    // === Validasi per-size ===
+    foreach ($new_input_per_size as $sz => $val) {
+        $allowed = $total_order_per_size[$sz] ?? 0;
+        $used    = $total_used_per_size[$sz] ?? 0;
+        if (($used + $val) > $allowed) {
+            $_SESSION['red_notif'] = "Transaksi ditolak. Size $sz melebihi kapasitas. (used $used + new $val > total $allowed)";
+            header("Location: /isubcont/pages/trans-barcode.php");
+            exit;
+        }
     }
 
     // === Cari hour sesuai waktu aktual ===
@@ -2383,14 +2591,13 @@ if (isset($_POST['submit-transaksi'])) {
 
     $conn->begin_transaction();
     try {
-        // === Insert transaksi (status default PENDING) ===
+        // === Insert transaksi ===
         $stmt_insert = $conn->prepare("
             INSERT INTO tbl_transaksi
             (job_order, bucket, po_code, po_item, model, style, ncvs,
              lot, komponen_qty, type_scan, created_by, date_created, status, hour)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?)
         ");
-
         $stmt_insert->bind_param(
             "sssssssssssss",
             $job_order,
@@ -2407,44 +2614,42 @@ if (isset($_POST['submit-transaksi'])) {
             $status,
             $hour
         );
-
         $stmt_insert->execute();
         $id_trans = $conn->insert_id;
 
         // === Generate barcode unik ===
         $barcode = "{$po_code}-{$po_item}-{$ncvs}-" . date('YmdHis') . "-{$id_trans}";
-
         $stmt_update = $conn->prepare("UPDATE tbl_transaksi SET barcode = ? WHERE id_trans = ?");
         $stmt_update->bind_param("si", $barcode, $id_trans);
         $stmt_update->execute();
 
-        // === Logging transaksi baru ===
+        // === Logging ===
         $new_data = [
-            'id_trans'      => $id_trans,
-            'job_order'     => $job_order,
-            'bucket'        => $bucket,
-            'po_code'       => $po_code,
-            'po_item'       => $po_item,
-            'model'         => $model,
-            'style'         => $style,
-            'ncvs'          => $ncvs,
-            'lot'           => $lots,
-            'komponen_qty'  => $komponen_qty,
-            'barcode'       => $barcode,
-            'status'        => $status,
-            'hour'          => $hour
+            'id_trans'     => $id_trans,
+            'job_order'    => $job_order,
+            'bucket'       => $bucket,
+            'po_code'      => $po_code,
+            'po_item'      => $po_item,
+            'model'        => $model,
+            'style'        => $style,
+            'ncvs'         => $ncvs,
+            'lot'          => $lots,
+            'komponen_qty' => $komponen_qty,
+            'barcode'      => $barcode,
+            'status'       => $status,
+            'hour'         => $hour
         ];
         $json_new_data = json_encode($new_data);
 
         $stmt_log = $conn->prepare("
-            INSERT INTO tlog_transaksi (id_trans, updated_by, action_type, old_data, new_data, created_at, updated_at)
+            INSERT INTO tlog_transaksi 
+            (id_trans, updated_by, action_type, old_data, new_data, created_at, updated_at)
             VALUES (?, ?, 'INSERT', NULL, ?, NOW(), NOW())
         ");
         $stmt_log->bind_param("iss", $id_trans, $created_by, $json_new_data);
         $stmt_log->execute();
 
         $conn->commit();
-
         $_SESSION['green_notif'] = "Transaksi berhasil ditambahkan (QR Code: $barcode)";
         header("Location: /isubcont/pages/trans-barcode.php");
         exit;
@@ -2745,13 +2950,20 @@ if (isset($_POST['scan-out-to-vendor'])) {
 // === Confirm In Vendor ===
 if (isset($_POST['confirm-in-vendor'])) {
     $barcode   = $_POST['barcode'] ?? null;
-    $qty_data = $_POST['qty'] ?? []; // array komponen => qty
-    $qty_json = json_encode(
-        array_map(function ($komponen, $qty) {
-            return ["komponen" => $komponen, "qty" => (int)$qty];
-        }, array_keys($qty_data), $qty_data),
-        JSON_UNESCAPED_UNICODE
-    );
+    $qty_data = $_POST['qty'] ?? []; // qty[id_komponen][size] = qty
+
+    $qty_array = [];
+    foreach ($qty_data as $id_komponen => $sizes) {
+        foreach ($sizes as $size => $qty) {
+            $qty_array[] = [
+                "komponen" => $id_komponen,
+                "size"     => $size,
+                "qty"      => (int)$qty
+            ];
+        }
+    }
+
+    $qty_json = json_encode($qty_array, JSON_UNESCAPED_UNICODE);
 
     $scan_with = $_SESSION['username'] ?? 'unknown';
 
@@ -2918,33 +3130,41 @@ if (isset($_POST['pending-in-vendor'])) {
             $old_kq = is_string($old_kq_raw) ? json_decode($old_kq_raw, true) : (is_array($old_kq_raw) ? $old_kq_raw : []);
             if (!is_array($old_kq)) $old_kq = [];
 
-            // buat map komponen lama
+            // Buat map qty lama dengan key = komponen|size
             $map_old_qty = [];
             foreach ($old_kq as $it) {
-                $map_old_qty[(int)($it['komponen'] ?? 0)] = (int)($it['qty'] ?? 0);
+                $k = (int)($it['komponen'] ?? 0) . '|' . ($it['size'] ?? '');
+                $map_old_qty[$k] = (int)($it['qty'] ?? 0);
             }
 
-            // --- Validasi: qty input tidak boleh melebihi qty lama
-            foreach ($qty_data as $komponen => $new_qty) {
-                $komponen = (int)$komponen;
-                $new_qty = (int)$new_qty;
-                $old_qty = $map_old_qty[$komponen] ?? 0;
+            // --- Validasi: qty input tidak boleh melebihi qty lama per komponen+size
+            foreach ($qty_data as $id_komponen => $sizes) {
+                foreach ($sizes as $size => $new_qty) {
+                    $key = (int)$id_komponen . '|' . $size;
+                    $old_qty = $map_old_qty[$key] ?? 0;
+                    $new_qty = (int)$new_qty;
 
-                if ($new_qty > $old_qty) {
-                    $conn->rollback();
-                    $_SESSION['red_notif'] = "Qty komponen melebihi jumlah aslinya ($old_qty).";
-                    header("Location: /isubcont/pages/trans-scan-in-vendor.php");
-                    exit;
+                    if ($new_qty > $old_qty) {
+                        $conn->rollback();
+                        $_SESSION['red_notif'] = "Qty (size $size) melebihi jumlah aslinya ($old_qty).";
+                        header("Location: /isubcont/pages/trans-scan-in-vendor.php");
+                        exit;
+                    }
                 }
             }
 
-            // --- Build JSON untuk simpan
-            $qty_json = json_encode(
-                array_map(function ($komponen, $qty) {
-                    return ["komponen" => (int)$komponen, "qty" => (int)$qty];
-                }, array_keys($qty_data), $qty_data),
-                JSON_UNESCAPED_UNICODE
-            );
+            // --- Build JSON untuk simpan (dengan komponen + size + qty)
+            $qty_array = [];
+            foreach ($qty_data as $id_komponen => $sizes) {
+                foreach ($sizes as $size => $qty) {
+                    $qty_array[] = [
+                        "komponen" => (int)$id_komponen,
+                        "size"     => $size,
+                        "qty"      => (int)$qty
+                    ];
+                }
+            }
+            $qty_json = json_encode($qty_array, JSON_UNESCAPED_UNICODE);
 
             // --- Cari hour sesuai waktu aktual
             $stmt_hour = $conn->prepare("
@@ -3013,12 +3233,18 @@ if (isset($_POST['pending-in-vendor'])) {
 if (isset($_POST['confirm-out-vendor'])) {
     $barcode   = $_POST['barcode'] ?? null;
     $qty_data = $_POST['qty'] ?? []; // array komponen => qty
-    $qty_json = json_encode(
-        array_map(function ($komponen, $qty) {
-            return ["komponen" => $komponen, "qty" => (int)$qty];
-        }, array_keys($qty_data), $qty_data),
-        JSON_UNESCAPED_UNICODE
-    );
+    $qty_array = [];
+    foreach ($qty_data as $id_komponen => $sizes) {
+        foreach ($sizes as $size => $qty) {
+            $qty_array[] = [
+                "komponen" => $id_komponen,
+                "size"     => $size,
+                "qty"      => (int)$qty
+            ];
+        }
+    }
+
+    $qty_json = json_encode($qty_array, JSON_UNESCAPED_UNICODE);
 
     $scan_with = $_SESSION['username'] ?? 'unknown';
 
@@ -3180,32 +3406,45 @@ if (isset($_POST['pending-out-vendor'])) {
             $old_kq = is_string($old_kq_raw) ? json_decode($old_kq_raw, true) : (is_array($old_kq_raw) ? $old_kq_raw : []);
             if (!is_array($old_kq)) $old_kq = [];
 
+            // buat map lama [komponen][size] => qty
             $map_old_qty = [];
             foreach ($old_kq as $it) {
-                $map_old_qty[(int)($it['komponen'] ?? 0)] = (int)($it['qty'] ?? 0);
+                $id_k   = (int)($it['komponen'] ?? 0);
+                $size   = (string)($it['size'] ?? "-");
+                $qty    = (int)($it['qty'] ?? 0);
+                $map_old_qty[$id_k][$size] = $qty;
             }
 
             // --- Validasi qty input tidak boleh melebihi qty lama
-            foreach ($qty_data as $komponen => $new_qty) {
-                $komponen = (int)$komponen;
-                $new_qty = (int)$new_qty;
-                $old_qty = $map_old_qty[$komponen] ?? 0;
+            foreach ($qty_data as $komponen => $sizes) {
+                foreach ($sizes as $size => $new_qty) {
+                    $komponen = (int)$komponen;
+                    $size     = (string)$size;
+                    $new_qty  = (int)$new_qty;
 
-                if ($new_qty > $old_qty) {
-                    $conn->rollback();
-                    $_SESSION['red_notif'] = "Qty komponen melebihi jumlah aslinya ($old_qty).";
-                    header("Location: /isubcont/pages/trans-scan-out-vendor.php");
-                    exit;
+                    $old_qty = $map_old_qty[$komponen][$size] ?? 0;
+
+                    if ($new_qty > $old_qty) {
+                        $conn->rollback();
+                        $_SESSION['red_notif'] = "Qty komponen $komponen size $size melebihi jumlah aslinya ($old_qty).";
+                        header("Location: /isubcont/pages/trans-scan-out-vendor.php");
+                        exit;
+                    }
                 }
             }
 
-            // --- Build JSON untuk simpan
-            $qty_json = json_encode(
-                array_map(function ($komponen, $qty) {
-                    return ["komponen" => (int)$komponen, "qty" => (int)$qty];
-                }, array_keys($qty_data), $qty_data),
-                JSON_UNESCAPED_UNICODE
-            );
+            // --- Build JSON untuk simpan (komponen + size + qty)
+            $new_qty_arr = [];
+            foreach ($qty_data as $komponen => $sizes) {
+                foreach ($sizes as $size => $qty) {
+                    $new_qty_arr[] = [
+                        "komponen" => (int)$komponen,
+                        "size"     => (string)$size,
+                        "qty"      => (int)$qty
+                    ];
+                }
+            }
+            $qty_json = json_encode($new_qty_arr, JSON_UNESCAPED_UNICODE);
 
             // --- Cari hour sesuai waktu aktual
             $stmt_hour = $conn->prepare("
@@ -3270,16 +3509,25 @@ if (isset($_POST['pending-out-vendor'])) {
     }
 }
 
-// === Confirm Out Vendor ===
+// === Confirm In Incoming ===
 if (isset($_POST['confirm-in-incoming'])) {
     $barcode   = $_POST['barcode'] ?? null;
-    $qty_data = $_POST['qty'] ?? []; // array komponen => qty
-    $qty_json = json_encode(
-        array_map(function ($komponen, $qty) {
-            return ["komponen" => $komponen, "qty" => (int)$qty];
-        }, array_keys($qty_data), $qty_data),
-        JSON_UNESCAPED_UNICODE
-    );
+    $qty_data  = $_POST['qty'] ?? []; // array komponen => [size => qty]
+    $qty_array = [];
+
+    // susun array qty dengan size
+    foreach ($qty_data as $id_komponen => $sizes) {
+        foreach ($sizes as $size => $qty) {
+            $qty_array[] = [
+                "komponen" => (int)$id_komponen,
+                "size"     => (string)$size,
+                "qty"      => (int)$qty
+            ];
+        }
+    }
+
+    // encode JSON untuk simpan
+    $qty_json = json_encode($qty_array, JSON_UNESCAPED_UNICODE);
 
     $scan_with = $_SESSION['username'] ?? 'unknown';
 
@@ -3390,7 +3638,7 @@ if (isset($_POST['confirm-in-incoming'])) {
 // === Pending In Incoming ===
 if (isset($_POST['pending-in-incoming'])) {
     $barcode     = $_POST['barcode'] ?? null;
-    $qty_data    = $_POST['qty'] ?? [];
+    $qty_data    = $_POST['qty'] ?? []; // array: qty[komponen][size] = qty
     $keterangan  = $_POST['keterangan'] ?? null;
     $scan_with   = $_SESSION['username'] ?? 'unknown';
 
@@ -3441,32 +3689,45 @@ if (isset($_POST['pending-in-incoming'])) {
             $old_kq = is_string($old_kq_raw) ? json_decode($old_kq_raw, true) : (is_array($old_kq_raw) ? $old_kq_raw : []);
             if (!is_array($old_kq)) $old_kq = [];
 
+            // buat map lama [komponen][size] => qty
             $map_old_qty = [];
             foreach ($old_kq as $it) {
-                $map_old_qty[(int)($it['komponen'] ?? 0)] = (int)($it['qty'] ?? 0);
+                $id_k   = (int)($it['komponen'] ?? 0);
+                $size   = (string)($it['size'] ?? "-");
+                $qty    = (int)($it['qty'] ?? 0);
+                $map_old_qty[$id_k][$size] = $qty;
             }
 
             // --- Validasi qty input tidak boleh melebihi qty lama
-            foreach ($qty_data as $komponen => $new_qty) {
-                $komponen = (int)$komponen;
-                $new_qty = (int)$new_qty;
-                $old_qty = $map_old_qty[$komponen] ?? 0;
+            foreach ($qty_data as $komponen => $sizes) {
+                foreach ($sizes as $size => $new_qty) {
+                    $komponen = (int)$komponen;
+                    $size     = (string)$size;
+                    $new_qty  = (int)$new_qty;
 
-                if ($new_qty > $old_qty) {
-                    $conn->rollback();
-                    $_SESSION['red_notif'] = "Qty komponen melebihi jumlah aslinya ($old_qty).";
-                    header("Location: /isubcont/pages/trans-scan-in-incoming.php");
-                    exit;
+                    $old_qty = $map_old_qty[$komponen][$size] ?? 0;
+
+                    if ($new_qty > $old_qty) {
+                        $conn->rollback();
+                        $_SESSION['red_notif'] = "Qty komponen $komponen (size $size) melebihi jumlah aslinya ($old_qty).";
+                        header("Location: /isubcont/pages/trans-scan-in-incoming.php");
+                        exit;
+                    }
                 }
             }
 
-            // --- Build JSON qty baru
-            $qty_json = json_encode(
-                array_map(function ($komponen, $qty) {
-                    return ["komponen" => (int)$komponen, "qty" => (int)$qty];
-                }, array_keys($qty_data), $qty_data),
-                JSON_UNESCAPED_UNICODE
-            );
+            // --- Build JSON untuk simpan (komponen + size + qty)
+            $new_qty_arr = [];
+            foreach ($qty_data as $komponen => $sizes) {
+                foreach ($sizes as $size => $qty) {
+                    $new_qty_arr[] = [
+                        "komponen" => (int)$komponen,
+                        "size"     => (string)$size,
+                        "qty"      => (int)$qty
+                    ];
+                }
+            }
+            $qty_json = json_encode($new_qty_arr, JSON_UNESCAPED_UNICODE);
 
             // --- Cari hour sesuai waktu aktual
             $stmt_hour = $conn->prepare("
@@ -3838,68 +4099,90 @@ if (isset($_POST['confirm-qc'])) {
         $hour = $hour_row['hour'] ?? null;
         $hour_int = (int)$hour;
 
-        // === Build komponen_qty final ===
+        // === Build komponen_qty final (dengan size) ===
         if (!empty($post_qty) && is_array($post_qty)) {
-            // user mengirim qty -> gunakan ini
             $komponen_arr = [];
-            foreach ($post_qty as $komponen => $q) {
-                $komponen_arr[] = ["komponen" => (int)$komponen, "qty" => (int)$q];
+            $komp_map = []; // map untuk validasi defect
+
+            foreach ($post_qty as $komponen_id => $size_list) {
+                if (!is_array($size_list)) continue;
+
+                foreach ($size_list as $size_val => $q) {
+                    $q_int = (int)$q;
+                    $komponen_arr[] = [
+                        "komponen" => (int)$komponen_id,
+                        "size"     => (string)$size_val,
+                        "qty"      => $q_int
+                    ];
+                    $komp_map[$komponen_id][$size_val] = $q_int;
+                }
             }
+
             $qty_json_final = json_encode($komponen_arr, JSON_UNESCAPED_UNICODE);
-            // juga buat map untuk validasi defect later
-            $komp_map = [];
-            foreach ($komponen_arr as $it) $komp_map[(int)$it['komponen']] = (int)$it['qty'];
         } else {
-            // tidak ada post qty -> gunakan komponen_qty lama dari DB (normalisasi)
+            // fallback pakai data lama
             $old_kq_raw = $old_data['komponen_qty'] ?? '[]';
-            if (is_string($old_kq_raw)) {
-                $decoded = json_decode($old_kq_raw, true);
-            } elseif (is_array($old_kq_raw)) {
-                $decoded = $old_kq_raw;
-            } else {
-                $decoded = [];
-            }
+            $decoded = is_string($old_kq_raw) ? json_decode($old_kq_raw, true) : (array)$old_kq_raw;
             if (!is_array($decoded)) $decoded = [];
+
             $qty_json_final = json_encode($decoded, JSON_UNESCAPED_UNICODE);
+
+            // rebuild komp_map dari data lama
             $komp_map = [];
             foreach ($decoded as $it) {
                 $komp = (int)($it['komponen'] ?? 0);
-                $komp_map[$komp] = (int)($it['qty'] ?? 0);
+                $size = (string)($it['size'] ?? "-");
+                $komp_map[$komp][$size] = (int)($it['qty'] ?? 0);
             }
         }
 
-        // === Process defect input (optional) and validate qty <= komponen qty ===
-        $defect_arr = [];
+        // === Process defect input (optional, dengan size) ===
         if (!empty($post_defect) && is_array($post_defect)) {
-            foreach ($post_defect as $komponen_id => $defect_list) {
+            $defect_arr = [];
+
+            foreach ($post_defect as $komponen_id => $size_group) {
                 $komponen_id = (int)$komponen_id;
-                $total_defect_for_komp = 0;
+                if (!is_array($size_group)) continue;
 
-                if (!is_array($defect_list)) continue;
+                foreach ($size_group as $size_val => $defect_list) {
+                    $size_val = (string)$size_val;
+                    if (!is_array($defect_list)) continue;
 
-                foreach ($defect_list as $idx => $defect_id) {
-                    $defect_id = (int)$defect_id;
-                    $qty_val = isset($post_def_qty[$komponen_id][$idx]) ? (int)$post_def_qty[$komponen_id][$idx] : 0;
-                    if ($defect_id === 0 || $qty_val <= 0) continue;
+                    $total_defect_for_size = 0;
 
-                    $total_defect_for_komp += $qty_val;
-                    // cek batas untuk komponen ini
-                    $available = $komp_map[$komponen_id] ?? 0;
-                    if ($total_defect_for_komp > $available) {
-                        $conn->rollback();
-                        $_SESSION['red_notif'] = "Qty defect untuk komponen melebihi qty aslinya ($available).";
-                        header("Location: /isubcont/pages/trans-scan-check-qc.php");
-                        exit;
+                    foreach ($defect_list as $idx => $defect_id) {
+                        $defect_id = (int)$defect_id;
+                        $qty_val   = isset($post_def_qty[$komponen_id][$size_val][$idx]) ? (int)$post_def_qty[$komponen_id][$size_val][$idx] : 0;
+                        if ($defect_id === 0 || $qty_val <= 0) continue;
+
+                        $total_defect_for_size += $qty_val;
+
+                        // validasi: defect tidak boleh > qty size ini
+                        $available = $komp_map[$komponen_id][$size_val] ?? 0;
+                        if ($total_defect_for_size > $available) {
+                            $conn->rollback();
+                            $_SESSION['red_notif'] = "Qty defect untuk komponen $komponen_id size $size_val melebihi qty aslinya ($available).";
+                            header("Location: /isubcont/pages/trans-scan-check-qc.php");
+                            exit;
+                        }
+
+                        $defect_arr[] = [
+                            "komponen" => $komponen_id,
+                            "size"     => $size_val,
+                            "defect"   => $defect_id,
+                            "qty"      => $qty_val
+                        ];
                     }
-                    $defect_arr[] = [
-                        "komponen" => $komponen_id,
-                        "defect"   => $defect_id,
-                        "qty"      => $qty_val
-                    ];
                 }
             }
+            $defect_json = json_encode($defect_arr, JSON_UNESCAPED_UNICODE);
+        } else {
+            // fallback ambil defect lama
+            $old_def_raw = $old_data['defect_qty'] ?? '[]';
+            $decoded = is_string($old_def_raw) ? json_decode($old_def_raw, true) : (array)$old_def_raw;
+            if (!is_array($decoded)) $decoded = [];
+            $defect_json = json_encode($decoded, JSON_UNESCAPED_UNICODE);
         }
-        $defect_json = json_encode($defect_arr, JSON_UNESCAPED_UNICODE);
 
         // === Update transaksi ===
         $stmt_upd = $conn->prepare("
