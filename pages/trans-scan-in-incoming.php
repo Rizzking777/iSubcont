@@ -2,7 +2,7 @@
 // menghubungkan php dengan koneksi database
 require_once __DIR__ . '/../config/function.php';
 require_once __DIR__ . '/../config/auth.php';
-checkAuth('scan_in_vendor'); // cek apakah sudah login dan punya akses ke menu ini
+checkAuth('scan_in_incoming'); // cek apakah sudah login dan punya akses ke menu ini
 
 $nik = $_SESSION['nik_user'];
 $username = $_SESSION['username'];
@@ -141,7 +141,7 @@ $result_transaksi = $stmt->get_result();
 
   <!-- Header -->
   <?php
-  $page = 'scan_in_vendor';
+  $page = 'scan_in_incoming';
   include_once __DIR__ . '/../includes/header.php';
   ?>
   <!-- End Header -->
@@ -150,7 +150,7 @@ $result_transaksi = $stmt->get_result();
 
     <div class="pagetitle text-black" style="background-color: #f0e6d2; padding: 10px 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
       <h1 style="font-size: 1.8rem; font-weight: 700; font-family: 'Roboto', sans-serif;">
-        Scan-In Vendor
+        Scan-In Warehouse (Incoming From Vendor)
       </h1>
     </div>
 
@@ -187,7 +187,7 @@ $result_transaksi = $stmt->get_result();
                   if ($row):
               ?>
                     <div class="alert alert-info mt-3">
-                      <h6>Detail Transaksi Scan In Vendor:</h6>
+                      <h6>Detail Transaksi Scan In Incoming:</h6>
                       <form action="./../config/function.php" method="post" id="confirmForm">
                         <input type="hidden" name="barcode" value="<?= htmlspecialchars($row['barcode']); ?>">
 
@@ -205,43 +205,131 @@ $result_transaksi = $stmt->get_result();
                             ?>
                           </li>
 
-                          <li><strong>Komponen Sebelum Proses, Size & Qty:</strong></li>
+                          <li><strong>Komponen, Size & Qty:</strong></li>
                           <ul>
-                            <?php
-                            $qty_data = json_decode($row['komponen_qty'], true);
-                            if (is_array($qty_data)) {
-                              foreach ($qty_data as $index => $item) {
-                                $id_komponen = $item['komponen'];
-                                $qty_val     = $item['qty'];
-                                $size_val    = $item['size']; // 🔑 ambil size
+                            <li>
+                              <!-- Group Input -->
+                              <div class="mb-2">
+                                <label><strong>Komponen Sebelum Proses:</strong></label>
+                                <div class="row">
+                                  <?php
+                                  $id_trans = $row['id_trans'];
 
-                                // ambil nama komponen dari tbl_komponen
-                                $stmt_kmp = $conn->prepare("SELECT nama_komponen FROM tbl_komponen WHERE id_komponen=?");
-                                $stmt_kmp->bind_param("i", $id_komponen);
-                                $stmt_kmp->execute();
-                                $res_kmp = $stmt_kmp->get_result();
-                                $komponen_row = $res_kmp->fetch_assoc();
-                                $nama_komponen = $komponen_row['nama_komponen'] ?? "Komponen #$id_komponen";
-                            ?>
+                                  // === Ambil log terakhir untuk SCAN_OUT_TO_VENDOR ===
+                                  $stmt_log = $conn->prepare("
+                                      SELECT old_data 
+                                      FROM tlog_transaksi 
+                                      WHERE id_trans = ? 
+                                        AND action_type = 'SCAN_OUT_TO_VENDOR'
+                                        AND old_data IS NOT NULL
+                                      ORDER BY created_at DESC 
+                                      LIMIT 1
+                                    ");
+                                  $stmt_log->bind_param("i", $id_trans);
+                                  $stmt_log->execute();
+                                  $res_log = $stmt_log->get_result();
+                                  $komponen_input = [];
 
-                                <li class="mb-2">
-                                  <!-- Nama komponen + size -->
-                                  <label>
-                                    <strong><?= htmlspecialchars($nama_komponen); ?> <?= htmlspecialchars($size_val); ?></strong>
-                                  </label>
-                                  <div class="input-group">
-                                    <input type="number"
-                                      name="qty[<?= $id_komponen; ?>][<?= $size_val; ?>]"
-                                      class="form-control qty-field"
-                                      value="<?= htmlspecialchars($qty_val); ?>"
-                                      readonly>
-                                    <button type="button" class="btn btn-danger btn-tidak-sesuai">Tidak Sesuai</button>
-                                  </div>
-                                </li>
-                            <?php
-                              }
-                            }
-                            ?>
+                                  if ($row_log = $res_log->fetch_assoc()) {
+                                    $old_data = json_decode($row_log['old_data'], true);
+                                    if (!empty($old_data['komponen_qty'])) {
+                                      $komponen_input = json_decode($old_data['komponen_qty'], true);
+                                    }
+                                  }
+
+                                  // === Ambil data kekurangan (jika ada)
+                                  $stmt_kurang = $conn->prepare("
+                                    SELECT komponen_qty 
+                                    FROM tbl_transaksi_kekurangan 
+                                    WHERE id_trans_asal = ?
+                                  ");
+                                  $stmt_kurang->bind_param("i", $id_trans);
+                                  $stmt_kurang->execute();
+                                  $res_kurang = $stmt_kurang->get_result();
+
+                                  $map_kurang = []; // [komponen|size] => qty_kurang
+                                  while ($row_kurang = $res_kurang->fetch_assoc()) {
+                                    $data_kurang = json_decode($row_kurang['komponen_qty'], true);
+                                    if (is_array($data_kurang)) {
+                                      foreach ($data_kurang as $dk) {
+                                        $key = "{$dk['komponen']}|{$dk['size']}";
+                                        $map_kurang[$key] = ($map_kurang[$key] ?? 0) + (int)($dk['kekurangan'] ?? 0);
+                                      }
+                                    }
+                                  }
+
+                                  // === Tampilkan komponen input (qty disesuaikan)
+                                  if (!empty($komponen_input)) {
+                                    foreach ($komponen_input as $item) {
+                                      $id_input = (int)$item['komponen'];
+                                      $size_val = $item['size'] ?? "-";
+                                      $qty_val  = (int)$item['qty'];
+
+                                      $key = "{$id_input}|{$size_val}";
+                                      if (isset($map_kurang[$key])) {
+                                        $qty_val -= $map_kurang[$key]; // kurangi dengan qty kekurangan
+                                        if ($qty_val < 0) $qty_val = 0; // safety
+                                      }
+
+                                      // ambil nama komponen
+                                      $stmt_in = $conn->prepare("SELECT nama_komponen FROM tbl_komponen WHERE id_komponen=?");
+                                      $stmt_in->bind_param("i", $id_input);
+                                      $stmt_in->execute();
+                                      $res_in = $stmt_in->get_result();
+                                      $in_row = $res_in->fetch_assoc();
+                                      $nama_input = $in_row['nama_komponen'] ?? "Komponen #$id_input";
+                                  ?>
+                                      <div class="col-md-6 mb-1">
+                                        <input type="text" class="form-control"
+                                          value="<?= htmlspecialchars($nama_input) ?>: <?= htmlspecialchars($size_val) ?> (<?= $qty_val ?>)" readonly>
+                                      </div>
+                                  <?php
+                                    }
+                                  } else {
+                                    echo "<div class='col-12'><em>Tidak ada data komponen.</em></div>";
+                                  }
+                                  ?>
+                                </div>
+                              </div>
+
+                              <!-- Group Output -->
+                              <div>
+                                <label><strong>Komponen Sesudah Proses:</strong> </label>
+                                <?php
+                                // ambil dari transaksi sekarang
+                                $qty_data = json_decode($row['komponen_qty'], true);
+
+                                if (is_array($qty_data)) {
+                                  foreach ($qty_data as $item) {
+                                    $id_out  = $item['komponen'];
+                                    $qty_val = $item['qty'];
+                                    $size_val = $item['size'] ?? "-";
+
+                                    // ambil nama output
+                                    $stmt_out = $conn->prepare("SELECT nama_komponen FROM tbl_komponen WHERE id_komponen=?");
+                                    $stmt_out->bind_param("i", $id_out);
+                                    $stmt_out->execute();
+                                    $res_out = $stmt_out->get_result();
+                                    $out_row = $res_out->fetch_assoc();
+                                    $nama_output = $out_row['nama_komponen'] ?? "Komponen #$id_out";
+                                ?>
+                                    <div class="input-group mb-2">
+                                      <span class="input-group-text" style="min-width:180px;">
+                                        <?= htmlspecialchars($nama_output) ?>: <?= htmlspecialchars($size_val) ?>
+                                      </span>
+                                      <input type="number"
+                                        name="qty[<?= $id_out ?>][<?= htmlspecialchars($size_val) ?>]"
+                                        class="form-control qty-field"
+                                        value="<?= htmlspecialchars($qty_val) ?>"
+                                        readonly>
+                                      <button type="button" class="btn btn-danger btn-tidak-sesuai">Tidak Sesuai</button>
+                                    </div>
+                                <?php
+                                  }
+                                }
+                                ?>
+                              </div>
+                            </li>
                           </ul>
 
                           <!-- Keterangan (hidden dulu) -->
@@ -253,10 +341,10 @@ $result_transaksi = $stmt->get_result();
                         </ul>
 
                         <!-- Tombol aksi -->
-                        <button type="submit" name="confirm-in-vendor" class="btn btn-success">
+                        <button type="submit" name="confirm-in-incoming" class="btn btn-success">
                           <i class="bi bi-check-circle"></i> Confirm
                         </button>
-                        <button type="submit" name="pending-in-vendor" class="btn btn-warning">
+                        <button type="submit" name="pending-in-incoming" class="btn btn-warning">
                           <i class="bi bi-check-circle"></i> Confirm (Qty Tidak Sesuai)
                         </button>
                       </form>
@@ -379,8 +467,8 @@ $result_transaksi = $stmt->get_result();
   </script>
 
   <script>
-    const confirmBtn = document.querySelector("button[name='confirm-in-vendor']");
-    const pendingBtn = document.querySelector("button[name='pending-in-vendor']");
+    const confirmBtn = document.querySelector("button[name='confirm-in-incoming']");
+    const pendingBtn = document.querySelector("button[name='pending-in-incoming']");
     const ketWrap = document.getElementById("keterangan-wrap");
 
     // simpan nilai awal qty
@@ -389,7 +477,7 @@ $result_transaksi = $stmt->get_result();
       initialQty[input.name] = input.value;
     });
 
-    // awalnya sembunyikan Not Approve
+    // awalnya sembunyikan Pending
     pendingBtn.style.display = "none";
 
     document.querySelectorAll(".btn-tidak-sesuai").forEach(btn => {
@@ -398,7 +486,6 @@ $result_transaksi = $stmt->get_result();
 
         // toggle readonly
         if (input.hasAttribute("readonly")) {
-          // klik Tidak Sesuai
           input.removeAttribute("readonly");
           input.focus();
           this.classList.remove("btn-danger");
@@ -408,23 +495,20 @@ $result_transaksi = $stmt->get_result();
           // tampilkan keterangan
           ketWrap.classList.remove("d-none");
 
-          // ganti tombol Confirm ke Not Approve
+          // tombol Confirm → Pending
           confirmBtn.style.display = "none";
           pendingBtn.style.display = "inline-block";
-
         } else {
-          // klik Batal → reset qty
           input.setAttribute("readonly", true);
-          input.value = initialQty[input.name]; // reset ke nilai awal
+          input.value = initialQty[input.name];
           this.classList.remove("btn-secondary");
           this.classList.add("btn-danger");
           this.textContent = "Tidak Sesuai";
 
-          // cek kalau semua qty readonly lagi
+          // cek kalau semua qty readonly
           const anyNotReadOnly = document.querySelectorAll(".qty-field:not([readonly])").length > 0;
           if (!anyNotReadOnly) {
             ketWrap.classList.add("d-none");
-            // tombol kembali ke Confirm
             confirmBtn.style.display = "inline-block";
             pendingBtn.style.display = "none";
           }
@@ -432,7 +516,7 @@ $result_transaksi = $stmt->get_result();
       });
     });
 
-    // validasi keterangan saat klik Not Approve
+    // validasi keterangan saat Pending
     pendingBtn.addEventListener("click", function(e) {
       const ket = document.querySelector("textarea[name='keterangan']");
       if (ket.value.trim() === "") {

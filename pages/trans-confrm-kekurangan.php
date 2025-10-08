@@ -2,7 +2,7 @@
 // menghubungkan php dengan koneksi database
 require_once __DIR__ . '/../config/function.php';
 require_once __DIR__ . '/../config/auth.php';
-checkAuth('scan_in_vendor'); // cek apakah sudah login dan punya akses ke menu ini
+checkAuth('konfirmasi_kekurangan'); // cek apakah sudah login dan punya akses ke menu ini
 
 $nik = $_SESSION['nik_user'];
 $username = $_SESSION['username'];
@@ -141,7 +141,7 @@ $result_transaksi = $stmt->get_result();
 
   <!-- Header -->
   <?php
-  $page = 'scan_in_vendor';
+  $page = 'konfirmasi_kekurangan';
   include_once __DIR__ . '/../includes/header.php';
   ?>
   <!-- End Header -->
@@ -150,7 +150,7 @@ $result_transaksi = $stmt->get_result();
 
     <div class="pagetitle text-black" style="background-color: #f0e6d2; padding: 10px 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
       <h1 style="font-size: 1.8rem; font-weight: 700; font-family: 'Roboto', sans-serif;">
-        Scan-In Vendor
+        Konfirmasi Kekurangan Komponen
       </h1>
     </div>
 
@@ -159,115 +159,10 @@ $result_transaksi = $stmt->get_result();
         <div class="col-lg-12">
           <div class="card">
             <div class="card-body" style="margin-top: 10px;">
-
-              <!-- Form Scan -->
-              <form method="post" id="scanForm">
-                <input type="hidden" name="scan-now" value="1"> <!-- biar $_POST['scan-now'] kebaca -->
-                <div class="row mb-3">
-                  <label for="barcode" class="col-sm-2 col-form-label">Scan QR Code</label>
-                  <div class="col-sm-10">
-                    <input type="text" name="barcode" id="barcode"
-                      class="form-control" placeholder="Scan QR Code here..." autofocus>
-                  </div>
-                </div>
-              </form>
+              
 
               <!-- Detail hasil scan -->
-              <?php
-              if (isset($_POST['scan-now'])) {
-                $barcode_scan = $_POST['barcode'] ?? null;
-
-                if ($barcode_scan) {
-                  $stmt = $conn->prepare("SELECT * FROM tbl_transaksi WHERE barcode=?");
-                  $stmt->bind_param("s", $barcode_scan);
-                  $stmt->execute();
-                  $result = $stmt->get_result();
-                  $row = $result->fetch_assoc();
-
-                  if ($row):
-              ?>
-                    <div class="alert alert-info mt-3">
-                      <h6>Detail Transaksi Scan In Vendor:</h6>
-                      <form action="./../config/function.php" method="post" id="confirmForm">
-                        <input type="hidden" name="barcode" value="<?= htmlspecialchars($row['barcode']); ?>">
-
-                        <ul class="mb-3">
-                          <li><strong>Job Order:</strong> <?= htmlspecialchars($row['job_order']); ?></li>
-                          <li><strong>PO Code:</strong> <?= htmlspecialchars($row['po_code']); ?></li>
-                          <li><strong>PO Item:</strong> <?= htmlspecialchars($row['po_item']); ?></li>
-                          <li><strong>Model:</strong> <?= htmlspecialchars($row['model']); ?></li>
-                          <li><strong>Style:</strong> <?= htmlspecialchars($row['style']); ?></li>
-                          <li><strong>NCVS:</strong> <?= htmlspecialchars($row['ncvs']); ?></li>
-                          <li><strong>Lot:</strong>
-                            <?php
-                            $lots = json_decode($row['lot'], true);
-                            echo is_array($lots) ? implode(", ", $lots) : htmlspecialchars($row['lot']);
-                            ?>
-                          </li>
-
-                          <li><strong>Komponen Sebelum Proses, Size & Qty:</strong></li>
-                          <ul>
-                            <?php
-                            $qty_data = json_decode($row['komponen_qty'], true);
-                            if (is_array($qty_data)) {
-                              foreach ($qty_data as $index => $item) {
-                                $id_komponen = $item['komponen'];
-                                $qty_val     = $item['qty'];
-                                $size_val    = $item['size']; // 🔑 ambil size
-
-                                // ambil nama komponen dari tbl_komponen
-                                $stmt_kmp = $conn->prepare("SELECT nama_komponen FROM tbl_komponen WHERE id_komponen=?");
-                                $stmt_kmp->bind_param("i", $id_komponen);
-                                $stmt_kmp->execute();
-                                $res_kmp = $stmt_kmp->get_result();
-                                $komponen_row = $res_kmp->fetch_assoc();
-                                $nama_komponen = $komponen_row['nama_komponen'] ?? "Komponen #$id_komponen";
-                            ?>
-
-                                <li class="mb-2">
-                                  <!-- Nama komponen + size -->
-                                  <label>
-                                    <strong><?= htmlspecialchars($nama_komponen); ?> <?= htmlspecialchars($size_val); ?></strong>
-                                  </label>
-                                  <div class="input-group">
-                                    <input type="number"
-                                      name="qty[<?= $id_komponen; ?>][<?= $size_val; ?>]"
-                                      class="form-control qty-field"
-                                      value="<?= htmlspecialchars($qty_val); ?>"
-                                      readonly>
-                                    <button type="button" class="btn btn-danger btn-tidak-sesuai">Tidak Sesuai</button>
-                                  </div>
-                                </li>
-                            <?php
-                              }
-                            }
-                            ?>
-                          </ul>
-
-                          <!-- Keterangan (hidden dulu) -->
-                          <li id="keterangan-wrap" class="d-none">
-                            <strong>Keterangan:</strong>
-                            <textarea name="keterangan" class="form-control mt-1"
-                              placeholder="Wajib isi keterangan jika qty tidak sesuai"></textarea>
-                          </li>
-                        </ul>
-
-                        <!-- Tombol aksi -->
-                        <button type="submit" name="confirm-in-vendor" class="btn btn-success">
-                          <i class="bi bi-check-circle"></i> Confirm
-                        </button>
-                        <button type="submit" name="pending-in-vendor" class="btn btn-warning">
-                          <i class="bi bi-check-circle"></i> Confirm (Qty Tidak Sesuai)
-                        </button>
-                      </form>
-                    </div>
-              <?php
-                  else:
-                    echo "<div class='alert alert-danger mt-3'>QR Code tidak ditemukan.</div>";
-                  endif;
-                }
-              }
-              ?>
+              
             </div>
           </div>
         </div>
@@ -366,78 +261,13 @@ $result_transaksi = $stmt->get_result();
   <script>
     const barcodeInput = document.getElementById("barcode");
     const scanForm = document.getElementById("scanForm");
-    let typingTimer;
 
+    // kalau sudah ada input dari scanner, otomatis submit
     barcodeInput.addEventListener("input", function() {
-      clearTimeout(typingTimer);
-      typingTimer = setTimeout(() => {
-        if (barcodeInput.value.trim() !== "") {
+      if (barcodeInput.value.trim() !== "") {
+        setTimeout(() => {
           scanForm.submit();
-        }
-      }, 400); // delay biar scanner selesai
-    });
-  </script>
-
-  <script>
-    const confirmBtn = document.querySelector("button[name='confirm-in-vendor']");
-    const pendingBtn = document.querySelector("button[name='pending-in-vendor']");
-    const ketWrap = document.getElementById("keterangan-wrap");
-
-    // simpan nilai awal qty
-    const initialQty = {};
-    document.querySelectorAll(".qty-field").forEach(input => {
-      initialQty[input.name] = input.value;
-    });
-
-    // awalnya sembunyikan Not Approve
-    pendingBtn.style.display = "none";
-
-    document.querySelectorAll(".btn-tidak-sesuai").forEach(btn => {
-      btn.addEventListener("click", function() {
-        const input = this.previousElementSibling;
-
-        // toggle readonly
-        if (input.hasAttribute("readonly")) {
-          // klik Tidak Sesuai
-          input.removeAttribute("readonly");
-          input.focus();
-          this.classList.remove("btn-danger");
-          this.classList.add("btn-secondary");
-          this.textContent = "Batal";
-
-          // tampilkan keterangan
-          ketWrap.classList.remove("d-none");
-
-          // ganti tombol Confirm ke Not Approve
-          confirmBtn.style.display = "none";
-          pendingBtn.style.display = "inline-block";
-
-        } else {
-          // klik Batal → reset qty
-          input.setAttribute("readonly", true);
-          input.value = initialQty[input.name]; // reset ke nilai awal
-          this.classList.remove("btn-secondary");
-          this.classList.add("btn-danger");
-          this.textContent = "Tidak Sesuai";
-
-          // cek kalau semua qty readonly lagi
-          const anyNotReadOnly = document.querySelectorAll(".qty-field:not([readonly])").length > 0;
-          if (!anyNotReadOnly) {
-            ketWrap.classList.add("d-none");
-            // tombol kembali ke Confirm
-            confirmBtn.style.display = "inline-block";
-            pendingBtn.style.display = "none";
-          }
-        }
-      });
-    });
-
-    // validasi keterangan saat klik Not Approve
-    pendingBtn.addEventListener("click", function(e) {
-      const ket = document.querySelector("textarea[name='keterangan']");
-      if (ket.value.trim() === "") {
-        alert("Harap isi keterangan jika ada quantity yang tidak sesuai.");
-        e.preventDefault();
+        }, 300); // delay dikit biar input scanner kelar
       }
     });
   </script>

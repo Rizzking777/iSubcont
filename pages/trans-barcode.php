@@ -181,7 +181,7 @@ $result_transaksi = $stmt->get_result();
 
     <div class="pagetitle text-black" style="background-color: #f0e6d2; padding: 10px 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
       <h1 style="font-size: 1.8rem; font-weight: 700; font-family: 'Roboto', sans-serif;">
-        QR Code
+        QR Code Transaction
       </h1>
     </div>
 
@@ -201,6 +201,8 @@ $result_transaksi = $stmt->get_result();
           <!-- Form -->
           <form action="./../config/function.php" method="POST">
             <div class="modal-body">
+
+              <!-- Section 1: Job Order -->
               <div class="row g-3 mb-3">
                 <div class="col-md-6">
                   <label for="job_order" class="form-label">Job Order<span class="text-danger">*</span></label>
@@ -208,7 +210,7 @@ $result_transaksi = $stmt->get_result();
                 </div>
                 <div class="col-md-6">
                   <label for="bucket" class="form-label">Bucket<span class="text-danger">*</span></label>
-                  <select id="bucket" name="bucket" class="form-control select2" required></select>
+                  <input type="text" id="bucket" name="bucket" class="form-control" readonly>
                 </div>
               </div>
 
@@ -216,11 +218,11 @@ $result_transaksi = $stmt->get_result();
               <div class="row g-3 mb-3">
                 <div class="col-md-6">
                   <label for="po_code" class="form-label">PO Code<span class="text-danger">*</span></label>
-                  <select id="po_code" name="po_code" class="form-control select2" required></select>
+                  <input type="text" id="po_code" name="po_code" class="form-control" readonly>
                 </div>
                 <div class="col-md-6">
                   <label for="po_item" class="form-label">PO Item<span class="text-danger">*</span></label>
-                  <select id="po_item" name="po_item" class="form-control select2" required></select>
+                  <input type="text" id="po_item" name="po_item" class="form-control" readonly>
                 </div>
               </div>
 
@@ -228,47 +230,66 @@ $result_transaksi = $stmt->get_result();
               <div class="row g-3 mb-3">
                 <div class="col-md-6">
                   <label for="model" class="form-label">Model<span class="text-danger">*</span></label>
-                  <select id="model" name="model" class="form-control select2" required></select>
+                  <input type="text" id="model" name="model" class="form-control" readonly>
                 </div>
                 <div class="col-md-6">
                   <label for="style" class="form-label">Style<span class="text-danger">*</span></label>
-                  <select id="style" name="style" class="form-control select2" required></select>
+                  <input type="text" id="style" name="style" class="form-control" readonly>
                 </div>
+              </div>
+
+              <div class="row g-3 mb-3">
                 <div class="col-md-6">
                   <label for="ncvs" class="form-label">NCVS<span class="text-danger">*</span></label>
-                  <select id="ncvs" name="ncvs" class="form-control select2" required></select>
+                  <input type="text" id="ncvs" name="ncvs" class="form-control" readonly>
                 </div>
                 <div class="col-md-6">
                   <label for="lot" class="form-label">Lot<span class="text-danger">*</span></label>
                   <input id="lot" name="lot" type="text" class="form-control" placeholder="contoh: 1-8,10,12">
                 </div>
-
               </div>
 
-              <!-- Section 4: Komponen -->
-              <div class="col-md-2 mt-3">
-                <button type="button" id="addKomponenBtn" class="btn btn-secondary d-flex align-items-center">
-                  <i class="bi bi-plus-circle me-1"></i>
-                  <span>Komponen</span>
+              <!-- Section 5: Komponen + Size + Qty -->
+              <div class="mb-3">
+                <button type="button" id="addKomponenBtn" class="btn btn-secondary d-flex align-items-center mb-2">
+                  <i class="bi bi-plus-circle me-1"></i> <span>Komponen</span>
                 </button>
 
-              </div>
-              <div class="row g-3 mb-3" id="komponenFields">
-                <div class="col-md-6">
-                  <label for="komponen" class="form-label">Komponen<span class="text-danger">*</span></label>
-                  <select id="komponen" name="komponen[]" class="form-control select2" required></select>
+                <div id="komponenContainer">
+                  <div class="row g-3 mb-2 komponen-row">
+                    <!-- Komponen -->
+                    <div class="col-md-4">
+                      <label class="form-label">Komponen<span class="text-danger">*</span></label>
+                      <select name="komponen[]" class="form-control select2 komponen-select" required>
+                        <option value="">Pilih Komponen</option>
+                      </select>
+                    </div>
+
+                    <!-- Size -->
+                    <div class="col-md-4">
+                      <label class="form-label">Size<span class="text-danger">*</span></label>
+                      <select name="size[]" class="form-control select2 size-select" required>
+                        <option value="">Pilih Size</option>
+                      </select>
+                    </div>
+
+                    <!-- Qty -->
+                    <div class="col-md-3">
+                      <label class="form-label">Quantity<span class="text-danger">*</span></label>
+                      <input type="number" name="qty[]" class="form-control" placeholder="Input qty" required>
+                    </div>
+
+                    <!-- Remove -->
+                    <div class="col-md-1 d-flex align-items-end">
+                      <button type="button" class="btn btn-danger btn-sm removeKomponenBtn">
+                        <i class="bi bi-trash"></i>
+                      </button>
+                    </div>
+                  </div>
                 </div>
-                <div class="col-md-6">
-                  <label for="qty" class="form-label">Quantity<span class="text-danger">*</span></label>
-                  <input type="number" id="qty" name="qty[]" class="form-control" placeholder="Input qty" required>
-                </div>
-
               </div>
 
-              <!-- Dynamic Komponen Rows -->
-              <div id="komponenContainer"></div>
-            </div>
-
+            </div> <!-- end modal-body -->
 
             <!-- Footer -->
             <div class="modal-footer">
@@ -280,7 +301,6 @@ $result_transaksi = $stmt->get_result();
               </button>
             </div>
           </form>
-
         </div>
       </div>
     </div>
@@ -369,30 +389,39 @@ $result_transaksi = $stmt->get_result();
                         $komponen_qty = json_decode($row["komponen_qty"], true);
 
                         if ($komponen_qty && is_array($komponen_qty)) {
-                          $ids = array_column($komponen_qty, 'komponen');
+                          // ambil daftar ID komponen unik
+                          $ids = array_values(array_unique(array_map(function ($i) {
+                            return (int)$i['komponen'];
+                          }, $komponen_qty)));
+                          $mapKomponen = [];
                           if (!empty($ids)) {
-                            $id_list = implode(",", array_map('intval', $ids));
-                            $sql_komp = "SELECT id_komponen, nama_komponen 
-                           FROM tbl_komponen 
-                           WHERE id_komponen IN ($id_list)";
+                            $id_list = implode(",", $ids);
+                            $sql_komp = "SELECT id_komponen, nama_komponen FROM tbl_komponen WHERE id_komponen IN ($id_list)";
                             $res_komp = $conn->query($sql_komp);
-
-                            $mapKomponen = [];
                             while ($k = $res_komp->fetch_assoc()) {
                               $mapKomponen[$k['id_komponen']] = $k['nama_komponen'];
                             }
-
-                            echo "<ul class='list-unstyled m-0'>";
-                            foreach ($komponen_qty as $kq) {
-                              $id_komp = (int)$kq['komponen'];
-                              $nama = htmlspecialchars($mapKomponen[$id_komp] ?? "Unknown");
-                              $qty_input = (int)$kq['qty'];
-                              echo "<li>$nama ($qty_input)</li>";
-                            }
-                            echo "</ul>";
-                          } else {
-                            echo "-";
                           }
+
+                          // group per komponen -> array of [size, qty]
+                          $grouped = [];
+                          foreach ($komponen_qty as $kq) {
+                            $id_komp = (int)($kq['komponen'] ?? 0);
+                            $size = isset($kq['size']) ? (string)$kq['size'] : '-';
+                            $qty = (int)($kq['qty'] ?? 0);
+                            $grouped[$id_komp][] = ['size' => $size, 'qty' => $qty];
+                          }
+
+                          echo "<ul class='list-unstyled m-0'>";
+                          foreach ($grouped as $id => $items) {
+                            $nama = htmlspecialchars($mapKomponen[$id] ?? "Unknown");
+                            $parts = [];
+                            foreach ($items as $it) {
+                              $parts[] = htmlspecialchars($it['size']) . " (" . intval($it['qty']) . ")";
+                            }
+                            echo "<li><strong>{$nama} :</strong> " . implode(", ", $parts) . "</li>";
+                          }
+                          echo "</ul>";
                         } else {
                           echo "-";
                         }
@@ -404,85 +433,136 @@ $result_transaksi = $stmt->get_result();
                         <?php
                         $total_order = 0;
                         $lots = json_decode($row["lot"], true);
+                        if (!is_array($lots)) $lots = [];
 
-                        if (is_array($lots) && count($lots) > 0) {
-                          foreach ($lots as $lot_value) {
-                            $sql_total = "
-                SELECT SUM(qty) as total_order
-                FROM tbl_master_data
-                WHERE job_order = '{$row["job_order"]}'
-                  AND bucket = '{$row["bucket"]}'
-                  AND po_code = '{$row["po_code"]}'
-                  AND po_item = '{$row["po_item"]}'
-                  AND model = '{$row["model"]}'
-                  AND style = '{$row["style"]}'
-                  AND lot = '{$lot_value}'
-              ";
-                            $res_total = $conn->query($sql_total);
-                            if ($res_total && $res_total->num_rows > 0) {
-                              $row_total = $res_total->fetch_assoc();
-                              $total_order += (int)($row_total["total_order"] ?? 0);
+                        if (!empty($lots)) {
+                          // buat list lot numeric untuk IN-clause
+                          $lot_in = implode(",", array_map('intval', $lots));
+
+                          // Ambil size-size yang user pilih (misal dari transaksi)
+                          $sizes = [];
+                          $komponen_qty = json_decode($row["komponen_qty"], true);
+                          if (is_array($komponen_qty)) {
+                            foreach ($komponen_qty as $item) {
+                              if (!empty($item['size'])) {
+                                $sizes[] = "'" . $conn->real_escape_string($item['size']) . "'";
+                              }
                             }
+                          }
+                          $size_in = !empty($sizes) ? implode(",", $sizes) : "''";
+
+                          $sql_total = "
+                            SELECT SUM(qty) as total_order
+                            FROM tbl_master_data
+                            WHERE job_order = '{$row["job_order"]}'
+                              AND bucket = '{$row["bucket"]}'
+                              AND po_code = '{$row["po_code"]}'
+                              AND po_item = '{$row["po_item"]}'
+                              AND model = '{$row["model"]}'
+                              AND style = '{$row["style"]}'
+                              AND lot IN ($lot_in)
+                              AND size IN ($size_in)
+                          ";
+
+                          $res_total = $conn->query($sql_total);
+                          if ($res_total && $res_total->num_rows > 0) {
+                            $row_total = $res_total->fetch_assoc();
+                            $total_order = (int)($row_total["total_order"] ?? 0);
                           }
                         }
                         echo $total_order;
                         ?>
                       </td>
 
-                      <!-- Kolom Remaining -->
+                      <!-- Kolom Remaining (per component per size) -->
                       <td>
                         <?php
-                        $komponen_qty = json_decode($row["komponen_qty"], true);
-                        if ($komponen_qty && is_array($komponen_qty)) {
-                          $ids = array_column($komponen_qty, 'komponen');
-                          $id_list = implode(",", array_map('intval', $ids));
-
-                          // Ambil nama komponen
-                          $mapKomponen = [];
-                          if (!empty($id_list)) {
-                            $sql_komp = "SELECT id_komponen, nama_komponen 
-                                FROM tbl_komponen 
-                                WHERE id_komponen IN ($id_list)";
-                            $res_komp = $conn->query($sql_komp);
-                            while ($k = $res_komp->fetch_assoc()) {
-                              $mapKomponen[$k['id_komponen']] = $k['nama_komponen'];
+                        // pastikan kita punya grouped (reuse dari block Komponen & Qty), kalau belum build ulang:
+                        if (!isset($grouped)) {
+                          $komponen_qty = json_decode($row["komponen_qty"], true);
+                          $grouped = [];
+                          if (is_array($komponen_qty)) {
+                            $ids_tmp = [];
+                            foreach ($komponen_qty as $kq) {
+                              $id = (int)($kq['komponen'] ?? 0);
+                              $ids_tmp[] = $id;
+                              $size = isset($kq['size']) ? (string)$kq['size'] : '-';
+                              $qty = (int)($kq['qty'] ?? 0);
+                              $grouped[$id][] = ['size' => $size, 'qty' => $qty];
+                            }
+                            if (!empty($ids_tmp)) {
+                              $id_list2 = implode(",", array_unique($ids_tmp));
+                              $mapKomponen = [];
+                              $resk = $conn->query("SELECT id_komponen,nama_komponen FROM tbl_komponen WHERE id_komponen IN ($id_list2)");
+                              while ($r = $resk->fetch_assoc()) $mapKomponen[$r['id_komponen']] = $r['nama_komponen'];
                             }
                           }
+                        }
 
-                          echo "<ul class='list-unstyled m-0'>";
-                          foreach ($komponen_qty as $kq) {
-                            $id_komp = (int)$kq['komponen'];
-                            $nama = htmlspecialchars($mapKomponen[$id_komp] ?? "Unknown");
+                        // 1) ambil total_order per size dari tbl_master_data (menggunakan lot IN (...))
+                        $total_order_per_size = [];
+                        $lots = json_decode($row["lot"], true);
+                        if (!is_array($lots)) $lots = [];
+                        if (!empty($lots)) {
+                          $lot_in = implode(",", array_map('intval', $lots));
+                          $sql_ps = "
+    SELECT size, SUM(qty) AS total_order_per_size
+    FROM tbl_master_data
+    WHERE job_order = '{$row["job_order"]}'
+      AND bucket = '{$row["bucket"]}'
+      AND po_code = '{$row["po_code"]}'
+      AND po_item = '{$row["po_item"]}'
+      AND model = '{$row["model"]}'
+      AND style = '{$row["style"]}'
+      AND lot IN ($lot_in)
+    GROUP BY size
+  ";
+                          $res_ps = $conn->query($sql_ps);
+                          while ($r = $res_ps->fetch_assoc()) {
+                            $total_order_per_size[$r['size']] = (int)$r['total_order_per_size'];
+                          }
+                        }
 
-                            // Hitung total input qty untuk komponen ini di semua transaksi
-                            $sql_used = "
-                                SELECT komponen_qty
-                                FROM tbl_transaksi
-                                WHERE job_order = '{$row["job_order"]}'
-                                  AND bucket = '{$row["bucket"]}'
-                                  AND po_code = '{$row["po_code"]}'
-                                  AND po_item = '{$row["po_item"]}'
-                                  AND model = '{$row["model"]}'
-                                  AND style = '{$row["style"]}'
-                                  AND lot = '{$row["lot"]}'
-                              ";
-                            $res_used = $conn->query($sql_used);
-                            $used_qty = 0;
-                            if ($res_used && $res_used->num_rows > 0) {
-                              while ($row_used = $res_used->fetch_assoc()) {
-                                $arr_used = json_decode($row_used["komponen_qty"], true);
-                                if ($arr_used && is_array($arr_used)) {
-                                  foreach ($arr_used as $u) {
-                                    if ((int)$u['komponen'] === $id_komp) {
-                                      $used_qty += (int)$u['qty'];
-                                    }
-                                  }
-                                }
+                        // 2) hitung total used per size dari semua transaksi (kriteria sama, lot string sama seperti kamu pakai)
+                        $used_per_size = [];
+                        $sql_used = "
+  SELECT komponen_qty
+  FROM tbl_transaksi
+  WHERE job_order = '{$row["job_order"]}'
+    AND bucket = '{$row["bucket"]}'
+    AND po_code = '{$row["po_code"]}'
+    AND po_item = '{$row["po_item"]}'
+    AND model = '{$row["model"]}'
+    AND style = '{$row["style"]}'
+    AND lot = '" . $conn->real_escape_string($row["lot"]) . "'
+";
+                        $res_used = $conn->query($sql_used);
+                        if ($res_used && $res_used->num_rows > 0) {
+                          while ($ru = $res_used->fetch_assoc()) {
+                            $arr_used = json_decode($ru['komponen_qty'], true);
+                            if (is_array($arr_used)) {
+                              foreach ($arr_used as $u) {
+                                $sz = isset($u['size']) ? (string)$u['size'] : '-';
+                                $used_per_size[$sz] = ($used_per_size[$sz] ?? 0) + (int)($u['qty'] ?? 0);
                               }
                             }
+                          }
+                        }
 
-                            $remaining = $total_order - $used_qty;
-                            echo "<li>$nama: $remaining</li>";
+                        // 3) tampilkan remaining per komponen per size (menggunakan total_order_per_size dan used_per_size)
+                        if (!empty($grouped)) {
+                          echo "<ul class='list-unstyled m-0'>";
+                          foreach ($grouped as $id => $items) {
+                            $nama = htmlspecialchars($mapKomponen[$id] ?? "Unknown");
+                            $parts = [];
+                            foreach ($items as $it) {
+                              $sz = $it['size'];
+                              $total_for_size = $total_order_per_size[$sz] ?? 0;
+                              $used_for_size = $used_per_size[$sz] ?? 0;
+                              $remaining = $total_for_size - $used_for_size;
+                              $parts[] = htmlspecialchars($sz) . ": " . intval($remaining);
+                            }
+                            echo "<li><strong>{$nama} :</strong> " . implode(", ", $parts) . "</li>";
                           }
                           echo "</ul>";
                         } else {
@@ -533,22 +613,59 @@ $result_transaksi = $stmt->get_result();
 
                                   <!-- Komponen & Qty -->
                                   <div style="margin-top:5px;">
+                                    <strong>Komponen Sebelum Proses :</strong>
                                     <?php
                                     $komponen_qty = json_decode($row["komponen_qty"], true);
                                     $ids = array_column($komponen_qty, 'komponen');
                                     $id_list = implode(",", array_map('intval', $ids));
                                     $mapKomponen = [];
+
                                     if (!empty($id_list)) {
                                       $res_komp = $conn->query("SELECT id_komponen,nama_komponen FROM tbl_komponen WHERE id_komponen IN ($id_list)");
                                       while ($k = $res_komp->fetch_assoc()) {
                                         $mapKomponen[$k['id_komponen']] = $k['nama_komponen'];
                                       }
                                     }
+
+                                    // Grouping by komponen
+                                    $grouped = [];
                                     foreach ($komponen_qty as $kq) {
                                       $id_komp = (int)$kq['komponen'];
-                                      $nama = htmlspecialchars($mapKomponen[$id_komp] ?? "Unknown");
-                                      $qty = htmlspecialchars($kq['qty']);
-                                      echo "<div>$nama ($qty)</div>";
+                                      $nama = $mapKomponen[$id_komp] ?? "Unknown";
+                                      $size = $kq['size'] ?? '-';
+                                      $qty  = $kq['qty'] ?? 0;
+                                      $grouped[$nama][] = "{$size} ({$qty})";
+                                    }
+
+                                    foreach ($grouped as $nama => $arr) {
+                                      echo "<div><strong>$nama :</strong> " . implode(", ", $arr) . "</div>";
+                                    }
+                                    ?>
+                                  </div>
+
+                                  <div style="margin-top:5px;">
+                                    <strong>Komponen Sesudah Proses :</strong>
+                                    <?php
+                                    if (!empty($ids)) {
+                                      // cari id_output dari tabel proses
+                                      $id_list = implode(",", array_map('intval', $ids));
+                                      $sql_out = "
+      SELECT DISTINCT k2.nama_komponen 
+      FROM tbl_komponen_proses p
+      JOIN tbl_komponen k1 ON k1.id_komponen = p.id_input
+      JOIN tbl_komponen k2 ON k2.id_komponen = p.id_output
+      WHERE p.id_input IN ($id_list) AND k2.is_deleted = 0
+    ";
+                                      $res_out = $conn->query($sql_out);
+                                      if ($res_out && $res_out->num_rows > 0) {
+                                        while ($o = $res_out->fetch_assoc()) {
+                                          echo "<div>" . htmlspecialchars($o['nama_komponen']) . "</div>";
+                                        }
+                                      } else {
+                                        echo "<div>-</div>";
+                                      }
+                                    } else {
+                                      echo "<div>-</div>";
                                     }
                                     ?>
                                   </div>
@@ -681,7 +798,7 @@ $result_transaksi = $stmt->get_result();
       const toastEl = document.getElementById('liveToast');
       if (toastEl) {
         const toast = new bootstrap.Toast(toastEl, {
-          delay: 3000
+          delay: 5000
         });
         toast.show();
       }
@@ -791,200 +908,166 @@ $result_transaksi = $stmt->get_result();
   </script>
 
   <script>
-    $(document).ready(function() {
-      // Inisialisasi Select2 di semua field dalam modal
-      $('#tambahTransaksi .select2').select2({
+    $(function() {
+      // ==============================
+      // Job Order Select2 dengan AJAX Search
+      // ==============================
+      $('#job_order').select2({
         width: "100%",
-        dropdownParent: document.getElementById('tambahTransaksi'),
+        dropdownParent: $("#tambahTransaksi"),
+        placeholder: "Cari Job Order...",
         allowClear: true,
-        placeholder: "Pilih opsi...",
-        minimumInputLength: 1
-      });
-
-      // Daftar field yang akan dipakai
-      const fields = ["job_order", "bucket", "po_code", "po_item", "model", "style", "ncvs"];
-
-      // Load pertama untuk semua field
-      fields.forEach(f => loadOptions(f));
-      loadKomponen(); // load komponen pertama kali
-
-      // Listener: tiap field berubah, reload semua field lain (fleksibel)
-      fields.forEach(f => {
-        $("#" + f).on("change", function() {
-          fields.forEach(ff => {
-            if (ff !== f) loadOptions(ff); // reload field lain
-          });
-
-          // khusus komponen kalau model berubah
-          if (f === "model") {
-            let $komponen = $("#komponen");
-            $komponen.data('old', $komponen.val()); // simpan value lama
-            loadKomponen();
-
-            // update semua row komponen tambahan
-            $(".komponen-select").each(function() {
-              let $select = $(this); // simpan elemen saat ini
-              let oldVal = $select.val();
-              $select.empty().append("<option value=''>-- Pilih Komponen --</option>");
-              let modelVal = $("#model").val();
-
-              if (modelVal) {
-                $.post("./../config/ajax.php", {
-                  action: "getKomponen",
-                  model: modelVal
-                }, function(res) {
-                  if (res.komponen) {
-                    res.komponen.forEach(item => {
-                      $select.append(`<option value="${item.id}">${item.text}</option>`);
-                    });
-                  }
-                  // restore value lama
-                  if (oldVal && $select.find(`option[value='${oldVal}']`).length) {
-                    $select.val(oldVal).trigger("change.select2");
-                  }
-                }, "json");
-              }
-            });
+        minimumInputLength: 1,
+        ajax: {
+          url: "./../config/ajax.php",
+          type: "POST",
+          dataType: "json",
+          delay: 250,
+          data: function(params) {
+            return {
+              action: "searchJobOrder",
+              search: params.term
+            };
+          },
+          processResults: function(data) {
+            return {
+              results: data.job_order || []
+            };
           }
-        });
-      });
-
-      // Autofocus search Select2
-      $(document).on('select2:open', function() {
-        let searchField = document.querySelector('.select2-container--open .select2-search__field');
-        if (searchField) searchField.focus();
-      });
-
-      // Fungsi loadOptions untuk tiap field
-      function loadOptions(field) {
-        let filters = {};
-        fields.forEach(f => filters[f] = $("#" + f).val());
-
-        $.post("./../config/ajax.php", {
-          action: "getOptions",
-          filters: filters
-        }, function(res) {
-          let $el = $("#" + field);
-          if (!$el.length) return;
-
-          let oldVal = $el.val(); // simpan value lama
-          $el.empty().append("<option value=''>-- Pilih --</option>");
-
-          if (Array.isArray(res[field])) {
-            res[field].forEach(item => {
-              $el.append(`<option value="${item.id}">${item.text}</option>`);
-            });
-          }
-
-          // restore value lama kalau masih valid
-          if (oldVal && $el.find(`option[value='${oldVal}']`).length) {
-            $el.val(oldVal).trigger("change.select2");
-          }
-        }, "json").fail(function(xhr, status, error) {
-          console.error(xhr.responseText);
-        });
-      }
-
-      // Fungsi loadKomponen (hanya pakai model)
-      function loadKomponen() {
-        let model = $("#model").val();
-        let $el = $("#komponen");
-
-        if (!model) {
-          $el.empty().append("<option value=''>-- Pilih Komponen --</option>").val(null).trigger("change");
-          return;
         }
+      });
+
+      // Autofocus search ketika select2 dibuka
+      $(document).on('select2:open', function() {
+        const $search = $('.select2-container--open .select2-search__field');
+        if ($search.length) $search.focus();
+      });
+
+      // ==============================
+      // Autofill fields dari JobOrder
+      // ==============================
+      $('#job_order').on('change select2:select', function() {
+        let jobOrder = $(this).val();
+        if (!jobOrder) return;
 
         $.post("./../config/ajax.php", {
-          action: "getKomponen",
-          model: model
+          action: "getJobOrderDetail",
+          job_order: jobOrder
         }, function(res) {
-          let oldVal = $el.data('old') || null; // ambil value lama
-          $el.empty().append("<option value=''>-- Pilih Komponen --</option>");
-          if (res.komponen) {
-            res.komponen.forEach(item => {
-              $el.append(`<option value="${item.id}">${item.text}</option>`);
-            });
-          }
-
-          // restore value lama kalau masih ada
-          if (oldVal && $el.find(`option[value='${oldVal}']`).length) {
-            $el.val(oldVal).trigger("change.select2");
+          if (res.success) {
+            $('#bucket').val(res.data.bucket).prop("readonly", true);
+            $('#po_code').val(res.data.po_code).prop("readonly", true);
+            $('#po_item').val(res.data.po_item).prop("readonly", true);
+            $('#model').val(res.data.model).prop("readonly", true);
+            $('#style').val(res.data.style).prop("readonly", true);
+            $('#ncvs').val(res.data.ncvs).prop("readonly", true);
+            // ❌ jangan isi lot, biar manual
           } else {
-            $el.val(null).trigger("change");
+            alert(res.error || "Data Job Order tidak ditemukan");
           }
-        }, "json").fail(function(xhr, status, error) {
-          console.error("AJAX Komponen Error:", xhr.responseText);
-        });
-      }
+        }, "json");
+      });
 
-      // ===============================
-      // Fitur Add Komponen
-      // ===============================
-      let komponenCount = 0;
-
-      $('#addKomponenBtn').click(function() {
-        komponenCount++; // increment counter
-        const newRow = $(`
-     <div class="row mb-2 komponen-row" id="komponenRow${komponenCount}">
-  <!-- Komponen -->
-  <div class="col-md-6">
-    <label for="komponen${komponenCount}" class="form-label">Komponen</label>
-    <select name="komponen[]" id="komponen${komponenCount}" class="form-control select2 komponen-select">
-      <option value="">-- Pilih Komponen --</option>
-    </select>
-  </div>
-
-  <!-- Quantity + Remove Button -->
-  <div class="col-md-6 d-flex align-items-end gap-2">
-    <div class="flex-grow-1">
-      <label for="qty${komponenCount}" class="form-label">Quantity</label>
-      <input type="number" name="qty[]" id="qty${komponenCount}" class="form-control" placeholder="Input qty" required>
-    </div>
-    <div class="d-flex align-items-end">
-      <button type="button" class="btn btn-danger btn-sm removeKomponenBtn match-height">
-        <i class="bi bi-trash"></i>
-      </button>
-    </div>
-  </div>
-</div>
-
-    `);
-
-        // append row baru ke container
-        $('#komponenContainer').append(newRow);
-
-        // Inisialisasi Select2 untuk select baru
-        newRow.find(".select2").select2({
+      // ==============================
+      // Fungsi bikin Select2 Komponen & Size (AJAX)
+      // ==============================
+      function initKomponenSelect($el) {
+        $el.select2({
           width: "100%",
           dropdownParent: $("#tambahTransaksi"),
+          placeholder: "Cari Komponen...",
           allowClear: true,
-          placeholder: "Pilih komponen...",
-          minimumInputLength: 1
-        });
-
-        // Load opsi komponen berdasarkan model
-        const model = $("#model").val();
-        if (model) {
-          $.post("./../config/ajax.php", {
-            action: "getKomponen",
-            model: model
-          }, function(res) {
-            if (res.komponen) {
-              res.komponen.forEach(item => {
-                newRow.find("select.komponen-select").append(`<option value="${item.id}">${item.text}</option>`);
-              });
+          minimumInputLength: 1,
+          ajax: {
+            url: "./../config/ajax.php",
+            type: "POST",
+            dataType: "json",
+            delay: 250,
+            data: function(params) {
+              return {
+                action: "searchKomponen",
+                model: $("#model").val(),
+                search: params.term
+              };
+            },
+            processResults: function(data) {
+              return {
+                results: data.komponen || []
+              };
             }
-          }, "json");
-        }
+          }
+        });
+      }
+
+      function initSizeSelect($el) {
+        $el.select2({
+          width: "100%",
+          dropdownParent: $("#tambahTransaksi"),
+          placeholder: "Cari Size...",
+          allowClear: true,
+          minimumInputLength: 1,
+          ajax: {
+            url: "./../config/ajax.php",
+            type: "POST",
+            dataType: "json",
+            delay: 250,
+            data: function(params) {
+              return {
+                action: "searchSize",
+                job_order: $("#job_order").val(),
+                search: params.term
+              };
+            },
+            processResults: function(data) {
+              return {
+                results: data.sizes || []
+              };
+            }
+          }
+        });
+      }
+
+      // ==============================
+      // Add Komponen Row
+      // ==============================
+      $('#addKomponenBtn').on('click', function() {
+        const $row = $(`
+      <div class="row g-3 mb-2 komponen-row">
+        <div class="col-md-4">
+          <select name="komponen[]" class="form-control komponen-select" required></select>
+        </div>
+        <div class="col-md-4">
+          <select name="size[]" class="form-control size-select" required></select>
+        </div>
+        <div class="col-md-3">
+          <input type="number" name="qty[]" class="form-control" placeholder="Input qty" required>
+        </div>
+        <div class="col-md-1 d-flex align-items-end">
+          <button type="button" class="btn btn-danger btn-sm removeKomponenBtn"><i class="bi bi-trash"></i></button>
+        </div>
+      </div>
+    `);
+
+        $('#komponenContainer').append($row);
+
+        // init select2 untuk row baru
+        initKomponenSelect($row.find('.komponen-select'));
+        initSizeSelect($row.find('.size-select'));
       });
 
-      // Hapus row komponen
-      $(document).on("click", ".removeKomponenBtn", function() {
-        $(this).closest(".komponen-row").remove();
+      // Remove row
+      $(document).on('click', '.removeKomponenBtn', function() {
+        $(this).closest('.komponen-row').remove();
       });
+
+      // ==============================
+      // Init row pertama (yang sudah ada di HTML)
+      // ==============================
+      initKomponenSelect($('.komponen-select'));
+      initSizeSelect($('.size-select'));
     });
   </script>
+
   <script>
     // ===============================
     // Fungsi parsing lot

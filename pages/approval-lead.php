@@ -264,30 +264,39 @@ $result_transaksi = $stmt->get_result();
                           $komponen_qty = json_decode($row["komponen_qty"], true);
 
                           if ($komponen_qty && is_array($komponen_qty)) {
-                            $ids = array_column($komponen_qty, 'komponen');
+                            // ambil daftar ID komponen unik
+                            $ids = array_values(array_unique(array_map(function ($i) {
+                              return (int)$i['komponen'];
+                            }, $komponen_qty)));
+                            $mapKomponen = [];
                             if (!empty($ids)) {
-                              $id_list = implode(",", array_map('intval', $ids));
-                              $sql_komp = "SELECT id_komponen, nama_komponen 
-                           FROM tbl_komponen 
-                           WHERE id_komponen IN ($id_list)";
+                              $id_list = implode(",", $ids);
+                              $sql_komp = "SELECT id_komponen, nama_komponen FROM tbl_komponen WHERE id_komponen IN ($id_list)";
                               $res_komp = $conn->query($sql_komp);
-
-                              $mapKomponen = [];
                               while ($k = $res_komp->fetch_assoc()) {
                                 $mapKomponen[$k['id_komponen']] = $k['nama_komponen'];
                               }
-
-                              echo "<ul class='list-unstyled m-0'>";
-                              foreach ($komponen_qty as $kq) {
-                                $id_komp = (int)$kq['komponen'];
-                                $nama = htmlspecialchars($mapKomponen[$id_komp] ?? "Unknown");
-                                $qty_input = (int)$kq['qty'];
-                                echo "<li>$nama ($qty_input)</li>";
-                              }
-                              echo "</ul>";
-                            } else {
-                              echo "-";
                             }
+
+                            // group per komponen -> array of [size, qty]
+                            $grouped = [];
+                            foreach ($komponen_qty as $kq) {
+                              $id_komp = (int)($kq['komponen'] ?? 0);
+                              $size = isset($kq['size']) ? (string)$kq['size'] : '-';
+                              $qty = (int)($kq['qty'] ?? 0);
+                              $grouped[$id_komp][] = ['size' => $size, 'qty' => $qty];
+                            }
+
+                            echo "<ul class='list-unstyled m-0'>";
+                            foreach ($grouped as $id => $items) {
+                              $nama = htmlspecialchars($mapKomponen[$id] ?? "Unknown");
+                              $parts = [];
+                              foreach ($items as $it) {
+                                $parts[] = htmlspecialchars($it['size']) . " (" . intval($it['qty']) . ")";
+                              }
+                              echo "<li><strong>{$nama} :</strong> " . implode(", ", $parts) . "</li>";
+                            }
+                            echo "</ul>";
                           } else {
                             echo "-";
                           }
@@ -299,85 +308,136 @@ $result_transaksi = $stmt->get_result();
                           <?php
                           $total_order = 0;
                           $lots = json_decode($row["lot"], true);
+                          if (!is_array($lots)) $lots = [];
 
-                          if (is_array($lots) && count($lots) > 0) {
-                            foreach ($lots as $lot_value) {
-                              $sql_total = "
-                SELECT SUM(qty) as total_order
-                FROM tbl_master_data
-                WHERE job_order = '{$row["job_order"]}'
-                  AND bucket = '{$row["bucket"]}'
-                  AND po_code = '{$row["po_code"]}'
-                  AND po_item = '{$row["po_item"]}'
-                  AND model = '{$row["model"]}'
-                  AND style = '{$row["style"]}'
-                  AND lot = '{$lot_value}'
-              ";
-                              $res_total = $conn->query($sql_total);
-                              if ($res_total && $res_total->num_rows > 0) {
-                                $row_total = $res_total->fetch_assoc();
-                                $total_order += (int)($row_total["total_order"] ?? 0);
+                          if (!empty($lots)) {
+                            // buat list lot numeric untuk IN-clause
+                            $lot_in = implode(",", array_map('intval', $lots));
+
+                            // Ambil size-size yang user pilih (misal dari transaksi)
+                            $sizes = [];
+                            $komponen_qty = json_decode($row["komponen_qty"], true);
+                            if (is_array($komponen_qty)) {
+                              foreach ($komponen_qty as $item) {
+                                if (!empty($item['size'])) {
+                                  $sizes[] = "'" . $conn->real_escape_string($item['size']) . "'";
+                                }
                               }
+                            }
+                            $size_in = !empty($sizes) ? implode(",", $sizes) : "''";
+
+                            $sql_total = "
+                            SELECT SUM(qty) as total_order
+                            FROM tbl_master_data
+                            WHERE job_order = '{$row["job_order"]}'
+                              AND bucket = '{$row["bucket"]}'
+                              AND po_code = '{$row["po_code"]}'
+                              AND po_item = '{$row["po_item"]}'
+                              AND model = '{$row["model"]}'
+                              AND style = '{$row["style"]}'
+                              AND lot IN ($lot_in)
+                              AND size IN ($size_in)
+                          ";
+
+                            $res_total = $conn->query($sql_total);
+                            if ($res_total && $res_total->num_rows > 0) {
+                              $row_total = $res_total->fetch_assoc();
+                              $total_order = (int)($row_total["total_order"] ?? 0);
                             }
                           }
                           echo $total_order;
                           ?>
                         </td>
 
-                        <!-- Kolom Remaining -->
+                        <!-- Kolom Remaining (per component per size) -->
                         <td>
                           <?php
-                          $komponen_qty = json_decode($row["komponen_qty"], true);
-                          if ($komponen_qty && is_array($komponen_qty)) {
-                            $ids = array_column($komponen_qty, 'komponen');
-                            $id_list = implode(",", array_map('intval', $ids));
-
-                            // Ambil nama komponen
-                            $mapKomponen = [];
-                            if (!empty($id_list)) {
-                              $sql_komp = "SELECT id_komponen, nama_komponen 
-                                FROM tbl_komponen 
-                                WHERE id_komponen IN ($id_list)";
-                              $res_komp = $conn->query($sql_komp);
-                              while ($k = $res_komp->fetch_assoc()) {
-                                $mapKomponen[$k['id_komponen']] = $k['nama_komponen'];
+                          // pastikan kita punya grouped (reuse dari block Komponen & Qty), kalau belum build ulang:
+                          if (!isset($grouped)) {
+                            $komponen_qty = json_decode($row["komponen_qty"], true);
+                            $grouped = [];
+                            if (is_array($komponen_qty)) {
+                              $ids_tmp = [];
+                              foreach ($komponen_qty as $kq) {
+                                $id = (int)($kq['komponen'] ?? 0);
+                                $ids_tmp[] = $id;
+                                $size = isset($kq['size']) ? (string)$kq['size'] : '-';
+                                $qty = (int)($kq['qty'] ?? 0);
+                                $grouped[$id][] = ['size' => $size, 'qty' => $qty];
+                              }
+                              if (!empty($ids_tmp)) {
+                                $id_list2 = implode(",", array_unique($ids_tmp));
+                                $mapKomponen = [];
+                                $resk = $conn->query("SELECT id_komponen,nama_komponen FROM tbl_komponen WHERE id_komponen IN ($id_list2)");
+                                while ($r = $resk->fetch_assoc()) $mapKomponen[$r['id_komponen']] = $r['nama_komponen'];
                               }
                             }
+                          }
 
-                            echo "<ul class='list-unstyled m-0'>";
-                            foreach ($komponen_qty as $kq) {
-                              $id_komp = (int)$kq['komponen'];
-                              $nama = htmlspecialchars($mapKomponen[$id_komp] ?? "Unknown");
+                          // 1) ambil total_order per size dari tbl_master_data (menggunakan lot IN (...))
+                          $total_order_per_size = [];
+                          $lots = json_decode($row["lot"], true);
+                          if (!is_array($lots)) $lots = [];
+                          if (!empty($lots)) {
+                            $lot_in = implode(",", array_map('intval', $lots));
+                            $sql_ps = "
+                              SELECT size, SUM(qty) AS total_order_per_size
+                              FROM tbl_master_data
+                              WHERE job_order = '{$row["job_order"]}'
+                                AND bucket = '{$row["bucket"]}'
+                                AND po_code = '{$row["po_code"]}'
+                                AND po_item = '{$row["po_item"]}'
+                                AND model = '{$row["model"]}'
+                                AND style = '{$row["style"]}'
+                                AND lot IN ($lot_in)
+                              GROUP BY size
+                            ";
+                            $res_ps = $conn->query($sql_ps);
+                            while ($r = $res_ps->fetch_assoc()) {
+                              $total_order_per_size[$r['size']] = (int)$r['total_order_per_size'];
+                            }
+                          }
 
-                              // Hitung total input qty untuk komponen ini di semua transaksi
-                              $sql_used = "
-                                SELECT komponen_qty
-                                FROM tbl_transaksi
-                                WHERE job_order = '{$row["job_order"]}'
-                                  AND bucket = '{$row["bucket"]}'
-                                  AND po_code = '{$row["po_code"]}'
-                                  AND po_item = '{$row["po_item"]}'
-                                  AND model = '{$row["model"]}'
-                                  AND style = '{$row["style"]}'
-                                  AND lot = '{$row["lot"]}'
-                              ";
-                              $res_used = $conn->query($sql_used);
-                              $used_qty = 0;
-                              if ($res_used && $res_used->num_rows > 0) {
-                                while ($row_used = $res_used->fetch_assoc()) {
-                                  $arr_used = json_decode($row_used["komponen_qty"], true);
-                                  if ($arr_used && is_array($arr_used)) {
-                                    foreach ($arr_used as $u) {
-                                      if ((int)$u['komponen'] === $id_komp) {
-                                        $used_qty += (int)$u['qty'];
-                                      }
-                                    }
-                                  }
+                          // 2) hitung total used per size dari semua transaksi (kriteria sama, lot string sama seperti kamu pakai)
+                          $used_per_size = [];
+                          $sql_used = "
+                                  SELECT komponen_qty
+                                  FROM tbl_transaksi
+                                  WHERE job_order = '{$row["job_order"]}'
+                                    AND bucket = '{$row["bucket"]}'
+                                    AND po_code = '{$row["po_code"]}'
+                                    AND po_item = '{$row["po_item"]}'
+                                    AND model = '{$row["model"]}'
+                                    AND style = '{$row["style"]}'
+                                    AND lot = '" . $conn->real_escape_string($row["lot"]) . "'
+                                ";
+                          $res_used = $conn->query($sql_used);
+                          if ($res_used && $res_used->num_rows > 0) {
+                            while ($ru = $res_used->fetch_assoc()) {
+                              $arr_used = json_decode($ru['komponen_qty'], true);
+                              if (is_array($arr_used)) {
+                                foreach ($arr_used as $u) {
+                                  $sz = isset($u['size']) ? (string)$u['size'] : '-';
+                                  $used_per_size[$sz] = ($used_per_size[$sz] ?? 0) + (int)($u['qty'] ?? 0);
                                 }
                               }
+                            }
+                          }
 
-                              $remaining = $total_order - $used_qty;
-                              echo "<li>$nama: $remaining</li>";
+                          // 3) tampilkan remaining per komponen per size (menggunakan total_order_per_size dan used_per_size)
+                          if (!empty($grouped)) {
+                            echo "<ul class='list-unstyled m-0'>";
+                            foreach ($grouped as $id => $items) {
+                              $nama = htmlspecialchars($mapKomponen[$id] ?? "Unknown");
+                              $parts = [];
+                              foreach ($items as $it) {
+                                $sz = $it['size'];
+                                $total_for_size = $total_order_per_size[$sz] ?? 0;
+                                $used_for_size = $used_per_size[$sz] ?? 0;
+                                $remaining = $total_for_size - $used_for_size;
+                                $parts[] = htmlspecialchars($sz) . ": " . intval($remaining);
+                              }
+                              echo "<li><strong>{$nama} :</strong> " . implode(", ", $parts) . "</li>";
                             }
                             echo "</ul>";
                           } else {
@@ -411,8 +471,8 @@ $result_transaksi = $stmt->get_result();
                           <?php
                           $status = strtoupper($row['status'] ?? "");
 
-                          // tombol hanya muncul sesuai status
-                          if (str_contains($status, "PENDING")):
+                          // kalau status pending atau qty_tidak_sesuai → dua tombol
+                          if ($status === "PENDING" || $status === "QTY_TIDAK_SESUAI"):
                           ?>
                             <!-- Approve -->
                             <form method="post" style="display:inline;" onsubmit="return confirm('Yakin ingin approve transaksi ini?');">
@@ -452,6 +512,7 @@ $result_transaksi = $stmt->get_result();
                               </button>
                             </form>
                           <?php endif; ?>
+
                         </td>
 
                       </tr>

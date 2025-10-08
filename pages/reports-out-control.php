@@ -2,26 +2,10 @@
 // menghubungkan php dengan koneksi database
 require_once __DIR__ . '/../config/function.php';
 require_once __DIR__ . '/../config/auth.php';
-checkAuth('scan_out_to_vendor'); // cek apakah sudah login dan punya akses ke menu ini
+checkAuth('out_control'); // cek apakah sudah login dan punya akses ke menu ini
 
 $nik = $_SESSION['nik_user'];
-$username = $_SESSION['username'];
-
-// ambil tanggal pencarian dari GET
-$search_date = $_GET['search_date'] ?? date('Y-m-d'); // default = hari ini
-
-// query transaksi
-$sql = "
-  SELECT t.*
-  FROM tbl_transaksi t
-  WHERE DATE(t.date_created) = ?
-  ORDER BY t.id_trans DESC
-";
-
-$stmt = $conn->prepare($sql);
-$stmt->bind_param("s", $search_date);
-$stmt->execute();
-$result_transaksi = $stmt->get_result();
+$username = $_SESSION['username']; // Query ringkasan per job_order
 
 ?>
 
@@ -85,6 +69,37 @@ $result_transaksi = $stmt->get_result();
     justify-content: center;
     align-items: center;
   }
+
+  @media print {
+    @page {
+      size: 50mm auto;
+      /* Lebar 50mm, tinggi otomatis */
+      margin: 0;
+      /* Hilangkan margin default browser */
+    }
+
+    body {
+      width: 50mm;
+      font-size: 10px;
+      /* Bisa kecilkan font supaya pas */
+    }
+
+    /* Hanya print konten modal */
+    body * {
+      visibility: hidden;
+    }
+
+    #barcodeContent<?= $row['id_trans']; ?>,
+    #barcodeContent<?= $row['id_trans']; ?>* {
+      visibility: visible;
+    }
+
+    #barcodeContent<?= $row['id_trans']; ?> {
+      position: absolute;
+      left: 0;
+      top: 0;
+    }
+  }
 </style>
 
 <!DOCTYPE html>
@@ -94,7 +109,7 @@ $result_transaksi = $stmt->get_result();
   <meta charset="utf-8">
   <meta content="width=device-width, initial-scale=1.0" name="viewport">
 
-  <title>iSubcont - Transactions</title>
+  <title>iSubcont - Reports</title>
   <meta content="" name="description">
   <meta content="" name="keywords">
 
@@ -141,7 +156,7 @@ $result_transaksi = $stmt->get_result();
 
   <!-- Header -->
   <?php
-  $page = 'scan_out_to_vendor';
+  $page = 'out_control';
   include_once __DIR__ . '/../includes/header.php';
   ?>
   <!-- End Header -->
@@ -150,110 +165,66 @@ $result_transaksi = $stmt->get_result();
 
     <div class="pagetitle text-black" style="background-color: #f0e6d2; padding: 10px 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
       <h1 style="font-size: 1.8rem; font-weight: 700; font-family: 'Roboto', sans-serif;">
-        Scan-Out to Vendor
+        Subcont Out Control
       </h1>
+    </div>
+
+    <div class="card mb-3">
+
+      <div class="card-body" style="margin-top: 15px;">
+        <form id="filterForm" class="row">
+          <div class="col-md-3 mb-2">
+            <label class="form-label fw-bold">Bucket <span class="text-danger">*</span></label>
+            <select id="bucket" name="bucket" class="form-control select2-remote"></select>
+          </div>
+          <div class="col-md-3 mb-2">
+            <label class="form-label fw-bold">NCVS</label>
+            <select id="ncvs" name="ncvs" class="form-control select2-remote"></select>
+          </div>
+          <div class="col-md-3 mb-2">
+            <label class="form-label fw-bold">PO Code</label>
+            <select id="po_code" name="po_code" class="form-control select2-remote"></select>
+          </div>
+          <div class="col-md-3 mb-2">
+            <label class="form-label fw-bold">Job Order</label>
+            <select id="job_order" name="job_order" class="form-control select2-remote"></select>
+          </div>
+
+          <div class="col-md-12 mt-3">
+            <button type="button" id="resetBtn" class="btn btn-secondary"> <i class="bi bi-arrow-counterclockwise"></i> Reset</button>
+            <button type="button" id="searchBtn" class="btn btn-success" disabled><i class="bi bi-search"></i> Search</button>
+          </div>
+        </form>
+      </div>
+
     </div>
 
     <section class="section">
       <div class="row">
         <div class="col-lg-12">
           <div class="card">
+
             <div class="card-body" style="margin-top: 10px;">
-              <form action="./../config/function.php" method="post" id="scanForm">
-                <input type="hidden" name="scan-out-to-vendor"> <!-- penting -->
-                <div class="row mb-3">
-                  <label for="barcode" class="col-sm-2 col-form-label">Scan QR Code</label>
-                  <div class="col-sm-10">
-                    <input type="text" name="barcode" id="barcode"
-                      class="form-control" placeholder="Scan QR Code here..." autofocus>
-                  </div>
-                </div>
-              </form>
 
-              <!-- Detail hasil scan -->
-              <?php if (isset($_GET['success'])): ?>
-                <?php
-                $barcode_success = $_GET['success'];
-                $stmt = $conn->prepare("SELECT * FROM tbl_transaksi WHERE barcode=?");
-                $stmt->bind_param("s", $barcode_success);
-                $stmt->execute();
-                $result = $stmt->get_result();
-                $row = $result->fetch_assoc();
-                ?>
-                <?php if ($row): ?>
-                  <div class="alert alert-info mt-3">
-                    <h6>Detail Transaksi Scan Out to Vendor:</h6>
-                    <ul class="mb-0">
-                      <li><strong>Job Order:</strong> <?= htmlspecialchars($row['job_order']); ?></li>
-                      <li><strong>PO Code:</strong> <?= htmlspecialchars($row['po_code']); ?></li>
-                      <li><strong>PO Item:</strong> <?= htmlspecialchars($row['po_item']); ?></li>
-                      <li><strong>Model:</strong> <?= htmlspecialchars($row['model']); ?></li>
-                      <li><strong>Style:</strong> <?= htmlspecialchars($row['style']); ?></li>
-                      <li><strong>NCVS:</strong> <?= htmlspecialchars($row['ncvs']); ?></li>
-                      <li><strong>Lot:</strong>
-                        <?php
-                        $lots = json_decode($row['lot'], true);
-                        echo is_array($lots) ? implode(", ", $lots) : htmlspecialchars($row['lot']);
-                        ?>
-                      </li>
+              <table id="example1" class="table table-bordered table-striped text-center align-middle nowrap" style="width:100%">
+                <thead class="table-light">
+                  <tr>
+                    <th class="text-center">Job Order</th>
+                    <th class="text-center">NCVS</th>
+                    <th class="text-center">Bucket</th>
+                    <th class="text-center">PO Code</th>
+                    <th class="text-center">PO Item</th>
+                    <th class="text-center">Model</th>
+                    <th class="text-center">Style</th>
+                  </tr>
+                </thead>
+              </table>
 
-                      <li><strong>Komponen Sebelum Proses, Size & Qty:</strong></li>
-                      <ul>
-                        <?php
-                        $qty_data = json_decode($row['komponen_qty'], true);
-                        if (is_array($qty_data)) {
-                          // Grouping by komponen
-                          $grouped = [];
-                          foreach ($qty_data as $item) {
-                            $id_komponen = $item['komponen'];
-                            $size_val    = $item['size'];
-                            $qty_val     = $item['qty'];
-
-                            if (!isset($grouped[$id_komponen])) {
-                              $grouped[$id_komponen] = [];
-                            }
-                            $grouped[$id_komponen][] = [
-                              'size' => $size_val,
-                              'qty'  => $qty_val
-                            ];
-                          }
-
-                          foreach ($grouped as $id_komponen => $details) {
-                            // ambil nama komponen dari tbl_komponen
-                            $stmt_kmp = $conn->prepare("SELECT nama_komponen FROM tbl_komponen WHERE id_komponen=?");
-                            $stmt_kmp->bind_param("i", $id_komponen);
-                            $stmt_kmp->execute();
-                            $res_kmp = $stmt_kmp->get_result();
-                            $komponen_row = $res_kmp->fetch_assoc();
-                            $nama_komponen = $komponen_row['nama_komponen'] ?? "Komponen #$id_komponen";
-
-                            echo "<li class='mb-2'>";
-                            echo "<label><strong>" . htmlspecialchars($nama_komponen) . "</strong></label><br>";
-
-                            // Tampilkan size dan qty: "006 (6), 007 (6)"
-                            $parts = [];
-                            foreach ($details as $d) {
-                              $parts[] = htmlspecialchars($d['size']) . " (" . htmlspecialchars($d['qty']) . ")";
-                            }
-                            echo implode(", ", $parts);
-
-                            echo "</li>";
-                          }
-                        }
-                        ?>
-                      </ul>
-
-                      <li><strong>Type Scan:</strong> <?= htmlspecialchars($row['type_scan']); ?></li>
-                      <li><strong>Scan At:</strong> <?= htmlspecialchars($row['scan_at']); ?></li>
-                      <li><strong>Scan With:</strong> <?= htmlspecialchars($row['scan_with']); ?></li>
-                      <li><strong>Hour:</strong> <?= htmlspecialchars($row['hour']); ?></li>
-                    </ul>
-                  </div>
-                <?php endif; ?>
-              <?php endif; ?>
             </div>
+            <!-- End Table with stripped rows -->
           </div>
         </div>
+      </div>
       </div>
     </section>
 
@@ -303,35 +274,6 @@ $result_transaksi = $stmt->get_result();
   <script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.print.min.js"></script>
   <script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.colVis.min.js"></script>
 
-  <script>
-    $(function() {
-      $("#example1").DataTable({
-        "responsive": true,
-        "lengthChange": false,
-        "autoWidth": false,
-        // "buttons": ["copy", "excel"]
-      }).buttons().container().appendTo('#example1_wrapper .col-md-6:eq(0)');
-      $('#example2').DataTable({
-        "paging": true,
-        "lengthChange": false,
-        "searching": false,
-        "ordering": true,
-        "info": true,
-        "autoWidth": false,
-        "responsive": true,
-      });
-    });
-  </script>
-
-  <script>
-    $(document).ready(function() {
-      $('#example1').DataTable({
-        scrollX: true,
-        destroy: true // biar gak error reinit
-      });
-    });
-  </script>
-
   <?php include_once __DIR__ . '/../includes/notification.php'; ?>
 
   <script>
@@ -347,16 +289,126 @@ $result_transaksi = $stmt->get_result();
   </script>
 
   <script>
-    const barcodeInput = document.getElementById("barcode");
-    const scanForm = document.getElementById("scanForm");
-
-    // kalau sudah ada input dari scanner, otomatis submit
-    barcodeInput.addEventListener("input", function() {
-      if (barcodeInput.value.trim() !== "") {
-        setTimeout(() => {
-          scanForm.submit();
-        }, 300); // delay dikit biar input scanner kelar
+    $(document).ready(function() {
+      // ================================
+      // Select2 dengan AJAX (untuk filter)
+      // ================================
+      function initSelect2(id, action, placeholder) {
+        $(id).select2({
+          width: "100%",
+          placeholder: placeholder,
+          allowClear: true,
+          minimumInputLength: 1,
+          ajax: {
+            url: "./../config/get_options.php",
+            type: "POST",
+            dataType: "json",
+            delay: 250,
+            data: function(params) {
+              return {
+                action: action,
+                search: params.term,
+                bucket: $("#bucket").val(),
+                ncvs: $("#ncvs").val(),
+                po_code: $("#po_code").val(),
+                job_order: $("#job_order").val()
+              };
+            },
+            processResults: function(data) {
+              return {
+                results: data.results || []
+              };
+            }
+          }
+        });
       }
+
+      // Init semua filter
+      initSelect2("#bucket", "searchBucket", "Bucket");
+      initSelect2("#ncvs", "searchNCVS", "NCVS");
+      initSelect2("#po_code", "searchPOCode", "PO Code");
+      initSelect2("#job_order", "searchJobOrder", "Job Order");
+
+      // ================================
+      // DataTables
+      // ================================
+      $(document).ready(function() {
+        var table = $("#example1").DataTable({
+          processing: true,
+          serverSide: true,
+          searching: false,
+          deferLoading: 0,
+          ajax: {
+            url: "./../config/get_data.php",
+            type: "POST",
+            data: function(d) {
+              d.bucket = $("#bucket").val();
+              d.ncvs = $("#ncvs").val();
+              d.po_code = $("#po_code").val();
+              d.job_order = $("#job_order").val();
+            }
+          },
+          columns: [{
+              data: "job_order"
+            },
+            {
+              data: "ncvs"
+            },
+            {
+              data: "bucket"
+            },
+            {
+              data: "po_code"
+            },
+            {
+              data: "po_item"
+            },
+            {
+              data: "model"
+            },
+            {
+              data: "style"
+            }
+          ]
+        });
+
+        // Awal tabel kosong
+        table.clear().draw();
+
+        // Disable Search kalau bucket kosong
+        function toggleSearchBtn() {
+          if ($("#bucket").val()) {
+            $("#searchBtn").prop("disabled", false);
+          } else {
+            $("#searchBtn").prop("disabled", true);
+          }
+        }
+
+        // Cek saat select bucket berubah
+        $("#bucket").on("change", function() {
+          toggleSearchBtn();
+        });
+
+        // Klik Search
+        $("#searchBtn").on("click", function() {
+          if (!$("#bucket").val()) {
+            alert("Harap pilih Bucket terlebih dahulu!");
+            return;
+          }
+          table.ajax.reload();
+        });
+
+        // Klik Reset
+        $("#resetBtn").on("click", function() {
+          $("#filterForm")[0].reset();
+          $(".select2-remote").val(null).trigger("change");
+          table.clear().draw();
+          toggleSearchBtn();
+        });
+
+        // Jalankan sekali pas awal load
+        toggleSearchBtn();
+      });
     });
   </script>
 
