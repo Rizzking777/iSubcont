@@ -217,14 +217,14 @@ $result_transaksi = $stmt->get_result();
 
                                   // === Ambil log terakhir untuk SCAN_OUT_TO_VENDOR ===
                                   $stmt_log = $conn->prepare("
-                                    SELECT old_data 
-                                    FROM tlog_transaksi 
-                                    WHERE id_trans = ? 
-                                      AND action_type = 'SCAN_OUT_TO_VENDOR'
-                                      AND old_data IS NOT NULL
-                                    ORDER BY created_at DESC 
-                                    LIMIT 1
-                                ");
+                                      SELECT old_data 
+                                      FROM tlog_transaksi 
+                                      WHERE id_trans = ? 
+                                        AND action_type = 'SCAN_OUT_TO_VENDOR'
+                                        AND old_data IS NOT NULL
+                                      ORDER BY created_at DESC 
+                                      LIMIT 1
+                                    ");
                                   $stmt_log->bind_param("i", $id_trans);
                                   $stmt_log->execute();
                                   $res_log = $stmt_log->get_result();
@@ -237,14 +237,41 @@ $result_transaksi = $stmt->get_result();
                                     }
                                   }
 
-                                  // tampilkan komponen input (readonly) + size
+                                  // === Ambil data kekurangan (jika ada)
+                                  $stmt_kurang = $conn->prepare("
+                                    SELECT komponen_qty 
+                                    FROM tbl_transaksi_kekurangan 
+                                    WHERE id_trans_asal = ?
+                                  ");
+                                  $stmt_kurang->bind_param("i", $id_trans);
+                                  $stmt_kurang->execute();
+                                  $res_kurang = $stmt_kurang->get_result();
+
+                                  $map_kurang = []; // [komponen|size] => qty_kurang
+                                  while ($row_kurang = $res_kurang->fetch_assoc()) {
+                                    $data_kurang = json_decode($row_kurang['komponen_qty'], true);
+                                    if (is_array($data_kurang)) {
+                                      foreach ($data_kurang as $dk) {
+                                        $key = "{$dk['komponen']}|{$dk['size']}";
+                                        $map_kurang[$key] = ($map_kurang[$key] ?? 0) + (int)($dk['kekurangan'] ?? 0);
+                                      }
+                                    }
+                                  }
+
+                                  // === Tampilkan komponen input (qty disesuaikan)
                                   if (!empty($komponen_input)) {
                                     foreach ($komponen_input as $item) {
                                       $id_input = (int)$item['komponen'];
-                                      $qty_val  = $item['qty'];
                                       $size_val = $item['size'] ?? "-";
+                                      $qty_val  = (int)$item['qty'];
 
-                                      // ambil nama komponen input
+                                      $key = "{$id_input}|{$size_val}";
+                                      if (isset($map_kurang[$key])) {
+                                        $qty_val -= $map_kurang[$key]; // kurangi dengan qty kekurangan
+                                        if ($qty_val < 0) $qty_val = 0; // safety
+                                      }
+
+                                      // ambil nama komponen
                                       $stmt_in = $conn->prepare("SELECT nama_komponen FROM tbl_komponen WHERE id_komponen=?");
                                       $stmt_in->bind_param("i", $id_input);
                                       $stmt_in->execute();
@@ -258,6 +285,8 @@ $result_transaksi = $stmt->get_result();
                                       </div>
                                   <?php
                                     }
+                                  } else {
+                                    echo "<div class='col-12'><em>Tidak ada data komponen.</em></div>";
                                   }
                                   ?>
                                 </div>

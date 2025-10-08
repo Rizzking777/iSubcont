@@ -31,7 +31,7 @@ LEFT JOIN tbl_vendor v
 WHERE k_in.is_deleted = 0 
   AND k_out.is_deleted = 0
 GROUP BY k_out.id_komponen
-ORDER BY model, style;
+ORDER BY k.timestamp desc;
 ";
 
 $result = $conn->query($sql);
