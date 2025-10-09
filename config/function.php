@@ -643,11 +643,14 @@ if (isset($_POST['submit-role'])) {
 
     // Ambil dan filter data
     $updated_by = mysqli_real_escape_string($conn, $_POST['updated_by']);
-    $role_name   = mysqli_real_escape_string($conn, $_POST['role_name']);
+    $role_name  = mysqli_real_escape_string($conn, $_POST['role_name']);
     $description = mysqli_real_escape_string($conn, $_POST['description']);
     $timestamp  = date('Y-m-d H:i:s');
 
-    // Cek apakah NIK sudah ada
+    // Gate type otomatis sama dengan role_name
+    $gate_type = $role_name;
+
+    // Cek apakah role_name sudah ada
     $check_role = mysqli_query($conn, "SELECT 1 FROM roles WHERE role_name = '$role_name'");
     if (mysqli_num_rows($check_role) > 0) {
         $_SESSION['red_notif'] = "Role sudah terdaftar, mohon ganti role lain.";
@@ -655,18 +658,19 @@ if (isset($_POST['submit-role'])) {
         exit();
     }
 
-    // Simpan ke tbl_user
+    // Simpan ke tabel roles
     $query_role = mysqli_query($conn, "INSERT INTO roles 
-        (role_name, description, is_deleted, updated_by, timestamp) 
+        (role_name, gate_type, description, is_deleted, updated_by, timestamp) 
         VALUES 
-        ('$role_name', '$description', '0', '$updated_by', '$timestamp')");
+        ('$role_name', '$gate_type', '$description', '0', '$updated_by', '$timestamp')");
 
     if ($query_role) {
-        $last_user_id = mysqli_insert_id($conn);
+        $last_role_id = mysqli_insert_id($conn);
 
         // Siapkan log (hanya simpan data baru)
         $new_data = [
             "role_name" => $role_name,
+            "gate_type" => $gate_type,
             "description" => $description
         ];
         $new_data_json = mysqli_real_escape_string($conn, json_encode($new_data));
@@ -674,7 +678,7 @@ if (isset($_POST['submit-role'])) {
         $query_log = mysqli_query($conn, "INSERT INTO tlog_roles 
             (id, updated_by, action_type, old_data, new_data, created_at, updated_at) 
             VALUES 
-            ('$last_user_id', '$updated_by', 'INSERT', NULL, '$new_data_json', NOW(), NOW())");
+            ('$last_role_id', '$updated_by', 'INSERT', NULL, '$new_data_json', NOW(), NOW())");
 
         if ($query_log) {
             $_SESSION['green_notif'] = "Role berhasil didaftarkan.";
@@ -701,8 +705,11 @@ if (isset($_POST['update-role'])) {
     $description = $_POST['description'];
     $timestamp   = date('Y-m-d H:i:s');
 
+    // Gate type otomatis mengikuti role_name
+    $gate_type = $role_name;
+
     // Ambil data lama untuk logging
-    $stmt_old = $conn->prepare("SELECT role_name, description FROM roles WHERE id = ?");
+    $stmt_old = $conn->prepare("SELECT role_name, gate_type, description FROM roles WHERE id = ?");
     $stmt_old->bind_param("i", $id);
     $stmt_old->execute();
     $old_data = $stmt_old->get_result()->fetch_assoc();
@@ -710,19 +717,20 @@ if (isset($_POST['update-role'])) {
 
     // Update roles
     $stmt_update = $conn->prepare("UPDATE roles 
-                                   SET role_name = ?, description = ?, updated_by = ?, timestamp = ? 
+                                   SET role_name = ?, gate_type = ?, description = ?, updated_by = ?, timestamp = ? 
                                    WHERE id = ?");
-    $stmt_update->bind_param("ssssi", $role_name, $description, $updated_by, $timestamp, $id);
+    $stmt_update->bind_param("sssssi", $role_name, $gate_type, $description, $updated_by, $timestamp, $id);
 
     if ($stmt_update->execute()) {
         // Siapkan data baru untuk logging
         $new_data = [
             "role_name"   => $role_name,
+            "gate_type"   => $gate_type,
             "description" => $description
         ];
         $new_data_json = json_encode($new_data, JSON_UNESCAPED_UNICODE);
 
-        // Insert log ke tlog_role
+        // Insert log ke tlog_roles
         $stmt_log = $conn->prepare("INSERT INTO tlog_roles 
             (id, updated_by, action_type, old_data, new_data, created_at, updated_at) 
             VALUES (?, ?, 'UPDATE', ?, ?, NOW(), NOW())");
@@ -740,11 +748,16 @@ if (isset($_POST['update-role'])) {
 
 // REMOVE role (soft delete)
 if (isset($_POST['remove-role'])) {
+    date_default_timezone_set('Asia/Jakarta');
+
     $id        = $_POST['id'];
     $username  = $_SESSION['username'] ?? 'SYSTEM';
 
-    // 1. Ambil data role
-    $stmt = $conn->prepare("SELECT * FROM roles WHERE id = ? AND is_deleted = 0 LIMIT 1");
+    // 1. Ambil data role (termasuk gate_type)
+    $stmt = $conn->prepare("SELECT id, role_name, gate_type, description, is_deleted, updated_by, timestamp 
+                            FROM roles 
+                            WHERE id = ? AND is_deleted = 0 
+                            LIMIT 1");
     $stmt->bind_param("i", $id);
     $stmt->execute();
     $result = $stmt->get_result();
@@ -757,20 +770,23 @@ if (isset($_POST['remove-role'])) {
         exit;
     }
 
+    // Simpan data lama untuk log
     $old_data_json = json_encode($role, JSON_UNESCAPED_UNICODE);
 
-    // Simulasi data baru
+    // Simulasi data baru (set is_deleted = 1)
     $role['is_deleted'] = 1;
     $new_data_json = json_encode($role, JSON_UNESCAPED_UNICODE);
 
     // 2. Update roles (soft delete)
-    $stmt = $conn->prepare("UPDATE roles SET is_deleted = 1, updated_by = ?, timestamp = NOW() WHERE id = ?");
+    $stmt = $conn->prepare("UPDATE roles 
+                            SET is_deleted = 1, updated_by = ?, timestamp = NOW() 
+                            WHERE id = ?");
     $stmt->bind_param("si", $username, $id);
     $success = $stmt->execute();
     $stmt->close();
 
     if ($success) {
-        // 3. Log ke tlog_role
+        // 3. Log ke tlog_roles
         $stmt = $conn->prepare("INSERT INTO tlog_roles
             (id, updated_by, action_type, old_data, new_data, created_at, updated_at)
             VALUES (?, ?, 'REMOVE', ?, ?, NOW(), NOW())");
@@ -789,10 +805,16 @@ if (isset($_POST['remove-role'])) {
 
 // RESTORE role
 if (isset($_POST['restore-role'])) {
+    date_default_timezone_set('Asia/Jakarta');
+
     $id       = $_POST['id'];
     $username = $_SESSION['username'] ?? 'SYSTEM';
 
-    $stmt = $conn->prepare("SELECT * FROM roles WHERE id = ? LIMIT 1");
+    // 1. Ambil data role (termasuk gate_type)
+    $stmt = $conn->prepare("SELECT id, role_name, gate_type, description, is_deleted, updated_by, timestamp 
+                            FROM roles 
+                            WHERE id = ? 
+                            LIMIT 1");
     $stmt->bind_param("i", $id);
     $stmt->execute();
     $result = $stmt->get_result();
@@ -802,16 +824,20 @@ if (isset($_POST['restore-role'])) {
     if ($role && $role['is_deleted'] == 1) {
         $old_data_json = json_encode($role, JSON_UNESCAPED_UNICODE);
 
-        // Update restore
-        $stmt = $conn->prepare("UPDATE roles SET is_deleted = 0, updated_by = ?, timestamp = NOW() WHERE id = ?");
+        // 2. Update restore (set is_deleted = 0)
+        $stmt = $conn->prepare("UPDATE roles 
+                                SET is_deleted = 0, updated_by = ?, timestamp = NOW() 
+                                WHERE id = ?");
         $stmt->bind_param("si", $username, $id);
         $success = $stmt->execute();
         $stmt->close();
 
         if ($success) {
+            // 3. Siapkan data baru untuk log
             $role['is_deleted'] = 0;
             $new_data_json = json_encode($role, JSON_UNESCAPED_UNICODE);
 
+            // 4. Simpan ke log
             $stmt = $conn->prepare("INSERT INTO tlog_roles 
                 (id, updated_by, action_type, old_data, new_data, created_at, updated_at)
                 VALUES (?, ?, 'RESTORE', ?, ?, NOW(), NOW())");
@@ -833,10 +859,16 @@ if (isset($_POST['restore-role'])) {
 
 // DELETE permanent role
 if (isset($_POST['delete-role'])) {
+    date_default_timezone_set('Asia/Jakarta');
+
     $id       = $_POST['id'];
     $username = $_SESSION['username'] ?? 'SYSTEM';
 
-    $stmt = $conn->prepare("SELECT * FROM roles WHERE id = ? LIMIT 1");
+    // 1. Ambil data role (termasuk gate_type)
+    $stmt = $conn->prepare("SELECT id, role_name, gate_type, description, is_deleted, updated_by, timestamp 
+                            FROM roles 
+                            WHERE id = ? 
+                            LIMIT 1");
     $stmt->bind_param("i", $id);
     $stmt->execute();
     $result = $stmt->get_result();
@@ -846,18 +878,20 @@ if (isset($_POST['delete-role'])) {
     if ($role) {
         $old_data_json = json_encode($role, JSON_UNESCAPED_UNICODE);
 
-        // DELETE permanen
+        // 2. Hapus permanen
         $stmt = $conn->prepare("DELETE FROM roles WHERE id = ?");
         $stmt->bind_param("i", $id);
         $success = $stmt->execute();
         $stmt->close();
 
         if ($success) {
+            // 3. Siapkan catatan untuk log
             $new_data = [
                 "note" => "Role dihapus permanen oleh {$username} pada " . date('Y-m-d H:i:s')
             ];
             $new_data_json = json_encode($new_data, JSON_UNESCAPED_UNICODE);
 
+            // 4. Simpan ke log
             $stmt = $conn->prepare("INSERT INTO tlog_roles 
                 (id, updated_by, action_type, old_data, new_data, created_at, updated_at)
                 VALUES (?, ?, 'DELETE', ?, ?, NOW(), NOW())");
@@ -3240,22 +3274,27 @@ if (isset($_POST['pending-in-vendor'])) {
                 $total_kekurangan = array_sum(array_column($defect_data, 'kekurangan'));
                 $defect_json = json_encode($defect_data, JSON_UNESCAPED_UNICODE);
 
+                // Ambil type_scan dari session agar dinamis (bisa SCAN_IN_VENDOR, SCAN_OUT_VENDOR, dll)
+                $last_gate = 'SCAN_IN_VENDOR';  // ubah sesuai kebutuhan
+
                 $stmt_kekurangan = $conn->prepare("
         INSERT INTO tbl_transaksi_kekurangan
-        (id_trans_asal, job_order, komponen_qty, defect_qty, total_kekurangan, status, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, 'PENDING', NOW(), NOW())
+        (id_trans_asal, job_order, komponen_qty, defect_qty, total_kekurangan, status, last_gate, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, 'PENDING', ?, NOW(), NOW())
     ");
+
                 $stmt_kekurangan->bind_param(
-                    "issii",
+                    "issiis",
                     $id_trans,                 // id_trans_asal (ID transaksi awal)
                     $old_data['job_order'],    // job_order
-                    $defect_json,              // komponen_qty (JSON)
-                    $total_kekurangan,         // defect_qty (sama dgn total_kekurangan)
-                    $total_kekurangan          // total_kekurangan
+                    $defect_json,              // komponen_qty (JSON data kekurangan)
+                    $total_kekurangan,         // defect_qty (jumlah total kekurangan)
+                    $total_kekurangan,         // total_kekurangan
+                    $last_gate                 // last_gate (misal: SCAN_IN_VENDOR)
                 );
+
                 $stmt_kekurangan->execute();
             }
-
 
             $_SESSION['green_notif'] = "QR Code berhasil di-scan (Scan In Vendor). Status : Quantity tidak sesuai";
             header("Location: /isubcont/pages/trans-scan-in-vendor.php?success=$barcode");
@@ -3540,19 +3579,26 @@ if (isset($_POST['pending-out-vendor'])) {
 
             // --- Simpan ke tbl_transaksi_kekurangan jika ada selisih
             if ($total_kekurangan > 0) {
+
+                // Ambil type_scan aktif dari session untuk mengisi kolom last_gate
+                $last_gate = 'SCAN_OUT_VENDOR';  // ubah sesuai kebutuhan
+
                 $stmt_kurang = $conn->prepare("
-        INSERT INTO tbl_transaksi_kekurangan
-        (id_trans_asal, job_order, komponen_qty, defect_qty, total_kekurangan, status, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, 'PENDING', NOW(), NOW())
-    ");
+                    INSERT INTO tbl_transaksi_kekurangan
+                    (id_trans_asal, job_order, komponen_qty, defect_qty, total_kekurangan, status, last_gate, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, 'PENDING', ?, NOW(), NOW())
+                ");
+
                 $stmt_kurang->bind_param(
-                    "issii",
+                    "issiis",
                     $old_data['id_trans'],     // id_trans_asal
                     $old_data['job_order'],    // job_order
                     $kekurangan_json,          // komponen_qty (JSON data)
-                    $total_kekurangan,         // defect_qty
-                    $total_kekurangan          // total_kekurangan
+                    $total_kekurangan,         // defect_qty (jumlah kekurangan total)
+                    $total_kekurangan,         // total_kekurangan (sama seperti defect_qty)
+                    $last_gate                 // last_gate (SCAN_IN_VENDOR, SCAN_OUT_VENDOR, dll)
                 );
+
                 $stmt_kurang->execute();
             }
 
@@ -3887,22 +3933,27 @@ if (isset($_POST['pending-in-incoming'])) {
             if ($total_kekurangan > 0) {
                 $komponen_json = json_encode($komponen_arr, JSON_UNESCAPED_UNICODE);
 
+                // Ambil gate aktif dari session (misalnya SCAN_IN_VENDOR, SCAN_OUT_VENDOR, dll)
+                $last_gate = 'SCAN_IN_INCOMING';  // ubah sesuai kebutuhan
+
                 $stmt_kurang = $conn->prepare("
-        INSERT INTO tbl_transaksi_kekurangan
-        (id_trans_asal, job_order, komponen_qty, defect_qty, total_kekurangan, status, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, 'PENDING', NOW(), NOW())
-    ");
+                    INSERT INTO tbl_transaksi_kekurangan
+                    (id_trans_asal, job_order, komponen_qty, defect_qty, total_kekurangan, status, last_gate, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, 'PENDING', ?, NOW(), NOW())
+                ");
+
                 $stmt_kurang->bind_param(
-                    "issii",
-                    $id_trans,              // id_trans_asal
-                    $old_data['job_order'], // job_order
-                    $komponen_json,         // komponen_qty (array of object)
-                    $total_defect_qty,      // defect_qty (INT)
-                    $total_kekurangan       // total_kekurangan (INT)
+                    "issiis",
+                    $id_trans,               // id_trans_asal
+                    $old_data['job_order'],  // job_order
+                    $komponen_json,          // komponen_qty (JSON)
+                    $total_defect_qty,       // defect_qty (INT)
+                    $total_kekurangan,       // total_kekurangan (INT)
+                    $last_gate               // last_gate (SCAN_IN_VENDOR, SCAN_OUT_VENDOR, dll)
                 );
+
                 $stmt_kurang->execute();
             }
-
             $conn->commit();
 
             $_SESSION['green_notif'] = "QR Code berhasil di-scan (Scan In Incoming). Status : Quantity tidak sesuai";
@@ -4359,19 +4410,25 @@ if (isset($_POST['confirm-qc'])) {
         }
 
         if ($total_kekurangan > 0) {
+            // Ambil type_scan (gate aktif) dari session
+            $last_gate = 'SCAN_CHECK_QC';  // ubah sesuai kebutuhan
+
             $stmt_kurang = $conn->prepare("
-        INSERT INTO tbl_transaksi_kekurangan
-        (id_trans_asal, job_order, komponen_qty, defect_qty, total_kekurangan, status, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, 'SCAN_CHECK_QC', NOW(), NOW())
-    ");
+                INSERT INTO tbl_transaksi_kekurangan
+                (id_trans_asal, job_order, komponen_qty, defect_qty, total_kekurangan, status, last_gate, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, 'PENDING', ?, NOW(), NOW())
+            ");
+
             $stmt_kurang->bind_param(
-                "issii",
+                "issiis",
                 $id_trans,               // id_trans_asal
                 $old_data['job_order'],  // job_order
                 $qty_json_final,         // komponen_qty (JSON)
                 $total_kekurangan,       // defect_qty (INT)
-                $total_kekurangan        // total_kekurangan (INT)
+                $total_kekurangan,       // total_kekurangan (INT)
+                $last_gate               // last_gate (misalnya SCAN_IN_VENDOR, SCAN_OUT_VENDOR, dll)
             );
+
             $stmt_kurang->execute();
         }
 
