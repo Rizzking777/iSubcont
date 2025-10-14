@@ -2674,17 +2674,20 @@ if (isset($_POST['submit-transaksi'])) {
             'komponen_qty' => $komponen_qty,
             'barcode'      => $barcode,
             'status'       => $status,
-            'hour'         => $hour
+            'hour'         => $hour,
+            'type_scan'    => 'CREATE_BARCODE', // tambahkan type_scan
+            'created_by'   => $created_by   // siapa yang nge-create
         ];
         $json_new_data = json_encode($new_data);
 
         $stmt_log = $conn->prepare("
-            INSERT INTO tlog_transaksi 
-            (id_trans, updated_by, action_type, old_data, new_data, created_at, updated_at)
-            VALUES (?, ?, 'INSERT', NULL, ?, NOW(), NOW())
-        ");
+    INSERT INTO tlog_transaksi 
+    (id_trans, updated_by, action_type, old_data, new_data, created_at, updated_at)
+    VALUES (?, ?, 'INSERT', NULL, ?, NOW(), NOW())
+");
         $stmt_log->bind_param("iss", $id_trans, $created_by, $json_new_data);
         $stmt_log->execute();
+
 
         $conn->commit();
         $_SESSION['green_notif'] = "Transaksi berhasil ditambahkan (QR Code: $barcode)";
@@ -4629,7 +4632,8 @@ if (isset($_POST['scan-out-production'])) {
 if (isset($_POST['action']) && $_POST['action'] === 'confirm_kekurangan') {
 
     // Fungsi bantu biar aman & clean
-    function safe_redirect($type, $message, $redirect = '/isubcont/pages/trans-confrm-kekurangan.php') {
+    function safe_redirect($type, $message, $redirect = '/isubcont/pages/trans-confrm-kekurangan.php')
+    {
         $_SESSION[$type === 'success' ? 'green_notif' : 'red_notif'] = $message;
         header("Location: {$redirect}");
         exit;
@@ -4704,7 +4708,6 @@ if (isset($_POST['action']) && $_POST['action'] === 'confirm_kekurangan') {
 
         // ✅ Berhasil
         safe_redirect('success', "Kekurangan berhasil dikonfirmasi.");
-
     } catch (Exception $e) {
         safe_redirect('error', "Terjadi kesalahan: " . $e->getMessage());
     }

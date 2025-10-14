@@ -8,23 +8,16 @@ $nik = $_SESSION['nik_user'];
 $username = $_SESSION['username']; // Query ringkasan per job_order
 
 $job_order = $_GET['job_order'] ?? '';
+$lot_param = $_GET['lot'] ?? '';
 
 if (!$job_order) {
   die("Job Order tidak ditemukan.");
 }
 
-// 1. Ambil header info job_order
+// --- Ambil header info ---
 $sql_header = "
-    SELECT 
-        t.job_order, 
-        t.ncvs, 
-        t.bucket, 
-        t.po_code, 
-        t.po_item, 
-        t.model, 
-        t.style,
-        t.lot,
-        t.date_created
+    SELECT t.job_order, t.ncvs, t.bucket, t.po_code, t.po_item, 
+           t.model, t.style, t.lot, t.date_created
     FROM tbl_transaksi t
     WHERE t.job_order = ?
     LIMIT 1
@@ -35,80 +28,96 @@ $stmt->execute();
 $res_header = $stmt->get_result();
 $header = $res_header->fetch_assoc();
 
-if (!$header) {
-  die("Data job order tidak ditemukan.");
-}
+if (!$header) die("Data job order tidak ditemukan.");
 
-// 2. Ambil semua data transaksi job_order
-$stmt2 = $conn->prepare("SELECT t.komponen_qty FROM tbl_transaksi t WHERE t.job_order = ?");
-$stmt2->bind_param("s", $job_order);
+// --- Parse lot parameter ---
+$selectedLots = array_map('trim', explode(',', $lot_param)); // ['3','4'] dll
+$selectedLots = array_filter($selectedLots, fn($l) => $l !== ''); // bersihkan empty
+
+// --- Ambil transaksi untuk job_order dan filter lot ---
+$stmt2_sql = "SELECT t.id_trans, t.job_order, t.lot, t.komponen_qty
+              FROM tbl_transaksi t 
+              WHERE t.job_order = ?";
+$params = [$job_order];
+$types = "s";
+
+$stmt2 = $conn->prepare($stmt2_sql);
+$stmt2->bind_param($types, ...$params);
 $stmt2->execute();
 $res_detail = $stmt2->get_result();
 
-// 3. Pivot + vendor
+// --- Pivot data per lot ---
 $pivot = [];
 $sizes = [];
 $vendor_cache = [];
 
 while ($row = $res_detail->fetch_assoc()) {
-  $komp_data = json_decode($row['komponen_qty'], true);
+  $lot_list = json_decode($row['lot'], true);
+  if (!is_array($lot_list)) $lot_list = [$row['lot']]; // fallback string
 
+  // hanya ambil lot yang ada di selectedLots
+  $lot_list = array_filter($lot_list, fn($l) => in_array($l, $selectedLots));
+
+  if (empty($lot_list)) continue; // skip jika lot tidak match
+
+  $komp_data = json_decode($row['komponen_qty'], true);
   if (!is_array($komp_data)) continue;
 
-  foreach ($komp_data as $item) {
-    $komp_id = $item['komponen'] ?? null;
-    $size    = $item['size'] ?? null;
-    $qty     = (int)($item['qty'] ?? 0);
+  foreach ($lot_list as $lot_val) {
+    foreach ($komp_data as $item) {
+      $komp_id = $item['komponen'] ?? null;
+      $size    = $item['size'] ?? null;
+      $qty     = (int)($item['qty'] ?? 0);
+      if (!$komp_id || !$size) continue;
 
-    if (!$komp_id || !$size) continue;
+      // ambil nama komponen & vendor
+      if (!isset($vendor_cache[$komp_id])) {
+        $stmt_k = $conn->prepare("
+                    SELECT k.nama_komponen, 
+                           GROUP_CONCAT(DISTINCT v.name_vendor SEPARATOR ', ') AS vendors
+                    FROM tbl_komponen k
+                    LEFT JOIN tbl_komponen_proses p 
+                          ON p.id_input = k.id_komponen OR p.id_output = k.id_komponen
+                    LEFT JOIN tbl_vendor_proses vp ON vp.id_proses = p.id_proses
+                    LEFT JOIN tbl_vendor v ON v.id_vendor = vp.id_vendor
+                    WHERE k.id_komponen = ?
+                    GROUP BY k.id_komponen
+                ");
+        $stmt_k->bind_param("i", $komp_id);
+        $stmt_k->execute();
+        $res_k = $stmt_k->get_result();
+        $komp_row = $res_k->fetch_assoc();
+        $nama_komp = $komp_row['nama_komponen'] ?? "Komponen #$komp_id";
+        $vendors   = $komp_row['vendors'] ?? '-';
+        $vendor_cache[$komp_id] = ['nama' => $nama_komp, 'vendors' => $vendors];
+        $stmt_k->close();
+      } else {
+        $nama_komp = $vendor_cache[$komp_id]['nama'];
+        $vendors   = $vendor_cache[$komp_id]['vendors'];
+      }
 
-    // Ambil nama komponen + vendor, pakai cache
-    if (!isset($vendor_cache[$komp_id])) {
-      $stmt_k = $conn->prepare("
-                SELECT k.nama_komponen, 
-              GROUP_CONCAT(DISTINCT v.name_vendor SEPARATOR ', ') AS vendors
-        FROM tbl_komponen k
-        LEFT JOIN tbl_komponen_proses p 
-              ON p.id_input = k.id_komponen OR p.id_output = k.id_komponen
-        LEFT JOIN tbl_vendor_proses vp 
-              ON vp.id_proses = p.id_proses
-        LEFT JOIN tbl_vendor v 
-              ON v.id_vendor = vp.id_vendor
-        WHERE k.id_komponen = ?
-        GROUP BY k.id_komponen
-
-            ");
-      $stmt_k->bind_param("i", $komp_id);
-      $stmt_k->execute();
-      $res_k = $stmt_k->get_result();
-      $komp_row = $res_k->fetch_assoc();
-      $nama_komp = $komp_row['nama_komponen'] ?? "Komponen #$komp_id";
-      $vendors   = $komp_row['vendors'] ?? '-';
-      $vendor_cache[$komp_id] = ['nama' => $nama_komp, 'vendors' => $vendors];
-      $stmt_k->close();
-    } else {
-      $nama_komp = $vendor_cache[$komp_id]['nama'];
-      $vendors   = $vendor_cache[$komp_id]['vendors'];
+      // Masukkan ke pivot per lot
+      $pivot[$lot_val][$nama_komp][$size] = ($pivot[$lot_val][$nama_komp][$size] ?? 0) + $qty;
+      $pivot[$lot_val][$nama_komp]['vendor'] = $vendors;
+      $sizes[$size] = true;
     }
-
-    $pivot[$nama_komp][$size] = ($pivot[$nama_komp][$size] ?? 0) + $qty;
-    $sizes[$size] = true;
-    $pivot[$nama_komp]['vendor'] = $vendors;
   }
 }
 
-// 4. Hitung vendor per model
+// --- Hitung vendor per model ---
 $all_vendors = [];
 foreach ($pivot as $komp => $data) {
-  if (isset($data['vendor']) && $data['vendor'] !== '-') {
-    $vs = explode(', ', $data['vendor']);
-    $all_vendors = array_merge($all_vendors, $vs);
+  foreach ($data as $komp_name => $komp_data) {
+    if (isset($komp_data['vendor']) && $komp_data['vendor'] !== '-') {
+      $vs = explode(', ', $komp_data['vendor']);
+      $all_vendors = array_merge($all_vendors, $vs);
+    }
   }
 }
 $all_vendors = array_unique($all_vendors);
 $vendors_per_model = !empty($all_vendors) ? implode(', ', $all_vendors) : '-';
 
-// 5. Urutkan size
+// --- Urutkan size ---
 $sizes = array_keys($sizes);
 sort($sizes);
 
@@ -285,7 +294,7 @@ sort($sizes);
               <div class="card mb-4 shadow-sm">
                 <div class="card-header d-flex justify-content-between align-items-center">
                   <div>
-                    <a href="../export/export_excel.php?job_order=<?= urlencode($header['job_order']); ?>"
+                    <a href="../export/export_excel.php?job_order=<?= urlencode($header['job_order']); ?>&lot=<?= urlencode($lot_param); ?>"
                       class="btn btn-outline-success btn-sm">
                       <i class="bi bi-file-earmark-excel"></i> Export
                     </a>
@@ -323,7 +332,7 @@ sort($sizes);
                   </div>
                   <div class="row mb-2">
                     <div class="col-sm-4 fw-bold">Lot:</div>
-                    <div class="col-sm-8"><?= htmlspecialchars($header['lot']); ?></div>
+                    <div class="col-sm-8"><?= htmlspecialchars(implode(', ', $selectedLots)); ?></div>
                   </div>
                   <div class="row mb-2">
                     <div class="col-sm-4 fw-bold">To Vendor:</div>
@@ -336,39 +345,41 @@ sort($sizes);
                 </div>
               </div>
 
-              <table id="example1" class="table table-bordered table-striped text-center align-middle nowrap" style="width:100%">
-                <thead class="table-light">
-                  <tr>
-                    <th class="text-center">Komponen</th>
-                    <?php foreach ($sizes as $s): ?>
-                      <th class="text-center"><?= htmlspecialchars($s); ?></th>
-                    <?php endforeach; ?>
-                    <th class="text-center">Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <?php foreach ($pivot as $komp => $data): ?>
+              <!-- Pivot Table per Lot -->
+              <?php foreach ($pivot as $lot_val => $komponen_list): ?>
+                <h6 class="fw-bold mt-4">Lot <?= htmlspecialchars($lot_val) ?></h6>
+                <table class="table table-bordered table-striped text-center align-middle nowrap" style="width:100%">
+                  <thead class="table-light">
                     <tr>
-                      <td><?= htmlspecialchars($komp); ?></td>
-                      <?php
-                      $row_total = 0;
-                      foreach ($sizes as $s):
-                        $val = $data[$s] ?? 0;
-                        $row_total += $val;
-                      ?>
-                        <td><?= $val; ?></td>
+                      <th class="text-center">Komponen</th>
+                      <?php foreach ($sizes as $s): ?>
+                        <th class="text-center"><?= htmlspecialchars($s); ?></th>
                       <?php endforeach; ?>
-                      <td><strong><?= $row_total; ?></strong></td>
+                      <th class="text-center">Total</th>
                     </tr>
-                  <?php endforeach; ?>
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    <?php foreach ($komponen_list as $komp => $data): ?>
+                      <tr>
+                        <td><?= htmlspecialchars($komp); ?></td>
+                        <?php
+                        $row_total = 0;
+                        foreach ($sizes as $s):
+                          $val = $data[$s] ?? 0;
+                          $row_total += $val;
+                        ?>
+                          <td><?= $val; ?></td>
+                        <?php endforeach; ?>
+                        <td><strong><?= $row_total; ?></strong></td>
+                      </tr>
+                    <?php endforeach; ?>
+                  </tbody>
+                </table>
+              <?php endforeach; ?>
 
             </div>
-            <!-- End Table with stripped rows -->
           </div>
         </div>
-      </div>
       </div>
     </section>
 

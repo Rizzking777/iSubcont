@@ -8,9 +8,32 @@ $nik = $_SESSION['nik_user'];
 $username = $_SESSION['username']; // Query ringkasan per job_order
 
 $job_order = $_GET['job_order'] ?? '';
+$lotParam  = $_GET['lot'] ?? ''; // contoh: "3,4"
 
 if ($job_order == '') {
   die('Job Order tidak ditemukan.');
+}
+
+$job_order = mysqli_real_escape_string($conn, $job_order);
+$lot = trim($lotParam);
+
+// ✅ Pecah lot jadi array kalau ada
+$lotArray = [];
+if (!empty($lot)) {
+  $lotArray = array_map('trim', explode(',', $lot));
+  $lotArray = array_filter($lotArray, fn($v) => $v !== '');
+}
+
+// ✅ Buat kondisi WHERE fleksibel untuk lot
+$lotWhere = '';
+if (!empty($lotArray)) {
+  $lotConditions = [];
+  foreach ($lotArray as $lotVal) {
+    $safeLotVal = mysqli_real_escape_string($conn, $lotVal);
+    // Bisa cocok format JSON array [3,4] atau string "3"
+    $lotConditions[] = "(JSON_CONTAINS(lot, '\"$safeLotVal\"') OR JSON_CONTAINS(lot, '$safeLotVal'))";
+  }
+  $lotWhere = ' AND (' . implode(' OR ', $lotConditions) . ')';
 }
 
 // 🔹 Ambil data utama transaksi
@@ -18,147 +41,248 @@ $queryTrans = "
   SELECT *
   FROM tbl_transaksi
   WHERE job_order = '$job_order'
+  $lotWhere
   LIMIT 1
 ";
-$resultTrans = mysqli_query($conn, $queryTrans);
-$trans = mysqli_fetch_assoc($resultTrans);
 
-// ✅ Inisialisasi default dulu biar aman
+$resultTrans = mysqli_query($conn, $queryTrans);
+
+if (!$resultTrans || mysqli_num_rows($resultTrans) == 0) {
+  echo "<div class='text-danger'>
+    ⚠️ Tidak ditemukan data transaksi untuk Job Order: <b>" . htmlspecialchars($job_order) . "</b>" .
+    (!empty($lot) ? " dan Lot: <b>" . htmlspecialchars($lot) . "</b>" : "") . "
+  </div>";
+  $trans = null;
+} else {
+  $trans = mysqli_fetch_assoc($resultTrans);
+}
+
+// ✅ Default vendor
 $vendor = [
-  'name_vendor' => null,
-  'code_vendor' => null,
-  'vendor_address' => null
+  'name_vendor' => 'Belum Ditentukan',
+  'code_vendor' => '-',
+  'vendor_address' => '-'
 ];
 
-// 🔹 Cari vendor berdasarkan komponen
+// 🔹 Ambil vendor berdasarkan komponen
 if ($trans) {
   $komponenList = json_decode($trans['komponen_qty'], true);
-  $firstKomponen = $komponenList[0]['nama_komponen'] ?? null;
+  $firstKomponenID = $komponenList[0]['komponen'] ?? null;
 
-  if ($firstKomponen) {
-    $model = $trans['model'];
-    $style = $trans['style'];
-
-    $sqlVendor = "
-      SELECT 
-          v.id_vendor,
-          v.name_vendor,
-          v.code_vendor,
-          v.alamat AS vendor_address
-      FROM tbl_komponen k
-      JOIN tbl_komponen_proses kp ON kp.id_input = k.id_komponen
-      JOIN tbl_vendor_proses vp ON vp.id_proses = kp.id_output
-      JOIN tbl_vendor v ON v.id_vendor = vp.id_vendor
-      WHERE k.nama_komponen = '$firstKomponen'
-        AND k.model = '$model'
-        " . ($style ? "AND (k.style = '$style' OR k.style IS NULL)" : "") . "
+  if ($firstKomponenID) {
+    $sqlKomponen = "
+      SELECT nama_komponen, model
+      FROM tbl_komponen
+      WHERE id_komponen = '$firstKomponenID'
       LIMIT 1
     ";
+    $resultKomponen = mysqli_query($conn, $sqlKomponen);
+    $dataKomponen = mysqli_fetch_assoc($resultKomponen);
 
-    $resultVendor = mysqli_query($conn, $sqlVendor);
-    if ($resultVendor && mysqli_num_rows($resultVendor) > 0) {
-      $vendor = mysqli_fetch_assoc($resultVendor);
+    if ($dataKomponen) {
+      $namaKomponen = mysqli_real_escape_string($conn, $dataKomponen['nama_komponen']);
+      $model = mysqli_real_escape_string($conn, $dataKomponen['model']);
+
+      $sqlVendor = "
+        SELECT 
+            v.id_vendor,
+            v.name_vendor,
+            v.code_vendor,
+            v.alamat AS vendor_address
+        FROM tbl_komponen k
+        JOIN tbl_komponen_proses kp ON kp.id_input = k.id_komponen
+        JOIN tbl_vendor_proses vp ON vp.id_proses = kp.id_proses
+        JOIN tbl_vendor v ON v.id_vendor = vp.id_vendor
+        WHERE k.nama_komponen = '$namaKomponen'
+          AND k.model = '$model'
+        LIMIT 1
+      ";
+      $resultVendor = mysqli_query($conn, $sqlVendor);
+      if ($resultVendor && mysqli_num_rows($resultVendor) > 0) {
+        $vendor = mysqli_fetch_assoc($resultVendor);
+      }
     }
   }
 }
 
-// 🔹 Ambil data log transaksi (timeline)
+// ===============================
+// 🔹 AMBIL LOG DAN DATA KEKURANGAN
+// ===============================
+
+// ========== 1️⃣ Ambil semua ID transaksi untuk job_order + lot (fleksibel format) ==========
+$idTransList = [];
+
+if (!empty($lotArray)) {
+  $idTransQueryParts = [];
+  foreach ($lotArray as $lotVal) {
+    $lotVal = mysqli_real_escape_string($conn, trim($lotVal));
+    $idTransQueryParts[] = "
+      JSON_SEARCH(lot, 'one', '$lotVal') IS NOT NULL
+      OR JSON_UNQUOTE(lot) LIKE '%\"$lotVal\"%'
+      OR lot LIKE '%$lotVal%'
+    ";
+  }
+  $idTransQuery = implode(' OR ', $idTransQueryParts);
+
+  $qIdTrans = mysqli_query($conn, "
+    SELECT id_trans 
+    FROM tbl_transaksi 
+    WHERE job_order = '$job_order'
+      AND ($idTransQuery)
+  ");
+
+  if ($qIdTrans) {
+    while ($r = mysqli_fetch_assoc($qIdTrans)) {
+      $idTransList[] = $r['id_trans'];
+    }
+  }
+}
+
+$idTransFilter = !empty($idTransList)
+  ? implode(',', array_map('intval', $idTransList))
+  : '0';
+
+// ========== 2️⃣ Ambil semua log berdasarkan job_order & lot ==========
+$logLotConditions = [];
+foreach ($lotArray as $lotVal) {
+  $lotVal = mysqli_real_escape_string($conn, trim($lotVal));
+  $logLotConditions[] = "
+    JSON_SEARCH(new_data, 'one', '$lotVal', NULL, '$.lot') IS NOT NULL
+    OR JSON_UNQUOTE(JSON_EXTRACT(new_data, '$.lot')) LIKE '%$lotVal%'
+  ";
+}
+$logLotWhere = !empty($logLotConditions)
+  ? ' AND (' . implode(' OR ', $logLotConditions) . ')'
+  : '';
+
 $queryLog = "
-  SELECT id_log_trans, id_trans, action_type, created_at, new_data
+  SELECT 
+    id_log_trans,
+    id_trans,
+    action_type,
+    created_at,
+    new_data,
+    JSON_UNQUOTE(JSON_EXTRACT(new_data, '$.lot')) AS lot_json
   FROM tlog_transaksi
-  WHERE id_trans IN (
-    SELECT id_trans FROM tbl_transaksi WHERE job_order = '$job_order'
-  )
+  WHERE JSON_UNQUOTE(JSON_EXTRACT(new_data, '$.job_order')) = '$job_order'
+  $logLotWhere
   ORDER BY created_at ASC
 ";
 $resultLog = mysqli_query($conn, $queryLog);
 
-// 🔹 Ambil data kekurangan (opsional)
+// ========== 3️⃣ Ambil data kekurangan berdasarkan id_trans_asal ==========
 $queryKekurangan = "
-  SELECT * FROM tbl_transaksi_kekurangan
-  WHERE job_order = '$job_order'
+  SELECT 
+      tk.id_kekurangan,
+      tk.id_trans_asal,
+      tk.job_order,
+      tk.komponen_qty AS tk_komponen_qty,
+      tk.total_kekurangan,
+      tk.status AS tk_status,
+      tk.last_gate,
+      tk.created_at
+  FROM tbl_transaksi_kekurangan tk
+  WHERE tk.job_order = '$job_order'
+    AND tk.id_trans_asal IN ($idTransFilter)
+  ORDER BY tk.created_at ASC
 ";
-$resultKekurangan = mysqli_query($conn, $queryKekurangan);
 
+$resultKekurangan = mysqli_query($conn, $queryKekurangan);
 ?>
 
 <style>
+  .progress-container {
+    font-family: 'Poppins', sans-serif;
+  }
+
+  .progress {
+    background-color: #e9ecef;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+  }
+
+  .progress-bar {
+    transition: width 0.6s ease-in-out;
+  }
+
   .timeline-container {
     display: flex;
     align-items: center;
     justify-content: space-between;
     overflow-x: auto;
     padding: 30px 0;
-  }
-
-  .timeline-step {
-    text-align: center;
-    flex: 1;
-    min-width: 120px;
     position: relative;
   }
 
-  .timeline-step::before {
+  /* Garis horizontal */
+  .timeline-container::before {
     content: '';
     position: absolute;
-    top: 25px;
-    left: 50%;
-    width: 100%;
+    top: 50%;
+    left: 0;
+    right: 0;
     height: 4px;
     background: #dee2e6;
+    transform: translateY(-50%);
     z-index: 0;
   }
 
-  .timeline-circle {
+  /* Tiap step */
+  .timeline-step {
+    text-align: center;
+    flex: 1;
     position: relative;
     z-index: 1;
-    width: 40px;
-    height: 40px;
+  }
+
+  /* Lingkaran utama */
+  .timeline-circle {
+    width: 50px;
+    height: 50px;
     margin: 0 auto;
     border-radius: 50%;
-    background: #dee2e6;
+    background: #f8f9fa;
+    border: 3px solid #dee2e6;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-weight: bold;
-    color: #495057;
     transition: all 0.3s ease;
+    position: relative;
+    z-index: 2;
   }
 
-  .timeline-step.active .timeline-circle {
-    background: #0d6efd;
-    color: #fff;
+  /* Icon di tengah */
+  .timeline-circle i {
+    font-size: 24px;
+    color: inherit;
   }
 
-  .timeline-step.completed .timeline-circle {
-    background: #198754;
-    color: #fff;
-  }
-
+  /* Label di bawah */
   .timeline-label {
-    margin-top: 8px;
+    margin-top: 10px;
     font-size: 14px;
     color: #212529;
   }
 
-  .timeline-circle i {
-    font-size: 18px;
-  }
-
+  /* Step selesai (hijau) */
   .timeline-step.completed .timeline-circle {
-    background: #198754;
-    color: #fff;
+    background: #eaf7ee;
+    border-color: #198754;
+    color: #198754;
   }
 
+  /* Step aktif (biru, ada glow) */
   .timeline-step.active .timeline-circle {
-    background: #0d6efd;
-    color: #fff;
-    box-shadow: 0 0 10px rgba(13, 110, 253, 0.5);
+    background: #e7f1ff;
+    border-color: #0d6efd;
+    color: #0d6efd;
+    box-shadow: 0 0 12px rgba(13, 110, 253, 0.4);
   }
 
-  .timeline-step .timeline-circle {
-    border: 2px solid #dee2e6;
-    transition: all 0.3s ease;
+  /* Untuk layout horizontal rapi */
+  .timeline-step:not(:last-child) {
+    margin-right: 10px;
   }
 
   .toast-progress {
@@ -301,8 +425,6 @@ $resultKekurangan = mysqli_query($conn, $queryKekurangan);
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" rel="stylesheet">
-
 </head>
 
 <body>
@@ -326,136 +448,300 @@ $resultKekurangan = mysqli_query($conn, $queryKekurangan);
       <div class="row">
         <div class="col-lg-12">
           <div class="card">
-
             <div class="card-body" style="margin-top: 10px;">
 
-              <!-- Info Ringkas -->
-              <div class="row mb-4">
-                <div class="col-md-4"><strong>Bucket:</strong> <?= $trans['bucket'] ?></div>
-                <div class="col-md-4">
-                  <strong>Vendor:</strong>
-                  <?= !empty($vendor['name_vendor'])
-                    ? $vendor['name_vendor'] . " <small class='text-muted'>(" . $vendor['code_vendor'] . ")</small>"
-                    : '<span class="text-muted">Belum ditentukan</span>' ?>
+              <?php
+              // 🔹 Mapping urutan tahapan
+              $stages = [
+                'SCAN_IN_WAREHOUSE' => 'In Warehouse',
+                'SCAN_OUT_TO_VENDOR' => 'Out WH to Vendor',
+                'SCAN_IN_VENDOR' => 'In Vendor',
+                'SCAN_OUT_VENDOR' => 'Out Vendor',
+                'SCAN_IN_INCOMING' => 'Incoming WH',
+                'SCAN_CHECK_QC' => 'Check QC',
+                'SCAN_OUT_TO_PRODUCTION' => 'Out to Production'
+              ];
+
+              // 🔹 Mapping type_scan ke label yang ramah
+              $typeScanLabels = [
+                'CREATE_BARCODE'      => 'Create QR Code',
+                'SCAN_IN_WAREHOUSE'   => 'In Warehouse',
+                'SCAN_OUT_TO_VENDOR'  => 'Out WH to Vendor',
+                'SCAN_IN_VENDOR' => 'In Vendor',
+                'SCAN_OUT_VENDOR' => 'Out Vendor',
+                'SCAN_IN_INCOMING' => 'Incoming WH',
+                'SCAN_CHECK_QC' => 'Check QC',
+                'SCAN_OUT_TO_PRODUCTION' => 'Out to Production'
+                // tambah lagi kalau ada type_scan lain
+              ];
+
+              $gateLabels = [
+                'CREATE_BARCODE' => 'Create QR Code',
+                'SCAN_IN_WAREHOUSE' => 'In Warehouse',
+                'SCAN_OUT_TO_VENDOR' => 'Out WH to Vendor',
+                'SCAN_IN_VENDOR' => 'In Vendor',
+                'SCAN_OUT_VENDOR' => 'Out Vendor',
+                'SCAN_IN_INCOMING' => 'Incoming WH',
+                'SCAN_CHECK_QC' => 'Check QC',
+                'SCAN_OUT_TO_PRODUCTION' => 'Out to Production'
+              ];
+
+              mysqli_data_seek($resultLog, 0);
+              $logs = [];
+
+              // 🔹 Ambil log dari database
+              while ($log = mysqli_fetch_assoc($resultLog)) {
+                $newData = json_decode($log['new_data'], true);
+
+                // Ambil type_scan: prioritas dari new_data, kalau kosong dari action_type
+                $typeScan = $newData['type_scan'] ?? '';
+                if (empty($typeScan)) {
+                  // Jika action_type mengandung kata SCAN, ambil action_type itu
+                  if (!empty($log['action_type'])) {
+                    $typeScan = $log['action_type'];
+                  } else {
+                    $typeScan = 'CREATE_BARCODE'; // default jika memang create barcode
+                  }
+                }
+
+                // Ambil created_by: prioritas dari new_data, kalau kosong dari updated_by
+                $createdBy = $newData['created_by'] ?? $log['updated_by'] ?? 'Unknown';
+
+                $logs[] = [
+                  'type_scan' => $typeScan,
+                  'created_by' => $createdBy,
+                  'created_at' => $log['created_at']
+                ];
+              }
+
+              // 🔹 Hanya hitung stage yang valid di daftar $stages
+              $completedStages = [];
+              $lastStage = null;
+              $stageKeys = array_keys($stages);
+
+              foreach ($stageKeys as $key) {
+                foreach ($logs as $log) {
+                  if ($log['type_scan'] === $key) {
+                    $completedStages[] = $key;
+                    $lastStage = $key;
+                    break;
+                  }
+                }
+              }
+
+              $totalStages = count($stageKeys);
+              $completedCount = count($completedStages);
+
+              // 🔹 Hitung progress
+              $progressPercent = $totalStages > 0 ? round(($completedCount / $totalStages) * 100) : 0;
+              if ($progressPercent > 100) $progressPercent = 100;
+
+              // 🔹 Tentukan next stage (versi super aman)
+              $nextStage = null;
+              $etaDays = 0;
+
+              if (!empty($lastStage)) {
+                $lastIndex = array_search($lastStage, $stageKeys, true);
+
+                // Pastikan hasil array_search valid dan belum di tahap terakhir
+                if ($lastIndex !== false && isset($stageKeys[$lastIndex + 1])) {
+                  $nextStageKey = $stageKeys[$lastIndex + 1];
+                  $nextStage = $stages[$nextStageKey];
+
+                  // 🔹 Hitung ETA hanya kalau masih ada next stage
+                  $remainingStages = $totalStages - $completedCount;
+                  $etaDays = max(1, $remainingStages * 1);
+                }
+              }
+
+
+              // 🔹 Hitung ETA (contoh: 1 hari per tahapan tersisa)
+              if (!empty($nextStage)) {
+                // Misal tiap tahap butuh 1 hari
+                $remainingStages = $totalStages - $completedCount;
+                $etaDays = max(1, $remainingStages * 1);
+              } else {
+                $etaDays = 0;
+              }
+
+              ?>
+
+              <!-- Bagian Header -->
+              <div class="row mb-3 align-items-start">
+                <!-- Kiri -->
+                <div class="col-md-8">
+                  <div><strong>Bucket:</strong>
+                    <?= isset($trans['bucket'])
+                      ? htmlspecialchars($trans['bucket'])
+                      : '<span class="text-muted">-</span>' ?>
+                  </div>
+
+                  <div><strong>Lot:</strong>
+                    <?= !empty($lotParam)
+                      ? htmlspecialchars($lotParam)
+                      : '<span class="text-muted">-</span>' ?>
+                  </div>
+
+                  <div><strong>Vendor:</strong>
+                    <?= !empty($vendor['name_vendor'])
+                      ? htmlspecialchars($vendor['name_vendor'])
+                      : '<span class="text-muted">Belum ditentukan</span>' ?>
+                  </div>
                 </div>
 
+                <!-- Kanan -->
+                <div class="col-md-4 text-md-end">
+                  <?php if ($completedCount == 0): ?>
+                    <div class="text-muted">Belum mulai proses</div>
+                  <?php elseif ($completedCount >= $totalStages): ?>
+                    <div><strong>100%</strong> to Complete</div>
+                    <div class="text-success">All Stages Complete.</div>
+                  <?php else: ?>
+                    <div><strong><?= $progressPercent ?>%</strong> to Complete</div>
+                    <?php if (!empty($nextStage)): ?>
+                      <div class="text-muted">
+                        ETA: <?= $etaDays ?> Days to <?= htmlspecialchars($nextStage) ?>
+                      </div>
+                    <?php else: ?>
+                      <div class="text-muted">Menunggu proses berikutnya...</div>
+                    <?php endif; ?>
+                  <?php endif; ?>
+                </div>
 
-                <div class="col-md-4"><strong>Status:</strong> <?= $trans['status'] ?></div>
               </div>
 
               <!-- Timeline -->
               <div class="timeline-container">
-                <?php
-                // Mapping urutan tahapan
-                $stages = [
-                  'SCAN_IN_WAREHOUSE' => 'In Warehouse',
-                  'SCAN_OUT_TO_VENDOR' => 'Out WH to Vendor',
-                  'SCAN_IN_VENDOR' => 'In Vendor',
-                  'SCAN_OUT_VENDOR' => 'Out Vendor',
-                  'SCAN_IN_INCOMING' => 'Incoming WH',
-                  'SCAN_CHECK_QC' => 'Check QC',
-                  'SCAN_OUT_TO_PRODUCTION' => 'Out to Production'
-                ];
-
-                // Ambil log & status dari database
-                $logs = [];
-                while ($row = mysqli_fetch_assoc($resultLog)) {
-                  $newData = json_decode($row['new_data'], true);
-                  $logs[] = [
-                    'type_scan' => $newData['type_scan'] ?? '',
-                    'status' => $newData['status'] ?? '',
-                    'created_at' => $row['created_at']
-                  ];
-                }
-
-                // Deteksi progress terakhir
-                $completedStages = array_column($logs, 'type_scan');
-                $lastStage = end($completedStages);
-
-                // Render timeline
-                foreach ($stages as $key => $label) {
+                <?php foreach ($stages as $key => $label):
                   $class = '';
-                  $icon = '<i class="fa-regular fa-circle"></i>'; // default abu
+                  $icon = '<i class="bi bi-circle text-secondary"></i>'; // default abu
 
                   if (in_array($key, $completedStages)) {
                     $class = 'completed';
-                    $icon = '<i class="fa-solid fa-check"></i>'; // ✅ completed
-                    if ($key == $lastStage) {
-                      $class = 'active';
-                      $icon = '<i class="fa-solid fa-hourglass-half"></i>'; // ⏳ active
-                    }
+                    $icon = '<i class="bi bi-check-circle-fill text-success"></i>'; // ✅ completed
                   }
 
-                  echo "
-    <div class='timeline-step $class'>
-      <div class='timeline-circle'>$icon</div>
-      <div class='timeline-label'>$label</div>
-    </div>
-  ";
-                }
+                  // cari next stage (yang belum completed pertama)
+                  if (isset($stageKeys[$completedCount]) && $key === $stageKeys[$completedCount]) {
+                    $class = 'active';
+                    $icon = '<i class="bi bi-hourglass-split text-primary"></i>'; // ⏳ active (tahap berikutnya)
+                  }
+
                 ?>
+                  <div class="timeline-step <?= $class ?>">
+                    <div class="timeline-circle"><?= $icon ?></div>
+                    <div class="timeline-label"><?= htmlspecialchars($label) ?></div>
+                  </div>
+                <?php endforeach; ?>
+
               </div>
 
               <hr>
 
-              <!-- Detail Aktivitas -->
-              <h6>Riwayat Aktivitas</h6>
+              <!-- Riwayat Aktivitas -->
+              <h6 class="fw-bold mb-3" style="border-left: 4px solid #0d6efd; padding-left: 8px; color: #0d6efd;">
+                <i class="bi bi-clock-history me-1"></i> Riwayat Aktivitas
+              </h6>
               <table class="table table-sm table-striped mt-3">
                 <thead>
                   <tr>
                     <th>#</th>
-                    <th>Type Scan</th>
                     <th>Status</th>
+                    <th>User</th>
                     <th>Waktu</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <?php foreach ($logs as $i => $log): ?>
+                  <?php if (!empty($logs)): ?>
+                    <?php foreach ($logs as $i => $log): ?>
+                      <tr>
+                        <td><?= $i + 1 ?></td>
+                        <td>
+                          <?= htmlspecialchars($typeScanLabels[$log['type_scan']] ?? $log['type_scan']) ?>
+                        </td>
+                        <td>
+                          <?= htmlspecialchars($log['created_by'] ?? '—') ?>
+                        </td>
+                        <td><?= htmlspecialchars($log['created_at']) ?></td>
+                      </tr>
+                    <?php endforeach; ?>
+                  <?php else: ?>
                     <tr>
-                      <td><?= $i + 1 ?></td>
-                      <td><?= $log['type_scan'] ?></td>
-                      <td><?= $log['status'] ?></td>
-                      <td><?= $log['created_at'] ?></td>
+                      <td colspan="4" class="text-center text-muted">Belum ada aktivitas.</td>
                     </tr>
-                  <?php endforeach; ?>
+                  <?php endif; ?>
                 </tbody>
               </table>
 
-              <!-- Data Defect (kalau ada) -->
+              <!-- Data Kekurangan -->
               <?php if (mysqli_num_rows($resultKekurangan) > 0): ?>
                 <hr>
-                <h6>Data Kekurangan Barang</h6>
-                <table class="table table-sm table-bordered">
-                  <thead>
+                <h6 class="fw-bold mb-3" style="border-left: 4px solid #0d6efd; padding-left: 8px; color: #0d6efd;">
+                  <i class="bi bi-exclamation-triangle me-1"></i> Data Kekurangan Barang
+                </h6>
+
+                <table class="table table-sm table-striped mt-3 align-middle">
+                  <thead class="table-light">
                     <tr>
-                      <th>Defect Qty</th>
-                      <th>Total Kekurangan</th>
-                      <th>Status</th>
-                      <th>Last Gate</th>
+                      <th style="width:50px;">No</th>
+                      <th>Komponen (Size & Qty)</th>
+                      <th class="text-center">Total Kekurangan</th>
+                      <th class="text-center">At</th>
                     </tr>
                   </thead>
                   <tbody>
-                    <?php while ($k = mysqli_fetch_assoc($resultKekurangan)): ?>
+                    <?php
+                    $no = 1;
+                    $komponen_map = []; // Cache nama komponen biar ga query berulang
+
+                    while ($k = mysqli_fetch_assoc($resultKekurangan)):
+                      // Proses komponen JSON
+                      $komponen_display = [];
+                      if (!empty($k['tk_komponen_qty'])) {
+                        $komponen_list = json_decode($k['tk_komponen_qty'], true);
+                        if (is_array($komponen_list)) {
+                          $grouped = [];
+                          foreach ($komponen_list as $item) {
+                            $id_komponen = intval($item['komponen'] ?? 0);
+                            $size = htmlspecialchars($item['size'] ?? '-', ENT_QUOTES, 'UTF-8');
+                            $qty = intval($item['kekurangan'] ?? $item['qty'] ?? 0);
+
+                            if (!isset($grouped[$id_komponen])) {
+                              $grouped[$id_komponen] = [];
+                            }
+
+                            $grouped[$id_komponen][] = "{$size} ({$qty})";
+                          }
+
+                          // Ambil nama komponen (cache biar efisien)
+                          foreach ($grouped as $komp_id => $sizes) {
+                            if (!isset($komponen_map[$komp_id])) {
+                              $resKom = mysqli_query($conn, "SELECT nama_komponen FROM tbl_komponen WHERE id_komponen = '$komp_id' LIMIT 1");
+                              $rowKom = mysqli_fetch_assoc($resKom);
+                              $komponen_map[$komp_id] = $rowKom['nama_komponen'] ?? "Komponen {$komp_id}";
+                            }
+                            $komponen_display[] = "{$komponen_map[$komp_id]} : " . implode(', ', $sizes);
+                          }
+                        }
+                      }
+
+                      $komponen_html = implode('<br>', $komponen_display) ?: '-';
+                    ?>
                       <tr>
-                        <td><?= $k['defect_qty'] ?></td>
-                        <td><?= $k['total_kekurangan'] ?></td>
-                        <td><?= $k['status'] ?></td>
-                        <td><?= $k['last_gate'] ?></td>
+                        <td class="text-center"><?= $no++ ?></td>
+                        <td><?= $komponen_html ?></td>
+                        <td class="text-center fw-bold"><?= htmlspecialchars($k['total_kekurangan']) ?></td>
+                        <td class="text-center"><?= htmlspecialchars($gateLabels[$k['last_gate']] ?? $k['last_gate']) ?></td>
                       </tr>
                     <?php endwhile; ?>
                   </tbody>
                 </table>
               <?php endif; ?>
 
+
             </div>
           </div>
         </div>
-
-      </div>
-      <!-- End Table with stripped rows -->
-      </div>
-      </div>
-      </div>
       </div>
     </section>
 
