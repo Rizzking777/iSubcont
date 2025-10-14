@@ -8,12 +8,19 @@ if (isset($_POST["login"])) {
 
   // Ambil data user berdasarkan NIK
   $query = "
-    SELECT u.id_user, u.nik_user, u.pass_user, u.role_id, u.username,
-           r.role_name
-    FROM tbl_user u
-    JOIN roles r ON r.id = u.role_id
-    WHERE u.nik_user='$nik_user' AND u.is_deleted = '0';
-  ";
+  SELECT 
+    u.id_user, 
+    u.nik_user, 
+    u.pass_user, 
+    u.role_id, 
+    u.username,
+    r.role_name,
+    r.gate_type
+  FROM tbl_user u
+  JOIN roles r ON r.id = u.role_id
+  WHERE u.nik_user='$nik_user' AND u.is_deleted = '0';
+";
+
   $login = mysqli_query($conn, $query);
 
   if (mysqli_num_rows($login) > 0) {
@@ -28,7 +35,8 @@ if (isset($_POST["login"])) {
       $_SESSION['nik_user']   = $data['nik_user'];
       $_SESSION['role_id']    = $data['role_id'];
       $_SESSION['role_name']  = $data['role_name'];
-      $_SESSION['username']  = $data['username'];
+      $_SESSION['username']   = $data['username'];
+      $_SESSION['type_scan']  = $data['gate_type'] ?? ''; // 🧩 Tambahan baru
 
       // Update last_login
       date_default_timezone_set('Asia/Jakarta');
@@ -39,14 +47,11 @@ if (isset($_POST["login"])) {
       $ip_address = $_SERVER['REMOTE_ADDR'];
       $user_agent = mysqli_real_escape_string($conn, $_SERVER['HTTP_USER_AGENT']);
       mysqli_query($conn, "
-        INSERT INTO tlog_login (id_user, ip_address, user_agent, login_time) 
-        VALUES ('{$data['id_user']}', '$ip_address', '$user_agent', '$now')
-      ");
+    INSERT INTO tlog_login (id_user, ip_address, user_agent, login_time) 
+    VALUES ('{$data['id_user']}', '$ip_address', '$user_agent', '$now')
+  ");
 
-      // Set TOAST "Login Berhasil"
       $_SESSION['login_status'] = 'success';
-
-      // Redirect ke dashboard
       header("Location: pages/index.php");
       exit;
     } else {
