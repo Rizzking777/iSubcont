@@ -415,7 +415,7 @@ $result_transaksi = $stmt->get_result();
                       </ul>
                     </ul>
 
-                    <button type="submit" name="confirm-qc" class="btn btn-success">
+                    <button type="submit" name="confirm-qc" value="1" class="btn btn-success">
                       <i class="bi bi-check-circle"></i> Confirm
                     </button>
                   </form>
@@ -536,31 +536,29 @@ $result_transaksi = $stmt->get_result();
   <script>
     // Template defect row (pakai komponenId + size)
     function createDefectRow(komponenId, sizeVal) {
-      const safeSize = sizeVal.replace(/[^a-zA-Z0-9_-]/g, "_"); // amanin id
+      const safeSize = sizeVal.replace(/[^a-zA-Z0-9_-]/g, "_");
 
       const row = document.createElement("div");
       row.classList.add("row", "g-2", "mb-2", "align-items-center", "defect-row");
 
       row.innerHTML = `
-      <div class="col-md-6">
-        <select name="defect[${komponenId}][${safeSize}][]" 
-                class="form-select defect-select" 
-                data-komponen="${komponenId}" 
-                data-size="${safeSize}" required>
-        </select>
-      </div>
-      <div class="col-md-4">
-        <input type="number" 
-               name="defect_qty[${komponenId}][${safeSize}][]" 
-               class="form-control" min="1" step="1" placeholder="Qty" required>
-      </div>
-      <div class="col-md-2 d-grid">
-        <button type="button" class="btn btn-danger btn-remove-defect btn-square">
-  <i class="bi bi-trash"></i>
-</button>
-
-      </div>
-    `;
+    <div class="col-md-6">
+      <select name="defect[${komponenId}][${sizeVal}][]" 
+              id="defect-${komponenId}-${safeSize}"
+              class="form-select defect-select" required></select>
+    </div>
+    <div class="col-md-4">
+      <input type="number" 
+             name="defect_qty[${komponenId}][${sizeVal}][]" 
+             id="defect_qty-${komponenId}-${safeSize}"
+             class="form-control" min="1" step="1" placeholder="Qty" required>
+    </div>
+    <div class="col-md-2 d-grid">
+      <button type="button" class="btn btn-danger btn-remove-defect btn-square">
+        <i class="bi bi-trash"></i>
+      </button>
+    </div>
+  `;
       return row;
     }
 

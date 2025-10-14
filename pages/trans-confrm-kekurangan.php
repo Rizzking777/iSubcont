@@ -32,30 +32,35 @@ if (!empty($role_name)) {
 }
 
 // --- query transaksi ---
+$komponen_map = [];
+$res_all_komponen = $conn->query("SELECT id_komponen, nama_komponen FROM tbl_komponen WHERE is_deleted = 0");
+while ($k = $res_all_komponen->fetch_assoc()) {
+  $komponen_map[$k['id_komponen']] = $k['nama_komponen'];
+}
+
+// Ambil data kekurangan + join tbl_transaksi
 $query_kekurangan = "
     SELECT 
         tk.id_kekurangan,
         tk.id_trans_asal,
         tk.job_order,
-        tk.komponen_qty,
-        tk.defect_qty,
+        tk.komponen_qty AS tk_komponen_qty,
         tk.total_kekurangan,
-        tk.status,
-        tk.last_gate,
-        tk.created_at,
-        tk.updated_at,
-        t.barcode,
-        t.created_by
+        tk.status AS tk_status,
+        t.ncvs,
+        t.bucket,
+        t.po_code,
+        t.po_item,
+        t.model,
+        t.style
     FROM tbl_transaksi_kekurangan tk
     LEFT JOIN tbl_transaksi t ON tk.id_trans_asal = t.id_trans
     $where
     ORDER BY tk.created_at DESC
 ";
-
 $res_kekurangan = $conn->query($query_kekurangan);
-if (!$res_kekurangan) {
-  die("Query gagal: " . $conn->error);
-}
+if (!$res_kekurangan) die("Query gagal: " . $conn->error);
+
 ?>
 
 <style>
@@ -198,18 +203,22 @@ if (!$res_kekurangan) {
         <div class="col-lg-12">
           <div class="card">
             <div class="card-body" style="margin-top: 10px;">
-              <div class="table-responsive">
+              <div class="table-responsive" style="overflow-x: auto;">
                 <table id="tbl_kekurangan" class="table table-bordered table-striped text-center align-middle nowrap" style="width:100%">
                   <thead class="table-light">
                     <tr>
-                      <th class="text-center">No</th>
-                      <th class="text-center">Job Order</th>
-                      <th class="text-center">Barcode</th>
-                      <th class="text-center">Total Kekurangan</th>
-                      <th class="text-center">Gate Asal</th>
-                      <th class="text-center">Status</th>
-                      <th class="text-center">Dibuat</th>
-                      <th class="text-center">Aksi</th>
+                      <th style="text-align: center;">No</th>
+                      <th style="text-align: center;">Job Order</th>
+                      <th style="text-align: center;">NCVS</th>
+                      <th style="text-align: center;">Bucket</th>
+                      <th style="text-align: center;">Po Code</th>
+                      <th style="text-align: center;">Po Item</th>
+                      <th style="text-align: center;">Model</th>
+                      <th style="text-align: center;">Style</th>
+                      <th style="text-align: center;">Komponen</th>
+                      <th style="text-align: center;">Total Kurang</th>
+                      <th style="text-align: center;">Status</th>
+                      <th style="text-align: center;">Action</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -221,28 +230,66 @@ if (!$res_kekurangan) {
                     echo "<!-- DEBUG WHERE: {$where} -->";
 
                     if (!$res_kekurangan || $res_kekurangan->num_rows == 0) {
-                      // Row dummy aman: 8 td tanpa colspan
                       echo "<tr>";
-                      echo "<td class='text-center'>{$no}</td>";
-                      echo "<td class='text-center text-muted'>Tidak ada data kekurangan yang perlu dikonfirmasi.</td>";
-                      echo "<td>&nbsp;</td>";
-                      echo "<td>&nbsp;</td>";
-                      echo "<td>&nbsp;</td>";
-                      echo "<td>&nbsp;</td>";
-                      echo "<td>&nbsp;</td>";
-                      echo "<td class='text-center'>&nbsp;</td>";
+                      for ($i = 0; $i < 12; $i++) {
+                        if ($i == 1) {
+                          echo "<td class='text-center text-muted'>Tidak ada data kekurangan yang perlu dikonfirmasi.</td>";
+                        } else {
+                          echo "<td>&nbsp;</td>";
+                        }
+                      }
                       echo "</tr>";
                     } else {
                       while ($row = $res_kekurangan->fetch_assoc()) {
                         $job_order = htmlspecialchars($row['job_order'] ?? '-', ENT_QUOTES, 'UTF-8');
-                        $barcode = htmlspecialchars($row['barcode'] ?? '-', ENT_QUOTES, 'UTF-8');
+                        $ncvs      = htmlspecialchars($row['ncvs'] ?? '-', ENT_QUOTES, 'UTF-8');
+                        $bucket    = htmlspecialchars($row['bucket'] ?? '-', ENT_QUOTES, 'UTF-8');
+                        $po_code   = htmlspecialchars($row['po_code'] ?? '-', ENT_QUOTES, 'UTF-8');
+                        $po_item   = htmlspecialchars($row['po_item'] ?? '-', ENT_QUOTES, 'UTF-8');
+                        $model     = htmlspecialchars($row['model'] ?? '-', ENT_QUOTES, 'UTF-8');
+                        $style     = htmlspecialchars($row['style'] ?? '-', ENT_QUOTES, 'UTF-8');
                         $total_kekurangan = intval($row['total_kekurangan'] ?? 0);
-                        $last_gate = htmlspecialchars($row['last_gate'] ?? '-', ENT_QUOTES, 'UTF-8');
-                        $status = strtolower(trim($row['status'] ?? ''));
+                        $status = strtolower(trim($row['tk_status'] ?? ''));
                         $status_badge = $status === 'pending'
                           ? "<span class='badge bg-warning text-dark'>Pending</span>"
                           : "<span class='badge bg-success'>Confirmed</span>";
-                        $created_at = !empty($row['created_at']) ? date('d M Y H:i', strtotime($row['created_at'])) : '-';
+
+                        // Proses komponen JSON
+                        $komponen_display = [];
+
+                        if (!empty($row['tk_komponen_qty'])) {
+                          $komponen_list = json_decode($row['tk_komponen_qty'], true);
+                          if (is_array($komponen_list)) {
+                            $grouped = []; // tampung per komponen
+
+                            // Loop data dan kelompokkan berdasarkan id_komponen
+                            foreach ($komponen_list as $item) {
+                              $id_komponen = intval($item['komponen'] ?? 0);
+                              $size = htmlspecialchars($item['size'] ?? '-', ENT_QUOTES, 'UTF-8');
+
+                              // Ambil nilai kekurangan, fallback ke qty kalau kekurangan tidak ada
+                              $kekurangan = isset($item['kekurangan'])
+                                ? intval($item['kekurangan'])
+                                : intval($item['qty'] ?? 0);
+
+                              if (!isset($grouped[$id_komponen])) {
+                                $grouped[$id_komponen] = [];
+                              }
+
+                              // Simpan tiap size dengan format "size (qty)"
+                              $grouped[$id_komponen][] = "{$size} ({$kekurangan})";
+                            }
+
+                            // Bangun teks tampilan
+                            foreach ($grouped as $komp_id => $sizes) {
+                              $nama_komponen = $komponen_map[$komp_id] ?? "Komponen {$komp_id}";
+                              $size_str = implode(', ', $sizes);
+                              $komponen_display[] = "{$nama_komponen} : {$size_str}";
+                            }
+                          }
+                        }
+
+                        $komponen_html = implode('<br>', $komponen_display) ?: '-';
 
                         // Debug per row
                         echo "<!-- DEBUG ROW: " . htmlspecialchars(json_encode($row), ENT_QUOTES, 'UTF-8') . " -->";
@@ -250,24 +297,41 @@ if (!$res_kekurangan) {
                         echo "<tr>";
                         echo "<td class='text-center'>{$no}</td>";
                         echo "<td>{$job_order}</td>";
-                        echo "<td>{$barcode}</td>";
+                        echo "<td>{$ncvs}</td>";
+                        echo "<td>{$bucket}</td>";
+                        echo "<td>{$po_code}</td>";
+                        echo "<td>{$po_item}</td>";
+                        echo "<td>{$model}</td>";
+                        echo "<td>{$style}</td>";
+                        echo "<td>{$komponen_html}</td>";
                         echo "<td class='text-center'>{$total_kekurangan}</td>";
-                        echo "<td class='text-center'>{$last_gate}</td>";
                         echo "<td class='text-center'>{$status_badge}</td>";
-                        echo "<td class='text-center'>{$created_at}</td>";
                         echo "<td class='text-center'>";
                         if ($status === 'pending') {
-                          echo "<button class='btn btn-success btn-sm confirmBtn' data-id='" . intval($row['id_kekurangan']) . "'>
-                                    <i class='bi bi-check-circle'></i> Konfirmasi
-                                  </button>";
+                          echo '<form action="../config/function.php" method="POST" style="display:inline;">
+            <input type="hidden" name="action" value="confirm_kekurangan">
+            <input type="hidden" name="id_kekurangan" value="' . intval($row['id_kekurangan']) . '">
+            <button 
+                class="btn btn-success btn-sm" 
+                type="submit"
+                onclick="return confirm(\'Yakin ingin mengonfirmasi kekurangan ini?\')" 
+                data-bs-toggle="tooltip" 
+                title="Konfirmasi kekurangan">
+                <i class="bi bi-check-circle"></i>
+            </button>
+          </form>';
                         } else {
-                          echo "<button class='btn btn-secondary btn-sm' disabled>
-                                    <i class='bi bi-check2-all'></i> Selesai
-                                  </button>";
+                          echo '<button 
+            class="btn btn-secondary btn-sm" 
+            disabled 
+            data-bs-toggle="tooltip" 
+            title="Sudah dikonfirmasi">
+            <i class="bi bi-check2-all"></i>
+          </button>';
                         }
+
                         echo "</td>";
                         echo "</tr>";
-
                         $no++;
                       }
                     }
@@ -379,8 +443,9 @@ if (!$res_kekurangan) {
         order: [
           [0, 'asc']
         ],
-        responsive: true,
-        autoWidth: false, // penting supaya jumlah kolom sesuai
+        autoWidth: false,
+        scrollX: true, // scroll horizontal
+        responsive: false, // matikan responsive supaya td tidak pecah
         language: {
           search: "Cari:",
           zeroRecords: "Data tidak ditemukan",
@@ -395,7 +460,7 @@ if (!$res_kekurangan) {
         }
       });
 
-      // tombol konfirmasi
+
       $(document).on('click', '.confirmBtn', function() {
         const id = $(this).data('id');
         if (!confirm('Konfirmasi kekurangan ini?')) return;
@@ -418,6 +483,38 @@ if (!$res_kekurangan) {
       });
     });
   </script>
+
+  <!-- <script>
+    document.addEventListener("DOMContentLoaded", function() {
+      document.querySelectorAll(".confirmBtn").forEach(btn => {
+        btn.addEventListener("click", function() {
+          const id = this.dataset.id;
+
+          if (!confirm("Yakin ingin mengonfirmasi kekurangan ini?")) return;
+
+          fetch("./../config//function.php", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/x-www-form-urlencoded"
+              },
+              body: "action=confirm_kekurangan&id_kekurangan=" + encodeURIComponent(id)
+            })
+            .then(res => res.text()) // ganti dari res.json() ke res.text()
+            .then(text => {
+              try {
+                const data = JSON.parse(text);
+                alert(data.message);
+                if (data.status === "success") location.reload();
+              } catch (e) {
+                // Kalau JSON gagal parse (misal HTML error), tampilkan isinya
+                alert("❌ Server tidak mengembalikan JSON:\n" + text);
+              }
+            })
+            .catch(err => alert("❌ Fetch error: " + err));
+        });
+      });
+    });
+  </script> -->
 
 </body>
 

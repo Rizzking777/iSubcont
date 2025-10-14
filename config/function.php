@@ -3540,7 +3540,7 @@ if (isset($_POST['pending-out-vendor'])) {
                         $kekurangan_arr[] = [
                             "komponen" => $komponen,
                             "size"     => $size,
-                            "kurang"   => $selisih
+                            "kekurangan"   => $selisih
                         ];
                         $total_kekurangan += $selisih;
                     }
@@ -3914,17 +3914,16 @@ if (isset($_POST['pending-in-incoming'])) {
                     $old_qty = $map_old_qty[$komponen][$size] ?? 0;
                     $selisih = $old_qty - $qty_baru;
 
-                    // Simpan data qty ke format seragam (array of object)
-                    $komponen_arr[] = [
-                        "komponen" => (int)$komponen,
-                        "size" => (string)$size,
-                        "qty" => (int)$qty_baru
-                    ];
-
-                    // Cek jika ada kekurangan
+                    // Simpan hanya yang mengalami kekurangan
                     if ($selisih > 0) {
-                        $total_kekurangan += $selisih;  // total semua kekurangan
-                        $total_defect_qty += $selisih;  // defect_qty (INT)
+                        $komponen_arr[] = [
+                            "komponen"   => (int)$komponen,
+                            "size"       => (string)$size,
+                            "kekurangan" => (int)$selisih
+                        ];
+
+                        $total_kekurangan += $selisih;
+                        $total_defect_qty += $selisih;
                     }
                 }
             }
@@ -3937,16 +3936,16 @@ if (isset($_POST['pending-in-incoming'])) {
                 $last_gate = 'SCAN_IN_INCOMING';  // ubah sesuai kebutuhan
 
                 $stmt_kurang = $conn->prepare("
-                    INSERT INTO tbl_transaksi_kekurangan
-                    (id_trans_asal, job_order, komponen_qty, defect_qty, total_kekurangan, status, last_gate, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, 'PENDING', ?, NOW(), NOW())
-                ");
+                        INSERT INTO tbl_transaksi_kekurangan
+                        (id_trans_asal, job_order, komponen_qty, defect_qty, total_kekurangan, status, last_gate, created_at, updated_at)
+                        VALUES (?, ?, ?, ?, ?, 'PENDING', ?, NOW(), NOW())
+                    ");
 
                 $stmt_kurang->bind_param(
                     "issiis",
                     $id_trans,               // id_trans_asal
                     $old_data['job_order'],  // job_order
-                    $komponen_json,          // komponen_qty (JSON)
+                    $komponen_json,          // komponen_qty (JSON berisi hanya yang kurang)
                     $total_defect_qty,       // defect_qty (INT)
                     $total_kekurangan,       // total_kekurangan (INT)
                     $last_gate               // last_gate (SCAN_IN_VENDOR, SCAN_OUT_VENDOR, dll)
@@ -3954,6 +3953,7 @@ if (isset($_POST['pending-in-incoming'])) {
 
                 $stmt_kurang->execute();
             }
+
             $conn->commit();
 
             $_SESSION['green_notif'] = "QR Code berhasil di-scan (Scan In Incoming). Status : Quantity tidak sesuai";
@@ -4213,22 +4213,24 @@ if (isset($_POST['delete-defect'])) {
 }
 
 // === Confirm Check QC ===
-if (isset($_POST['confirm-qc'])) {
+if (isset($_POST['confirm-qc']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    // --- Ambil input awal dari POST (pastikan tidak hilang scope) ---
     $barcode      = $_POST['barcode'] ?? null;
-    $post_qty     = $_POST['qty'] ?? [];           // array komponen => qty (optional)
-    $post_defect  = $_POST['defect'] ?? [];        // array defect[komponen_id][] (optional)
-    $post_def_qty = $_POST['defect_qty'] ?? [];    // array defect_qty[komponen_id][] (optional)
+    $post_qty     = $_POST['qty'] ?? [];           // array komponen => [size => qty]
+    $post_defect  = $_POST['defect'] ?? [];        // array defect[komponen][size] = [defectId,...]
+    $post_def_qty = $_POST['defect_qty'] ?? [];    // array defect_qty[komponen][size] = [qty,...]
     $scan_with    = $_SESSION['username'] ?? 'unknown';
 
-    if (!$barcode) {
+    if (empty($barcode)) {
         $_SESSION['red_notif'] = "QR Code tidak boleh kosong.";
         header("Location: /isubcont/pages/trans-scan-check-qc.php");
         exit;
     }
 
+    // Mulai transaksi DB
     $conn->begin_transaction();
     try {
-        // ambil data lama
+        // Ambil transaksi lama berdasarkan barcode
         $stmt_old = $conn->prepare("SELECT * FROM tbl_transaksi WHERE barcode = ?");
         $stmt_old->bind_param("s", $barcode);
         $stmt_old->execute();
@@ -4237,15 +4239,14 @@ if (isset($_POST['confirm-qc'])) {
         $stmt_old->close();
 
         if (!$old_data) {
-            $conn->rollback();
-            $_SESSION['red_notif'] = "QR Code $barcode tidak ditemukan.";
-            header("Location: /isubcont/pages/trans-scan-check-qc.php");
-            exit;
+            throw new Exception("QR Code $barcode tidak ditemukan.");
         }
 
         $json_old_data = json_encode($old_data, JSON_UNESCAPED_UNICODE);
+        $id_trans_asal = (int)($old_data['id_trans'] ?? 0);
+        $job_order = $old_data['job_order'] ?? '';
 
-        // validasi urutan workflow (sama gaya sebelumnya)
+        // Validasi urutan workflow (sama gaya sebelumnya)
         $scan_flow = [
             "SCAN_IN_WAREHOUSE",
             "SCAN_OUT_TO_VENDOR",
@@ -4260,33 +4261,16 @@ if (isset($_POST['confirm-qc'])) {
         if ($current_index === false) $current_index = -1;
         $next_state = $scan_flow[$current_index + 1] ?? null;
         if ($next_state !== "SCAN_CHECK_QC") {
-            $conn->rollback();
-            $_SESSION['red_notif'] = "QR Code tidak bisa di-scan di tahap ini. Current: $current_state, Next workflow: $next_state";
-            header("Location: /isubcont/pages/trans-scan-check-qc.php");
-            exit;
+            throw new Exception("QR Code tidak bisa di-scan di tahap ini. Current: $current_state, Next workflow: $next_state");
         }
 
-        // cari hour sesuai NOW()
-        $stmt_hour = $conn->prepare("
-            SELECT id_time, hour
-            FROM tbl_time
-            WHERE TIME(NOW()) BETWEEN start_hour AND end_hour
-            ORDER BY id_time LIMIT 1
-        ");
-        $stmt_hour->execute();
-        $res_hour = $stmt_hour->get_result();
-        $hour_row = $res_hour->fetch_assoc();
-        $hour = $hour_row['hour'] ?? null;
-        $hour_int = (int)$hour;
+        // === Build komponen_qty final (dengan size) dan map untuk validasi ===
+        $komponen_arr = [];
+        $komp_map = []; // komp_map[komponen][size] = qty
 
-        // === Build komponen_qty final (dengan size) ===
         if (!empty($post_qty) && is_array($post_qty)) {
-            $komponen_arr = [];
-            $komp_map = []; // map untuk validasi defect
-
             foreach ($post_qty as $komponen_id => $size_list) {
                 if (!is_array($size_list)) continue;
-
                 foreach ($size_list as $size_val => $q) {
                     $q_int = (int)$q;
                     $komponen_arr[] = [
@@ -4294,90 +4278,90 @@ if (isset($_POST['confirm-qc'])) {
                         "size"     => (string)$size_val,
                         "qty"      => $q_int
                     ];
-                    $komp_map[$komponen_id][$size_val] = $q_int;
+                    // simpan di map
+                    $komp_map[(int)$komponen_id][(string)$size_val] = $q_int;
                 }
             }
-
-            $qty_json_final = json_encode($komponen_arr, JSON_UNESCAPED_UNICODE);
         } else {
-            // fallback pakai data lama
+            // fallback pakai data lama (normalize)
             $old_kq_raw = $old_data['komponen_qty'] ?? '[]';
             $decoded = is_string($old_kq_raw) ? json_decode($old_kq_raw, true) : (array)$old_kq_raw;
             if (!is_array($decoded)) $decoded = [];
-
-            $qty_json_final = json_encode($decoded, JSON_UNESCAPED_UNICODE);
-
-            // rebuild komp_map dari data lama
-            $komp_map = [];
             foreach ($decoded as $it) {
-                $komp = (int)($it['komponen'] ?? 0);
-                $size = (string)($it['size'] ?? "-");
-                $komp_map[$komp][$size] = (int)($it['qty'] ?? 0);
+                $kid = (int)($it['komponen'] ?? 0);
+                $sz  = (string)($it['size'] ?? '-');
+                $qt  = (int)($it['qty'] ?? 0);
+                $komponen_arr[] = [
+                    "komponen" => $kid,
+                    "size"     => $sz,
+                    "qty"      => $qt
+                ];
+                $komp_map[$kid][$sz] = $qt;
             }
         }
+        $qty_json_final = json_encode($komponen_arr, JSON_UNESCAPED_UNICODE);
 
         // === Process defect input (optional, dengan size) ===
+        $defect_arr = [];
+        $total_defect = 0;
+
         if (!empty($post_defect) && is_array($post_defect)) {
-            $defect_arr = [];
-
             foreach ($post_defect as $komponen_id => $size_group) {
-                $komponen_id = (int)$komponen_id;
+                $komp_id_int = (int)$komponen_id;
                 if (!is_array($size_group)) continue;
-
                 foreach ($size_group as $size_val => $defect_list) {
-                    $size_val = (string)$size_val;
+                    $size_str = (string)$size_val;
                     if (!is_array($defect_list)) continue;
-
                     $total_defect_for_size = 0;
-
                     foreach ($defect_list as $idx => $defect_id) {
-                        $defect_id = (int)$defect_id;
-                        $qty_val   = isset($post_def_qty[$komponen_id][$size_val][$idx]) ? (int)$post_def_qty[$komponen_id][$size_val][$idx] : 0;
-                        if ($defect_id === 0 || $qty_val <= 0) continue;
+                        $defect_id_int = (int)$defect_id;
+                        $qty_val = isset($post_def_qty[$komponen_id][$size_val][$idx]) ? (int)$post_def_qty[$komponen_id][$size_val][$idx] : 0;
+                        if ($qty_val <= 0) continue;
 
                         $total_defect_for_size += $qty_val;
-
                         // validasi: defect tidak boleh > qty size ini
-                        $available = $komp_map[$komponen_id][$size_val] ?? 0;
+                        $available = $komp_map[$komp_id_int][$size_str] ?? 0;
                         if ($total_defect_for_size > $available) {
-                            $conn->rollback();
-                            $_SESSION['red_notif'] = "Qty defect untuk komponen $komponen_id size $size_val melebihi qty aslinya ($available).";
-                            header("Location: /isubcont/pages/trans-scan-check-qc.php");
-                            exit;
+                            throw new Exception("Qty defect untuk komponen $komp_id_int size $size_str melebihi qty aslinya ($available).");
                         }
 
                         $defect_arr[] = [
-                            "komponen" => $komponen_id,
-                            "size"     => $size_val,
-                            "defect"   => $defect_id,
+                            "komponen" => $komp_id_int,
+                            "size"     => $size_str,
+                            "defect"   => $defect_id_int,
                             "qty"      => $qty_val
                         ];
+                        $total_defect += $qty_val;
                     }
                 }
             }
-            $defect_json = json_encode($defect_arr, JSON_UNESCAPED_UNICODE);
         } else {
-            // fallback ambil defect lama
+            // fallback: gunakan defect lama jika ada (tidak mempengaruhi calculation kekurangan)
             $old_def_raw = $old_data['defect_qty'] ?? '[]';
-            $decoded = is_string($old_def_raw) ? json_decode($old_def_raw, true) : (array)$old_def_raw;
-            if (!is_array($decoded)) $decoded = [];
-            $defect_json = json_encode($decoded, JSON_UNESCAPED_UNICODE);
+            $decoded_def = is_string($old_def_raw) ? json_decode($old_def_raw, true) : (array)$old_def_raw;
+            if (is_array($decoded_def)) {
+                $defect_arr = $decoded_def;
+                // tidak menjumlahkan ke total_defect di sini karena ini bukan input baru
+            } else {
+                $defect_arr = [];
+            }
         }
+        $defect_json = json_encode($defect_arr, JSON_UNESCAPED_UNICODE);
 
-        // === Update transaksi ===
+        // === Update tbl_transaksi (simpan komponen_qty & defect_qty JSON) ===
         $stmt_upd = $conn->prepare("
             UPDATE tbl_transaksi
             SET type_scan    = 'SCAN_CHECK_QC',
                 komponen_qty = ?,
                 defect_qty   = ?,
                 scan_with    = ?,
-                scan_at      = NOW(),
-                hour         = ?
+                scan_at      = NOW()
             WHERE barcode = ?
         ");
-        // types: s (qty_json), s (defect_json), s (scan_with), i (hour_int), s (barcode)
-        $stmt_upd->bind_param("sssis", $qty_json_final, $defect_json, $scan_with, $hour_int, $barcode);
+        if (!$stmt_upd) throw new Exception("Prepare update tbl_transaksi failed: " . $conn->error);
+        $stmt_upd->bind_param("ssss", $qty_json_final, $defect_json, $scan_with, $barcode);
         $stmt_upd->execute();
+        $stmt_upd->close();
 
         // ambil data baru untuk log
         $stmt_new = $conn->prepare("SELECT * FROM tbl_transaksi WHERE barcode = ?");
@@ -4394,50 +4378,135 @@ if (isset($_POST['confirm-qc'])) {
             (id_trans, updated_by, action_type, old_data, new_data, created_at, updated_at)
             VALUES (?, ?, 'SCAN_CHECK_QC', ?, ?, NOW(), NOW())
         ");
+        if (!$stmt_log) throw new Exception("Prepare insert tlog_transaksi failed: " . $conn->error);
         $id_trans = (int)$old_data['id_trans'];
         $stmt_log->bind_param("isss", $id_trans, $scan_with, $json_old_data, $json_new_data);
         $stmt_log->execute();
+        $stmt_log->close();
 
-        // --- Simpan data kekurangan (defect) ke tbl_transaksi_kekurangan
-        $total_kekurangan = 0;
-
-        // Hitung total defect qty dari JSON yang baru dibuat
-        $decoded_defect = json_decode($defect_json, true);
-        if (is_array($decoded_defect)) {
-            foreach ($decoded_defect as $item) {
-                $total_kekurangan += (int)($item['qty'] ?? 0);
+        // === Hitung kekurangan (selisih antara old komponen_qty dan final komponen_qty) ===
+        $map_old_qty = [];
+        $decoded_old = is_string($old_data['komponen_qty'] ?? '[]') ? json_decode($old_data['komponen_qty'], true) : (array)$old_data['komponen_qty'];
+        if (is_array($decoded_old)) {
+            foreach ($decoded_old as $it) {
+                $kid = (int)($it['komponen'] ?? 0);
+                $sz  = (string)($it['size'] ?? '');
+                $qt  = (int)($it['qty'] ?? 0);
+                $map_old_qty[$kid][$sz] = $qt;
             }
         }
 
-        if ($total_kekurangan > 0) {
-            // Ambil type_scan (gate aktif) dari session
-            $last_gate = 'SCAN_CHECK_QC';  // ubah sesuai kebutuhan
-
-            $stmt_kurang = $conn->prepare("
-                INSERT INTO tbl_transaksi_kekurangan
-                (id_trans_asal, job_order, komponen_qty, defect_qty, total_kekurangan, status, last_gate, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, 'PENDING', ?, NOW(), NOW())
-            ");
-
-            $stmt_kurang->bind_param(
-                "issiis",
-                $id_trans,               // id_trans_asal
-                $old_data['job_order'],  // job_order
-                $qty_json_final,         // komponen_qty (JSON)
-                $total_kekurangan,       // defect_qty (INT)
-                $total_kekurangan,       // total_kekurangan (INT)
-                $last_gate               // last_gate (misalnya SCAN_IN_VENDOR, SCAN_OUT_VENDOR, dll)
-            );
-
-            $stmt_kurang->execute();
+        // map_new_qty = komp_map (dari post_qty atau fallback)
+        // === Hitung kekurangan ===
+        $map_old_qty = [];
+        $decoded_old = is_string($old_data['komponen_qty'] ?? '[]') ? json_decode($old_data['komponen_qty'], true) : (array)$old_data['komponen_qty'];
+        if (is_array($decoded_old)) {
+            foreach ($decoded_old as $it) {
+                $kid = (int)($it['komponen'] ?? 0);
+                $sz  = (string)($it['size'] ?? '');
+                $qt  = (int)($it['qty'] ?? 0);
+                $map_old_qty[$kid][$sz] = $qt;
+            }
         }
 
+        // map_new_qty = komp_map (dari post_qty)
+        $map_new_qty = $komp_map;
+
+        $kekurangan_arr = [];
+        $total_kekurangan = 0;
+
+        // 🔍 DEBUG CEK SELISIH
+        $debug_log = "--- DEBUG KEKURANGAN ---\n";
+        foreach ($map_old_qty as $kid => $sizes) {
+            foreach ($sizes as $sz => $old_qty) {
+                $new_qty = isset($map_new_qty[$kid][$sz]) ? (int)$map_new_qty[$kid][$sz] : 0;
+                $selisih = $old_qty - $new_qty;
+                $debug_log .= "Komponen $kid | Size $sz | OLD=$old_qty | NEW=$new_qty | SELISIH=$selisih\n";
+                if ($selisih > 0) {
+                    $kekurangan_arr[] = [
+                        "komponen" => $kid,
+                        "size" => $sz,
+                        "kekurangan" => $selisih
+                    ];
+                    $total_kekurangan += $selisih;
+                }
+            }
+        }
+        $debug_log .= "TOTAL KEKURANGAN: $total_kekurangan\n";
+        file_put_contents('debug_kekurangan.log', $debug_log, FILE_APPEND);
+
+        if ($total_defect > 0) {
+            foreach ($post_defect as $komponen_id => $sizes) {
+                foreach ($sizes as $size_val => $defect_list) {
+                    foreach ($defect_list as $idx => $defect_id) {
+                        $qty_defect = isset($post_def_qty[$komponen_id][$size_val][$idx])
+                            ? (int)$post_def_qty[$komponen_id][$size_val][$idx]
+                            : 0;
+                        if ($qty_defect > 0) {
+                            $defect_data[] = [
+                                "komponen" => (int)$komponen_id,
+                                "size" => (string)$size_val,
+                                "kekurangan" => $qty_defect
+                            ];
+                            $total_kekurangan += $qty_defect;
+                        }
+                    }
+                }
+            }
+        }
+
+        // === Simpan tbl_transaksi_kekurangan ===
+        if ($total_kekurangan > 0) {
+            $komponen_kurang = [];
+            $total_defect_qty = 0;
+
+            foreach ($defect_data as $def) {
+                $qty_def = (int)($def['kekurangan'] ?? 0);
+                $komponen_kurang[] = [
+                    'komponen' => $def['komponen'],
+                    'size' => $def['size'],
+                    'qty' => $qty_def
+                ];
+                $total_defect_qty += $qty_def; // ✅ hitung total defect di sini
+            }
+
+            $komponen_json_kurang = json_encode($komponen_kurang, JSON_UNESCAPED_UNICODE);
+            $defect_json_kurang = json_encode($defect_data, JSON_UNESCAPED_UNICODE);
+            $last_gate = 'SCAN_CHECK_QC';
+
+            // 🔍 Tambahan log kecil biar yakin
+            error_log("DEFECT_DATA: " . json_encode($defect_data));
+            error_log("TOTAL_DEFECT_QTY: " . $total_defect_qty);
+
+            $stmt_kurang = $conn->prepare("
+        INSERT INTO tbl_transaksi_kekurangan
+        (id_trans_asal, job_order, komponen_qty, defect_qty, total_kekurangan, status, last_gate, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, 'pending', ?, NOW(), NOW())
+    ");
+            $stmt_kurang->bind_param(
+                "ississ",
+                $id_trans,
+                $job_order,
+                $komponen_json_kurang,  // JSON detail komponen yang defect
+                $total_defect_qty,      // ✅ angka total defect, bukan JSON
+                $total_kekurangan,
+                $last_gate
+            );
+            $stmt_kurang->execute();
+            $stmt_kurang->close();
+
+            error_log("✅ INSERTED KEKURANGAN: total=$total_kekurangan, defect_qty=$total_defect_qty, last_gate=$last_gate");
+        } else {
+            error_log("ℹ️ TIDAK ADA KEKURANGAN, SKIP INSERT");
+        }
         $conn->commit();
         $_SESSION['green_notif'] = "QR Code berhasil di-scan (Scan Check QC).";
         header("Location: /isubcont/pages/trans-scan-check-qc.php?success=" . urlencode($barcode));
         exit;
     } catch (Exception $e) {
         $conn->rollback();
+        // catat error ke log agar mudah dicari
+        error_log("ERROR confirm-qc: " . $e->getMessage());
         $_SESSION['red_notif'] = "Gagal confirm QC: " . $e->getMessage();
         header("Location: /isubcont/pages/trans-scan-check-qc.php");
         exit;
@@ -4553,5 +4622,90 @@ if (isset($_POST['scan-out-production'])) {
         $_SESSION['red_notif'] = "QR Code tidak boleh kosong.";
         header("Location: /isubcont/pages/trans-scan-out-to-prod.php");
         exit;
+    }
+}
+
+// === Confirm Kekurangan ===
+if (isset($_POST['action']) && $_POST['action'] === 'confirm_kekurangan') {
+
+    // Fungsi bantu biar aman & clean
+    function safe_redirect($type, $message, $redirect = '/isubcont/pages/trans-confrm-kekurangan.php') {
+        $_SESSION[$type === 'success' ? 'green_notif' : 'red_notif'] = $message;
+        header("Location: {$redirect}");
+        exit;
+    }
+
+    try {
+        $id_kekurangan = (int)($_POST['id_kekurangan'] ?? 0);
+        $username      = $_SESSION['username'] ?? 'SYSTEM';
+
+        if ($id_kekurangan <= 0) {
+            safe_redirect('error', "ID kekurangan tidak valid.");
+        }
+
+        // Ambil data lama
+        $stmt_old = $conn->prepare("SELECT * FROM tbl_transaksi_kekurangan WHERE id_kekurangan = ?");
+        if (!$stmt_old) safe_redirect('error', "Gagal prepare data lama: " . $conn->error);
+        $stmt_old->bind_param("i", $id_kekurangan);
+        $stmt_old->execute();
+        $result_old = $stmt_old->get_result();
+        $old_data = $result_old->fetch_assoc();
+        $stmt_old->close();
+
+        if (!$old_data) {
+            safe_redirect('error', "Data kekurangan tidak ditemukan.");
+        }
+
+        if ($old_data['status'] === 'confirmed') {
+            safe_redirect('error', "Data ini sudah dikonfirmasi sebelumnya.");
+        }
+
+        // === Update status ===
+        $stmt_upd = $conn->prepare("
+            UPDATE tbl_transaksi_kekurangan 
+            SET status = 'confirmed',
+                updated_at = NOW(),
+                last_gate = 'SCAN_CHECK_QC'
+            WHERE id_kekurangan = ? AND status = 'pending'
+        ");
+        if (!$stmt_upd) safe_redirect('error', "Gagal prepare update: " . $conn->error);
+        $stmt_upd->bind_param("i", $id_kekurangan);
+        $stmt_upd->execute();
+        $stmt_upd->close();
+
+        // 🔍 Cek ulang dari database apakah benar sudah confirmed
+        $cek_stmt = $conn->prepare("SELECT * FROM tbl_transaksi_kekurangan WHERE id_kekurangan = ?");
+        $cek_stmt->bind_param("i", $id_kekurangan);
+        $cek_stmt->execute();
+        $cek_result = $cek_stmt->get_result();
+        $new_data = $cek_result->fetch_assoc();
+        $cek_stmt->close();
+
+        if (!$new_data || $new_data['status'] !== 'confirmed') {
+            safe_redirect('error', "Gagal mengupdate status (mungkin sudah dikonfirmasi).");
+        }
+
+        // === Insert log ke tlog_transaksi ===
+        $stmt_log = $conn->prepare("
+            INSERT INTO tlog_transaksi
+            (id_trans, updated_by, action_type, old_data, new_data, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, NOW(), NOW())
+        ");
+        if (!$stmt_log) safe_redirect('error', "Gagal prepare log: " . $conn->error);
+
+        $id_trans = (int)($old_data['id_trans_asal'] ?? 0);
+        $action_type = 'CONFIRM_KEKURANGAN';
+        $old_json = json_encode($old_data, JSON_UNESCAPED_UNICODE);
+        $new_json = json_encode($new_data, JSON_UNESCAPED_UNICODE);
+
+        $stmt_log->bind_param("issss", $id_trans, $username, $action_type, $old_json, $new_json);
+        $stmt_log->execute();
+        $stmt_log->close();
+
+        // ✅ Berhasil
+        safe_redirect('success', "Kekurangan berhasil dikonfirmasi.");
+
+    } catch (Exception $e) {
+        safe_redirect('error', "Terjadi kesalahan: " . $e->getMessage());
     }
 }
