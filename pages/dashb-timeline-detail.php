@@ -191,6 +191,15 @@ $resultKekurangan = mysqli_query($conn, $queryKekurangan);
 ?>
 
 <style>
+  .timeline-step.warning .timeline-circle i {
+    color: #ffc107 !important;
+  }
+
+  .timeline-step.warning .timeline-label {
+    color: #ffc107;
+    font-weight: 600;
+  }
+
   .progress-container {
     font-family: 'Poppins', sans-serif;
   }
@@ -278,6 +287,23 @@ $resultKekurangan = mysqli_query($conn, $queryKekurangan);
     border-color: #0d6efd;
     color: #0d6efd;
     box-shadow: 0 0 12px rgba(13, 110, 253, 0.4);
+  }
+
+  /* Step warning (kuning, kekurangan pending) */
+  .timeline-step.warning .timeline-circle {
+    background: #fffbea;
+    border-color: #ffc107;
+    color: #856404;
+    box-shadow: 0 0 10px rgba(255, 193, 7, 0.4);
+  }
+
+  .timeline-step.warning .timeline-circle i {
+    color: #ffc107 !important;
+  }
+
+  .timeline-step.warning .timeline-label {
+    color: #856404;
+    font-weight: 600;
   }
 
   /* Untuk layout horizontal rapi */
@@ -451,6 +477,20 @@ $resultKekurangan = mysqli_query($conn, $queryKekurangan);
             <div class="card-body" style="margin-top: 10px;">
 
               <?php
+
+              $hasPendingKekurangan = false;
+              $pendingGates = [];
+
+              if ($resultKekurangan && mysqli_num_rows($resultKekurangan) > 0) {
+                mysqli_data_seek($resultKekurangan, 0);
+                while ($kr = mysqli_fetch_assoc($resultKekurangan)) {
+                  if (strtoupper(trim($kr['tk_status'])) !== 'CONFIRMED') {
+                    $hasPendingKekurangan = true;
+                    $pendingGates[] = $kr['last_gate'];
+                  }
+                }
+                mysqli_data_seek($resultKekurangan, 0);
+              }
               // 🔹 Mapping urutan tahapan
               $stages = [
                 'SCAN_IN_WAREHOUSE' => 'In Warehouse',
@@ -514,7 +554,7 @@ $resultKekurangan = mysqli_query($conn, $queryKekurangan);
                 ];
               }
 
-              // 🔹 Hanya hitung stage yang valid di daftar $stages
+              // 🔹 Hitung stage yang sudah selesai
               $completedStages = [];
               $lastStage = null;
               $stageKeys = array_keys($stages);
@@ -532,11 +572,16 @@ $resultKekurangan = mysqli_query($conn, $queryKekurangan);
               $totalStages = count($stageKeys);
               $completedCount = count($completedStages);
 
-              // 🔹 Hitung progress
+              // 🔹 Hitung progress awal
               $progressPercent = $totalStages > 0 ? round(($completedCount / $totalStages) * 100) : 0;
               if ($progressPercent > 100) $progressPercent = 100;
 
-              // 🔹 Tentukan next stage (versi super aman)
+              // 🔹 Jika ada kekurangan pending, tahan progress di bawah 100%
+              if ($hasPendingKekurangan && $progressPercent >= 100) {
+                $progressPercent = 90;
+              }
+
+              // 🔹 Tentukan next stage dan ETA
               $nextStage = null;
               $etaDays = 0;
 
@@ -547,21 +592,13 @@ $resultKekurangan = mysqli_query($conn, $queryKekurangan);
                 if ($lastIndex !== false && isset($stageKeys[$lastIndex + 1])) {
                   $nextStageKey = $stageKeys[$lastIndex + 1];
                   $nextStage = $stages[$nextStageKey];
-
-                  // 🔹 Hitung ETA hanya kalau masih ada next stage
-                  $remainingStages = $totalStages - $completedCount;
-                  $etaDays = max(1, $remainingStages * 1);
                 }
               }
 
-
-              // 🔹 Hitung ETA (contoh: 1 hari per tahapan tersisa)
+              // 🔹 Hitung ETA hanya kalau masih ada tahapan tersisa
               if (!empty($nextStage)) {
-                // Misal tiap tahap butuh 1 hari
                 $remainingStages = $totalStages - $completedCount;
-                $etaDays = max(1, $remainingStages * 1);
-              } else {
-                $etaDays = 0;
+                $etaDays = max(1, $remainingStages * 1); // 1 hari per tahap
               }
 
               ?>
@@ -593,9 +630,17 @@ $resultKekurangan = mysqli_query($conn, $queryKekurangan);
                 <div class="col-md-4 text-md-end">
                   <?php if ($completedCount == 0): ?>
                     <div class="text-muted">Belum mulai proses</div>
+
+                  <?php elseif ($hasPendingKekurangan): ?>
+                    <div><strong><?= $progressPercent ?>%</strong> to Complete</div>
+                    <div class="text-warning">
+                      ⚠️ Ada kekurangan yang belum dikonfirmasi.
+                    </div>
+
                   <?php elseif ($completedCount >= $totalStages): ?>
                     <div><strong>100%</strong> to Complete</div>
                     <div class="text-success">All Stages Complete.</div>
+
                   <?php else: ?>
                     <div><strong><?= $progressPercent ?>%</strong> to Complete</div>
                     <?php if (!empty($nextStage)): ?>
@@ -603,9 +648,10 @@ $resultKekurangan = mysqli_query($conn, $queryKekurangan);
                         ETA: <?= $etaDays ?> Days to <?= htmlspecialchars($nextStage) ?>
                       </div>
                     <?php else: ?>
-                      <div class="text-muted">Menunggu proses berikutnya...</div>
+                      <div class="text-muted">Menunggu proses berikutnya.</div>
                     <?php endif; ?>
                   <?php endif; ?>
+
                 </div>
 
               </div>
@@ -616,24 +662,29 @@ $resultKekurangan = mysqli_query($conn, $queryKekurangan);
                   $class = '';
                   $icon = '<i class="bi bi-circle text-secondary"></i>'; // default abu
 
+                  // ✅ sudah selesai
                   if (in_array($key, $completedStages)) {
                     $class = 'completed';
-                    $icon = '<i class="bi bi-check-circle-fill text-success"></i>'; // ✅ completed
+                    $icon = '<i class="bi bi-check-circle-fill text-success"></i>';
                   }
 
-                  // cari next stage (yang belum completed pertama)
+                  // ⏳ tahap berikutnya
                   if (isset($stageKeys[$completedCount]) && $key === $stageKeys[$completedCount]) {
                     $class = 'active';
-                    $icon = '<i class="bi bi-hourglass-split text-primary"></i>'; // ⏳ active (tahap berikutnya)
+                    $icon = '<i class="bi bi-hourglass-split text-primary"></i>';
                   }
 
+                  // ⚠️ Tahapan dengan kekurangan pending
+                  if (in_array($key, $pendingGates)) {
+                    $class = 'warning';
+                    $icon = '<i class="bi bi-exclamation-triangle-fill text-warning"></i>';
+                  }
                 ?>
                   <div class="timeline-step <?= $class ?>">
                     <div class="timeline-circle"><?= $icon ?></div>
                     <div class="timeline-label"><?= htmlspecialchars($label) ?></div>
                   </div>
                 <?php endforeach; ?>
-
               </div>
 
               <hr>
@@ -687,6 +738,7 @@ $resultKekurangan = mysqli_query($conn, $queryKekurangan);
                       <th>Komponen (Size & Qty)</th>
                       <th class="text-center">Total Kekurangan</th>
                       <th class="text-center">At</th>
+                      <th class="text-center">Status</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -732,12 +784,25 @@ $resultKekurangan = mysqli_query($conn, $queryKekurangan);
                         <td><?= $komponen_html ?></td>
                         <td class="text-center fw-bold"><?= htmlspecialchars($k['total_kekurangan']) ?></td>
                         <td class="text-center"><?= htmlspecialchars($gateLabels[$k['last_gate']] ?? $k['last_gate']) ?></td>
+                        <td class="text-center">
+                          <?php
+                          $status = htmlspecialchars($k['tk_status']);
+                          // Contoh badge warna — opsional
+                          $badgeClass = match ($status) {
+                            'pending' => 'bg-warning text-dark',
+                            'confirmed' => 'bg-success',
+                            'resolved' => 'bg-secondary',
+                            default => 'bg-light text-dark'
+                          };
+                          ?>
+                          <span class="badge <?= $badgeClass ?>"><?= $status ?></span>
+                        </td>
+
                       </tr>
                     <?php endwhile; ?>
                   </tbody>
                 </table>
               <?php endif; ?>
-
 
             </div>
           </div>
