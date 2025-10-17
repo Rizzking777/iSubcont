@@ -1,0 +1,25 @@
+{
+  "dependencies": {
+    "@serialport/bindings-cpp": "^13.0.1",
+    "@serialport/list": "^13.0.0",
+    "@serialport/stream": "^13.0.0",
+    "body-parser": "^2.2.0",
+    "cors": "^2.8.5",
+    "escpos": "^3.0.0-alpha.6",
+    "escpos-serialport": "^3.0.0-alpha.4",
+    "express": "^5.1.0",
+    "serialport": "^10.5.0"
+  },
+  "name": "isubcont",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {},
+  "description": ""
+}

@@ -2655,7 +2655,7 @@ if (isset($_POST['submit-transaksi'])) {
         $id_trans = $conn->insert_id;
 
         // === Generate barcode unik ===
-        $barcode = "{$po_code}-{$po_item}-{$ncvs}-" . date('YmdHis') . "-{$id_trans}";
+        $barcode = "{$ncvs}-" . date('Ymd') . "-{$id_trans}";
         $stmt_update = $conn->prepare("UPDATE tbl_transaksi SET barcode = ? WHERE id_trans = ?");
         $stmt_update->bind_param("si", $barcode, $id_trans);
         $stmt_update->execute();

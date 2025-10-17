@@ -166,6 +166,10 @@ $result_transaksi = $stmt->get_result();
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
+  <!-- Barcode -->
+  <script src="https://unpkg.com/bwip-js/dist/bwip-js-min.js"></script>
+
+
 </head>
 
 <body>
@@ -509,17 +513,17 @@ $result_transaksi = $stmt->get_result();
                         if (!empty($lots)) {
                           $lot_in = implode(",", array_map('intval', $lots));
                           $sql_ps = "
-      SELECT size, SUM(qty) AS total_order_per_size
-      FROM tbl_master_data
-      WHERE job_order = '{$row["job_order"]}'
-        AND bucket = '{$row["bucket"]}'
-        AND po_code = '{$row["po_code"]}'
-        AND po_item = '{$row["po_item"]}'
-        AND model = '{$row["model"]}'
-        AND style = '{$row["style"]}'
-        AND lot IN ($lot_in)
-      GROUP BY size
-    ";
+                          SELECT size, SUM(qty) AS total_order_per_size
+                          FROM tbl_master_data
+                          WHERE job_order = '{$row["job_order"]}'
+                            AND bucket = '{$row["bucket"]}'
+                            AND po_code = '{$row["po_code"]}'
+                            AND po_item = '{$row["po_item"]}'
+                            AND model = '{$row["model"]}'
+                            AND style = '{$row["style"]}'
+                            AND lot IN ($lot_in)
+                          GROUP BY size
+                        ";
                           $res_ps = $conn->query($sql_ps);
                           while ($r = $res_ps->fetch_assoc()) {
                             $total_order_per_size[$r['size']] = (int)$r['total_order_per_size'];
@@ -529,16 +533,16 @@ $result_transaksi = $stmt->get_result();
                         // --- Hitung total used (komponen_qty) per size
                         $used_per_size = [];
                         $sql_used = "
-    SELECT komponen_qty
-    FROM tbl_transaksi
-    WHERE job_order = '{$row["job_order"]}'
-      AND bucket = '{$row["bucket"]}'
-      AND po_code = '{$row["po_code"]}'
-      AND po_item = '{$row["po_item"]}'
-      AND model = '{$row["model"]}'
-      AND style = '{$row["style"]}'
-      AND lot = '" . $conn->real_escape_string($row["lot"]) . "'
-  ";
+                          SELECT komponen_qty
+                          FROM tbl_transaksi
+                          WHERE job_order = '{$row["job_order"]}'
+                            AND bucket = '{$row["bucket"]}'
+                            AND po_code = '{$row["po_code"]}'
+                            AND po_item = '{$row["po_item"]}'
+                            AND model = '{$row["model"]}'
+                            AND style = '{$row["style"]}'
+                            AND lot = '" . $conn->real_escape_string($row["lot"]) . "'
+                        ";
                         $res_used = $conn->query($sql_used);
                         if ($res_used && $res_used->num_rows > 0) {
                           while ($ru = $res_used->fetch_assoc()) {
@@ -555,16 +559,16 @@ $result_transaksi = $stmt->get_result();
                         // --- Hitung total defect per size
                         $defect_per_size = [];
                         $sql_def = "
-    SELECT defect_qty
-    FROM tbl_transaksi
-    WHERE job_order = '{$row["job_order"]}'
-      AND bucket = '{$row["bucket"]}'
-      AND po_code = '{$row["po_code"]}'
-      AND po_item = '{$row["po_item"]}'
-      AND model = '{$row["model"]}'
-      AND style = '{$row["style"]}'
-      AND lot = '" . $conn->real_escape_string($row["lot"]) . "'
-  ";
+                        SELECT defect_qty
+                        FROM tbl_transaksi
+                        WHERE job_order = '{$row["job_order"]}'
+                          AND bucket = '{$row["bucket"]}'
+                          AND po_code = '{$row["po_code"]}'
+                          AND po_item = '{$row["po_item"]}'
+                          AND model = '{$row["model"]}'
+                          AND style = '{$row["style"]}'
+                          AND lot = '" . $conn->real_escape_string($row["lot"]) . "'
+                      ";
                         $res_def = $conn->query($sql_def);
                         if ($res_def && $res_def->num_rows > 0) {
                           while ($rd = $res_def->fetch_assoc()) {
@@ -630,116 +634,65 @@ $result_transaksi = $stmt->get_result();
 
                       <!-- Options -->
                       <td>
-                        <button class="btn btn-sm btn-primary" data-bs-toggle="modal"
-                          data-bs-target="#barcodeModal<?= $row['id_trans']; ?>">
-                          <i class="bi bi-upc-scan"></i>
-                        </button>
+                        <?php
+                          // Ambil komponen sebelum proses
+                          $komponen_qty = json_decode($row["komponen_qty"], true);
+                          $ids = array_column($komponen_qty, 'komponen');
+                          $id_list = implode(",", array_map('intval', $ids));
+                          $mapKomponen = [];
+                          if (!empty($id_list)) {
+                              $res_komp = $conn->query("SELECT id_komponen,nama_komponen FROM tbl_komponen WHERE id_komponen IN ($id_list)");
+                              while ($k = $res_komp->fetch_assoc()) {
+                                  $mapKomponen[$k['id_komponen']] = $k['nama_komponen'];
+                              }
+                          }
 
-                        <!-- Modal QR -->
-                        <div class="modal fade" id="barcodeModal<?= $row['id_trans']; ?>" tabindex="-1" aria-hidden="true">
-                          <div class="modal-dialog modal-dialog-centered" style="max-width:220px;">
-                            <div class="modal-content" style="border-radius:12px; font-size:12px;">
-                              <div class="modal-body" style="padding:12px;">
-                                <div style="text-align:left; margin-left:5px;">
-                                  <!-- Info -->
-                                  <div><strong><?= htmlspecialchars($row['ncvs'] . '-' . $row['po_code'] . '-' . $row['po_item']); ?></strong></div>
-                                  <div><?= htmlspecialchars($row['bucket']); ?></div>
-                                  <div><?= htmlspecialchars($row['style']); ?></div>
-                                  <div><?= htmlspecialchars($row['model']); ?></div>
-                                  <div>Lot: <?= is_array(json_decode($row['lot'], true)) ? implode(", ", json_decode($row['lot'], true)) : htmlspecialchars($row['lot']); ?></div>
+                          // Grouping komponen
+                          $grouped = [];
+                          foreach ($komponen_qty as $kq) {
+                              $id_komp = (int)$kq['komponen'];
+                              $nama = $mapKomponen[$id_komp] ?? "Unknown";
+                              $size = $kq['size'] ?? '-';
+                              $qty  = $kq['qty'] ?? 0;
+                              $grouped[$nama][] = "{$size} ({$qty})";
+                          }
 
-                                  <!-- Komponen & Qty -->
-                                  <div style="margin-top:5px;">
-                                    <strong>Komponen Sebelum Proses :</strong>
-                                    <?php
-                                    $komponen_qty = json_decode($row["komponen_qty"], true);
-                                    $ids = array_column($komponen_qty, 'komponen');
-                                    $id_list = implode(",", array_map('intval', $ids));
-                                    $mapKomponen = [];
+                          // Komponen sesudah proses
+                          $namaOutputArr = [];
+                          if (!empty($ids)) {
+                              $sql_out = "
+                                  SELECT DISTINCT k2.nama_komponen 
+                                  FROM tbl_komponen_proses p
+                                  JOIN tbl_komponen k1 ON k1.id_komponen = p.id_input
+                                  JOIN tbl_komponen k2 ON k2.id_komponen = p.id_output
+                                  WHERE p.id_input IN ($id_list) AND k2.is_deleted = 0
+                              ";
+                              $res_out = $conn->query($sql_out);
+                              if ($res_out && $res_out->num_rows > 0) {
+                                  while ($o = $res_out->fetch_assoc()) {
+                                      $namaOutputArr[] = $o['nama_komponen'];
+                                  }
+                              }
+                          }
+                          ?>
 
-                                    if (!empty($id_list)) {
-                                      $res_komp = $conn->query("SELECT id_komponen,nama_komponen FROM tbl_komponen WHERE id_komponen IN ($id_list)");
-                                      while ($k = $res_komp->fetch_assoc()) {
-                                        $mapKomponen[$k['id_komponen']] = $k['nama_komponen'];
-                                      }
-                                    }
+                          <button class="btn btn-sm btn-success btnPrintRow"
+                              data-id="<?= $row['id_trans']; ?>"
+                              data-joborder="<?= htmlspecialchars($row['job_order']); ?>"
+                              data-bucket="<?= htmlspecialchars($row['bucket']); ?>"
+                              data-po="<?= htmlspecialchars($row['po_code']); ?>"
+                              data-poitem="<?= htmlspecialchars($row['po_item']); ?>"
+                              data-model="<?= htmlspecialchars($row['model']); ?>"
+                              data-style="<?= htmlspecialchars($row['style']); ?>"
+                              data-ncvs="<?= htmlspecialchars($row['ncvs']); ?>"
+                              data-lot='<?= json_encode(is_array(json_decode($row['lot'], true)) ? json_decode($row['lot'], true) : [$row['lot']]); ?>'
+                              data-komponen='<?= json_encode($grouped); ?>'
+                              data-nama_komponen='<?= json_encode($namaOutputArr); ?>'
+                              data-barcode="<?= htmlspecialchars($row['barcode']); ?>">
+                              Print
+                          </button>
 
-                                    // Grouping by komponen
-                                    $grouped = [];
-                                    foreach ($komponen_qty as $kq) {
-                                      $id_komp = (int)$kq['komponen'];
-                                      $nama = $mapKomponen[$id_komp] ?? "Unknown";
-                                      $size = $kq['size'] ?? '-';
-                                      $qty  = $kq['qty'] ?? 0;
-                                      $grouped[$nama][] = "{$size} ({$qty})";
-                                    }
-
-                                    foreach ($grouped as $nama => $arr) {
-                                      echo "<div style='margin-top:4px;'>
-                                      <strong>$nama :</strong><br>
-                                      <div style='
-                                        margin-left:10px; 
-                                        white-space:normal; 
-                                        word-break:break-word; 
-                                        line-height:1.4;
-                                        max-width:180px; /* batas lebar kertas */
-                                      '>" .
-                                        htmlspecialchars(implode(", ", $arr)) .
-                                        "</div>
-                                      </div>";
-                                    }
-
-                                    ?>
-                                  </div>
-
-                                  <div style="margin-top:5px;">
-                                    <strong>Komponen Sesudah Proses :</strong>
-                                    <?php
-                                    if (!empty($ids)) {
-                                      // cari id_output dari tabel proses
-                                      $id_list = implode(",", array_map('intval', $ids));
-                                      $sql_out = "
-      SELECT DISTINCT k2.nama_komponen 
-      FROM tbl_komponen_proses p
-      JOIN tbl_komponen k1 ON k1.id_komponen = p.id_input
-      JOIN tbl_komponen k2 ON k2.id_komponen = p.id_output
-      WHERE p.id_input IN ($id_list) AND k2.is_deleted = 0
-    ";
-                                      $res_out = $conn->query($sql_out);
-                                      if ($res_out && $res_out->num_rows > 0) {
-                                        while ($o = $res_out->fetch_assoc()) {
-                                          echo "<div>" . htmlspecialchars($o['nama_komponen']) . "</div>";
-                                        }
-                                      } else {
-                                        echo "<div>-</div>";
-                                      }
-                                    } else {
-                                      echo "<div>-</div>";
-                                    }
-                                    ?>
-                                  </div>
-
-                                  <!-- QR -->
-                                  <div style="margin-top:10px; text-align:center; width:100%;">
-                                    <div id="qrcode<?= $row['id_trans']; ?>" style="display:inline-block; padding:5px; background:#fff; border-radius:6px;"></div>
-                                  </div>
-
-                                  <!-- Footer -->
-
-                                  <div style="margin-top:20px; text-align:center;">
-                                    <button class="btn btn-primary btn-sm printNow"
-                                      data-id="<?= $row['id_trans']; ?>"
-                                      data-barcode="<?= htmlspecialchars($row['barcode']); ?>">Print</button>
-                                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
-                                  </div>
-
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
                       </td>
-
 
                       <td>
                         <?php
@@ -811,6 +764,12 @@ $result_transaksi = $stmt->get_result();
   <script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.print.min.js"></script>
   <script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.colVis.min.js"></script>
 
+  <!-- Generate QR-Code -->
+  <!-- <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script> -->
+  <!-- <script src="https://cdn.jsdelivr.net/npm/pica/dist/pica.min.js"></script> -->
+   <script src="https://cdn.jsdelivr.net/npm/bwip-js@3.0.9/dist/bwip-js-min.js"></script>
+
+
   <script>
     $(function() {
       $("#example1").DataTable({
@@ -854,107 +813,361 @@ $result_transaksi = $stmt->get_result();
     });
   </script>
 
+<script>
+let bluetoothDevice = null;
+let printerCharacteristic = null;
 
-  <script>
-    document.addEventListener('DOMContentLoaded', function() {
+const SERVICE_UUID = 0x18F0;
+const CHARACTERISTIC_UUID = 0x2AF1;
 
-      <?php foreach ($result_transaksi as $row): ?>
-        const modal<?= $row['id_trans']; ?> = document.getElementById('barcodeModal<?= $row['id_trans']; ?>');
-        let qrGenerated<?= $row['id_trans']; ?> = false;
-
-        modal<?= $row['id_trans']; ?>.addEventListener('shown.bs.modal', function() {
-          if (!qrGenerated<?= $row['id_trans']; ?>) {
-            new QRCode(document.getElementById('qrcode<?= $row['id_trans']; ?>'), {
-              text: "<?= $row['barcode']; ?>",
-              width: 60,
-              height: 60
-            });
-            qrGenerated<?= $row['id_trans']; ?> = true;
-          }
-        });
-      <?php endforeach; ?>
-
-      // Print via Web Bluetooth MT200
-      document.querySelectorAll('.printNow').forEach(btn => {
-        btn.addEventListener('click', async function() {
-          const id = this.dataset.id;
-          const barcode = this.dataset.barcode;
-
-          try {
-            // 1. Pilih printer MT200
-            const device = await navigator.bluetooth.requestDevice({
-              filters: [{
-                namePrefix: 'MT200'
-              }],
-              optionalServices: [0xFFE0]
-            });
-
-            const server = await device.gatt.connect();
-            const service = await server.getPrimaryService(0xFFE0);
-            const characteristic = await service.getCharacteristic(0xFFE1);
-
-            // 2. Ambil data dari modal
-            const modalBody = document.getElementById('barcodeModal' + id).querySelector('.modal-body');
-
-            // Ambil teks info
-            let lines = [];
-            const infoDivs = modalBody.querySelectorAll('div > div, div'); // ambil semua info
-            infoDivs.forEach(d => {
-              const text = d.innerText.trim();
-              if (text) lines.push(text);
-            });
-            const infoText = lines.join('\n') + '\n\n';
-
-            // 3. Generate QR code canvas
-            const qrCanvas = modalBody.querySelector('canvas, img'); // QR code di modal
-            let qrData = null;
-
-            if (qrCanvas) {
-              const canvas = qrCanvas.tagName === 'CANVAS' ? qrCanvas : qrCanvas;
-              qrData = canvas.toDataURL('image/png'); // base64
-            }
-
-            // 4. Encode ESC/POS
-            function encodeText(str) {
-              return new TextEncoder().encode(str);
-            }
-
-            // Kirim info text
-            await characteristic.writeValue(encodeText(infoText));
-
-            // Kirim QR image jika printer support (MT200 ESC/POS)
-            if (qrData) {
-              const res = await fetch(qrData);
-              const blob = await res.blob();
-              const arrayBuffer = await blob.arrayBuffer();
-              await characteristic.writeValue(new Uint8Array(arrayBuffer));
-            }
-
-            alert('Print berhasil!');
-
-            // 5. Update count_barcode via AJAX
-            fetch('./../config/update_count_barcode.php', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/x-www-form-urlencoded'
-              },
-              body: `id_trans=${id}`
-            }).then(res => res.json()).then(data => {
-              if (data.success) {
-                const btnEl = document.querySelector(`.printBtn[data-id='${id}']`);
-                if (btnEl) btnEl.innerHTML = `<i class="bi bi-upc-scan"></i> ${data.count}`;
-              }
-            });
-
-          } catch (err) {
-            console.error('Gagal print via Bluetooth:', err);
-            alert('Tidak dapat terhubung ke printer MT200. Pastikan printer menyala dan Bluetooth aktif.');
-          }
-        });
-      });
-
+async function connectPrinterBluetooth() {
+  try {
+    bluetoothDevice = await navigator.bluetooth.requestDevice({
+      acceptAllDevices: true,
+      optionalServices: [SERVICE_UUID]
     });
-  </script>
+    const server = await bluetoothDevice.gatt.connect();
+    const service = await server.getPrimaryService(SERVICE_UUID);
+    printerCharacteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
+    console.log("✅ Printer Bluetooth terhubung");
+    return true;
+  } catch (err) {
+    console.error("❌ Gagal konek printer:", err);
+    alert("Gagal konek ke printer. Pastikan printer aktif & dekat.");
+    return false;
+  }
+}
+
+async function sendToPrinter(data) {
+  if (!printerCharacteristic) {
+    const ok = await connectPrinterBluetooth();
+    if (!ok) return false;
+  }
+
+  try {
+    const chunkSize = 256; // aman untuk BLE
+    for (let i = 0; i < data.length; i += chunkSize) {
+      const chunk = data.slice(i, i + chunkSize);
+      await printerCharacteristic.writeValue(chunk);
+      await new Promise(r => setTimeout(r, 30)); // delay antar-chunk
+    }
+    return true;
+  } catch (err) {
+    console.error("❌ Gagal kirim ke printer:", err);
+    return false;
+  }
+}
+
+async function printText(text, align = 'left') {
+  const alignCode = align === 'center' ? 0x01 : align === 'right' ? 0x02 : 0x00;
+  await sendToPrinter(new Uint8Array([0x1B, 0x61, alignCode]));
+  const encoder = new TextEncoder('utf-8');
+  const data = encoder.encode(text + "\n");
+  return sendToPrinter(data);
+}
+
+
+/* ✅ Fungsi cetak barcode bitmap untuk Kassen MT200 */
+async function printBarcodeAsImage(barcode) {
+  if (!printerCharacteristic) {
+    const ok = await connectPrinterBluetooth();
+    if (!ok) return false;
+  }
+
+  try {
+    const cleanBarcode = String(barcode).trim();
+
+    // 1️⃣ generate barcode ke canvas
+    const canvas = document.createElement('canvas');
+    bwipjs.toCanvas(canvas, {
+      bcid: 'code128',       // format barcode
+      text: cleanBarcode,
+      scale: 6,              // lebar batang (sesuaikan: makin besar makin tebal)
+      height: 18,            // tinggi batang (sedikit lebih tinggi biar tajam)
+      includetext: false,    // teks ditulis manual nanti
+      paddingwidth: 6,       // sedikit jarak kiri kanan
+      paddingheight: 0       // 0 = rapet atas bawah
+    });
+
+    // 2️⃣ resize ke lebar printer 58mm (384px)
+    const targetWidth = 384;
+    const scale = targetWidth / canvas.width;
+    const targetHeight = Math.floor(canvas.height * scale);
+
+    const resized = document.createElement('canvas');
+    resized.width = targetWidth;
+    resized.height = targetHeight;
+    const ctx = resized.getContext('2d');
+    ctx.fillStyle = 'white';
+    ctx.fillRect(0, 0, targetWidth, targetHeight);
+    ctx.drawImage(canvas, 0, 0, targetWidth, targetHeight);
+
+    const imageData = ctx.getImageData(0, 0, targetWidth, targetHeight);
+    const bytes = convertImageToRaster(imageData);
+
+    // 3️⃣ kirim ke printer
+    await sendToPrinter(new Uint8Array([0x1B, 0x61, 0x01])); // center align
+    await sendToPrinter(bytes);
+
+    // ❗kurangi feed agar rapet (dulu 0x0A, sekarang ganti jadi 0x0D = sedikit)
+    await sendToPrinter(new Uint8Array([0x0D])); // feed pendek
+
+    // 4️⃣ tampilkan kode barcode di bawah (font kecil + tengah)
+    await sendToPrinter(new Uint8Array([0x1B, 0x4D, 0x01])); // font kecil (B)
+    await printText(barcode, 'center');
+    await sendToPrinter(new Uint8Array([0x1B, 0x4D, 0x00])); // kembalikan ke font normal
+
+    return true;
+  } catch (err) {
+    console.error("❌ Gagal cetak barcode:", err);
+    return false;
+  }
+}
+
+
+function convertImageToRaster(imageData) {
+  const { width, height, data } = imageData;
+  const bytesPerRow = Math.ceil(width / 8);
+  const imageBytes = [];
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < bytesPerRow; x++) {
+      let byte = 0;
+      for (let bit = 0; bit < 8; bit++) {
+        const px = x * 8 + bit;
+        if (px >= width) continue;
+        const i = (y * width + px) * 4;
+        const gray = (data[i] + data[i + 1] + data[i + 2]) / 3;
+        if (gray < 128) byte |= (0x80 >> bit);
+      }
+      imageBytes.push(byte);
+    }
+  }
+
+  const pL = bytesPerRow & 0xff;
+  const pH = (bytesPerRow >> 8) & 0xff;
+  const yL = height & 0xff;
+  const yH = (height >> 8) & 0xff;
+  const header = [0x1D, 0x76, 0x30, 0x00, pL, pH, yL, yH];
+  return new Uint8Array([...header, ...imageBytes]);
+}
+
+/* 🔽 Event print utama — alur tetap sama */
+document.addEventListener('DOMContentLoaded', ()=>{
+  document.querySelectorAll('.btnPrintRow').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const id       = btn.dataset.id;
+      const jobOrder = btn.dataset.joborder;
+      const bucket   = btn.dataset.bucket;
+      const po       = btn.dataset.po;
+      const poItem   = btn.dataset.poitem;
+      const model    = btn.dataset.model;
+      const style    = btn.dataset.style;
+      const ncvs     = btn.dataset.ncvs;
+      const lot      = JSON.parse(btn.dataset.lot || '[]');
+      const komponen = JSON.parse(btn.dataset.komponen || '{}');
+      const namaOutputArr = JSON.parse(btn.dataset.nama_komponen || '[]');
+      const barcode  = btn.dataset.barcode;
+
+      if(!barcode) return alert('❌ Barcode kosong');
+
+      // susun teks
+      let printInfo = `${jobOrder} - ${po}-${poItem}\n`;
+      printInfo += `NCVS   : ${ncvs}\n`;
+      printInfo += `Bucket : ${bucket}\n`;
+      printInfo += `Model  : ${model}\n`;
+      printInfo += `Style  : ${style}\n`;
+      printInfo += `Lot    : ${Array.isArray(lot)?lot.join(', '):lot}\n`;
+      printInfo += `-----------------------------\nKomponen & Qty:\n`;
+      for(const [nama,arr] of Object.entries(komponen)){
+        printInfo += `${nama} : ${arr.join(', ')}\n`;
+      }
+      printInfo += `Output : ${namaOutputArr.length ? namaOutputArr.join(', '):'-'}\n`;
+      printInfo += `-----------------------------\n`;
+
+      // 1️⃣ Print teks
+      const okText = await printText(printInfo);
+      if(!okText) return alert('❌ Gagal print teks');
+
+      // 2️⃣ Cetak barcode
+      const okBarcode = await printBarcodeAsImage(barcode);
+      if(!okBarcode) return alert('❌ Gagal print barcode');
+
+      // 3️⃣ Feed kosong
+      await printText('\n\n\n');
+
+      // 4️⃣ Update counter (tidak diubah)
+      fetch('./../config/update_count_barcode.php', {
+        method:'POST',
+        headers:{'Content-Type':'application/x-www-form-urlencoded'},
+        body:`id_trans=${id}`
+      })
+      .then(res=>res.json())
+      .then(data=>{
+        if(data.success){
+          const btnEl = document.querySelector(`.btnPrintRow[data-id='${id}']`);
+          if(btnEl) btnEl.innerHTML = `<i class="bi bi-upc-scan"></i> ${data.count}`;
+        }
+      }).catch(err=>console.error('❌ Gagal update count:',err));
+
+      alert('✅ Print selesai!');
+    });
+  });
+});
+</script>
+
+
+
+<script>
+  // Diagnostic printing: try several tiny patterns (8x8, stripe, checker)
+// Call runPrintDiagnostics() from console (e.g. after connect).
+async function runPrintDiagnostics() {
+  if (!printerCharacteristic) {
+    console.log('printer not connected - trying to connect...');
+    const okc = await connectPrinterBluetooth();
+    if (!okc) return console.log('connect failed');
+  }
+  console.log('Running diagnostics: trying 3 patterns in multiple formats...');
+
+  // small black rectangle 384x32
+  const w = 384, h = 32;
+  const canvas = document.createElement('canvas');
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext('2d');
+
+  // Pattern A: full black stripe
+  ctx.fillStyle = 'white'; ctx.fillRect(0,0,w,h);
+  ctx.fillStyle = 'black'; ctx.fillRect(0,4,w-1,24);
+  const imgA = ctx.getImageData(0,0,w,h);
+
+  // Pattern B: checker 8x8
+  ctx.fillStyle = 'white'; ctx.fillRect(0,0,w,h);
+  for (let y=0;y<h;y+=8){
+    for (let x=0;x<w;x+=8){
+      if (((x/8) + (y/8)) % 2 === 0) ctx.fillStyle='black'; else ctx.fillStyle='white';
+      ctx.fillRect(x,y,8,8);
+    }
+  }
+  const imgB = ctx.getImageData(0,0,w,h);
+
+  // Pattern C: text big (draw text into canvas)
+  ctx.fillStyle = 'white'; ctx.fillRect(0,0,w,h);
+  ctx.fillStyle = 'black'; ctx.font = '20px monospace';
+  ctx.fillText('TEST IMG', 50, 22);
+  const imgC = ctx.getImageData(0,0,w,h);
+
+  const tests = [
+    {name:'stripe', img: imgA},
+    {name:'checker', img: imgB},
+    {name:'text', img: imgC},
+  ];
+
+  // helper: convert to GS v0 m=0
+  function toGSv0(img, m=0){
+    const {width, height, data} = img;
+    const bytesPerRow = Math.ceil(width/8);
+    const header = [0x1D,0x76,0x30,m, bytesPerRow & 0xFF, (bytesPerRow>>8)&0xFF, height & 0xFF, (height>>8)&0xFF];
+    const body = [];
+    for (let y=0;y<height;y++){
+      for (let xb=0; xb<bytesPerRow; xb++){
+        let b=0;
+        for (let bit=0; bit<8; bit++){
+          const px = xb*8 + bit;
+          if (px >= width) continue;
+          const i = (y*width + px)*4;
+          const gray = (data[i]+data[i+1]+data[i+2])/3;
+          if (gray < 128) b |= (0x80>>bit);
+        }
+        body.push(b);
+      }
+    }
+    return new Uint8Array([...header, ...body]);
+  }
+
+  // helper: ESC* 24-dot
+  function toESCstar(img){
+    const {width, height, data} = img;
+    const bytesPerRow = Math.ceil(width/8);
+    const out = [];
+    for (let y=0; y<height; y+=24){
+      const nL = bytesPerRow & 0xff, nH = (bytesPerRow>>8)&0xff;
+      out.push(0x1B,0x2A,0x21,nL,nH);
+      for (let xByte=0; xByte<bytesPerRow; xByte++){
+        for (let k=0;k<3;k++){
+          let byte=0;
+          for (let bit=0; bit<8; bit++){
+            const yy = y + k*8 + bit;
+            const px = xByte*8 + bit;
+            let bitVal = 0;
+            if (yy < height && px < width){
+              const i = (yy*width + px)*4;
+              const gray = (data[i]+data[i+1]+data[i+2])/3;
+              if (gray < 128) bitVal = 1;
+            }
+            byte |= (bitVal << (7-bit));
+          }
+          out.push(byte);
+        }
+      }
+      out.push(0x0A);
+    }
+    return new Uint8Array(out);
+  }
+
+  // helper: Feie-like 0xA2 (msb-first)
+  function toFeieA2(img, flip=false){
+    const {width, height, data} = img;
+    const bytesPerRow = Math.ceil(width/8);
+    const body = [];
+    for (let y=0;y<height;y++){
+      for (let xb=0; xb<bytesPerRow; xb++){
+        let b = 0;
+        for (let bit=0; bit<8; bit++){
+          const px = xb*8 + bit;
+          if (px >= width) continue;
+          const i = (y*width + px)*4;
+          const gray = (data[i]+data[i+1]+data[i+2])/3;
+          const p = (gray<128)?1:0;
+          if (flip) b |= (p<<bit); else b |= (p << (7-bit));
+        }
+        body.push(b & 0xFF);
+      }
+    }
+    const header = [0xA2, bytesPerRow & 0xFF, (bytesPerRow>>8)&0xFF, height & 0xFF, (height>>8)&0xFF];
+    return new Uint8Array([...header, ...body]);
+  }
+
+  // perform test: send each test as GSv0, ESC*, FeieA2
+  for (const t of tests) {
+    console.log('Testing pattern:', t.name);
+    const p1 = toGSv0(t.img, 0);
+    const p2 = toGSv0(t.img, 1);
+    const p3 = toESCstar(t.img);
+    const p4 = toFeieA2(t.img, false);
+    const p5 = toFeieA2(t.img, true);
+
+    const arr = [p1,p2,p3,p4,p5];
+    for (let i=0;i<arr.length;i++){
+      console.log(' sending format', i+1, 'len', arr[i].length);
+      await sendToPrinter(new Uint8Array([0x1B,0x61,0x01])); // center
+      await sendToPrinter(arr[i]);
+      await sendToPrinter(new Uint8Array([0x0A]));
+      await new Promise(r=>setTimeout(r, 300));
+    }
+
+    // wait a bit between patterns
+    await new Promise(r=>setTimeout(r, 600));
+  }
+
+  console.log('Diagnostics done. Check printed patterns on paper.');
+}
+
+</script>
+
+
+
+
+
 
   <script>
     $(function() {
