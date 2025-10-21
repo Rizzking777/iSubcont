@@ -1,10 +1,10 @@
 -- phpMyAdmin SQL Dump
--- version 5.2.2
+-- version 5.2.1
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Waktu pembuatan: 29 Sep 2025 pada 11.07
--- Versi server: 10.4.32-MariaDB-log
+-- Waktu pembuatan: 21 Okt 2025 pada 08.32
+-- Versi server: 10.4.32-MariaDB
 -- Versi PHP: 8.2.12
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
@@ -81,7 +81,15 @@ INSERT INTO `menus` (`id`, `name`, `key_name`, `url`, `icon`, `parent_id`, `orde
 (37, 'Scan Out Vendor', 'scan_out_vendor', 'trans-scan-out-vendor.php', NULL, 28, 3, 1),
 (38, 'Scan In Incoming', 'scan_in_incoming', 'trans-scan-in-incoming.php', NULL, 28, 3, 1),
 (39, 'Scan Check QC', 'scan_check_qc', 'trans-scan-check-qc.php', NULL, 28, 3, 1),
-(40, 'Scan Out to Prod', 'scan_out_prod', 'trans-scan-out-to-prod.php', NULL, 28, 3, 1);
+(40, 'Scan Out to Prod', 'scan_out_prod', 'trans-scan-out-to-prod.php', NULL, 28, 3, 1),
+(41, 'Subcont Out Control', 'out_control', 'reports-out-control.php', NULL, 30, 5, 1),
+(43, 'Master Defect', 'master_defect', 'master-defect.php', NULL, 1, 6, 1),
+(44, 'Archive Defect', 'archive_defect', 'archive-defect.php', NULL, 7, 7, 1),
+(45, 'Log Defect', 'log_defect', 'log-defect.php', NULL, 10, 8, 1),
+(46, 'Konfirmasi Kekurangan', 'konfirmasi_kekurangan', 'trans-confrm-kekurangan.php', NULL, 28, 3, 1),
+(47, 'Transaction Timeline', 'timeline_transaction', 'dashb-timeline.php', NULL, 29, 4, 1),
+(48, 'Lot Basis', 'lot_basis', 'dashb-lot-basis.php', NULL, 29, 4, 1),
+(49, 'General Status', 'general_status', 'reports-general-status.php', NULL, 30, 5, 1);
 
 -- --------------------------------------------------------
 
@@ -92,6 +100,7 @@ INSERT INTO `menus` (`id`, `name`, `key_name`, `url`, `icon`, `parent_id`, `orde
 CREATE TABLE `roles` (
   `id` int(11) NOT NULL,
   `role_name` varchar(100) NOT NULL,
+  `gate_type` varchar(50) NOT NULL,
   `description` text DEFAULT NULL,
   `is_deleted` tinyint(4) NOT NULL,
   `updated_by` varchar(50) NOT NULL,
@@ -102,11 +111,15 @@ CREATE TABLE `roles` (
 -- Dumping data untuk tabel `roles`
 --
 
-INSERT INTO `roles` (`id`, `role_name`, `description`, `is_deleted`, `updated_by`, `timestamp`) VALUES
-(1, 'SUPERADMIN', '', 0, 'Rizki Zakaria', '2025-09-19 01:19:23'),
-(2, 'SCAN OUT VENDOR', '', 1, 'Rizki Zakaria', '2025-09-19 00:49:12'),
-(3, 'SCAN IN WH', '', 1, 'Rizki Zakaria', '2025-09-19 00:49:08'),
-(5, 'SCAN IN WH', '', 0, 'Rizki Zakaria', '2025-09-19 08:01:50');
+INSERT INTO `roles` (`id`, `role_name`, `gate_type`, `description`, `is_deleted`, `updated_by`, `timestamp`) VALUES
+(1, 'SUPERADMIN', 'SUPERADMIN', '', 0, 'Rizki Zakaria', '2025-09-19 01:19:23'),
+(2, 'SCAN OUT VENDOR', 'SCAN OUT VENDOR', '', 0, 'Rizki Zakaria', '2025-10-09 07:34:46'),
+(3, 'SCAN OUT TO VENDOR', 'SCAN OUT TO VENDOR', '', 0, 'Rizki Zakaria', '2025-10-09 07:34:25'),
+(5, 'SCAN IN WAREHOUSE', 'SCAN IN WAREHOUSE', '', 0, 'Rizki Zakaria', '2025-10-09 07:32:55'),
+(6, 'SCAN IN VENDOR', 'SCAN IN VENDOR', '', 0, 'Rizki Zakaria', '2025-10-09 07:35:14'),
+(7, 'SCAN IN INCOMING', 'SCAN IN INCOMING', '', 0, 'Rizki Zakaria', '2025-10-09 07:35:28'),
+(8, 'SCAN CHECK QC', 'SCAN CHECK QC', '', 0, 'Rizki Zakaria', '2025-10-09 07:36:14'),
+(9, 'SCAN OUT TO PRODUCTION', 'SCAN OUT TO PRODUCTION', '', 0, 'Rizki Zakaria', '2025-10-09 07:36:23');
 
 -- --------------------------------------------------------
 
@@ -129,45 +142,89 @@ CREATE TABLE `role_permissions` (
 
 INSERT INTO `role_permissions` (`id`, `role_id`, `menu_id`, `allowed`, `updated_by`, `timestamp`) VALUES
 (35, 5, 6, 1, 'Rizki Zakaria', '2025-09-19 01:11:34'),
-(419, 1, 6, 1, 'Rizki Zakaria', '2025-09-29 06:15:31'),
-(420, 1, 32, 1, 'Rizki Zakaria', '2025-09-29 06:15:31'),
-(421, 1, 33, 1, 'Rizki Zakaria', '2025-09-29 06:15:31'),
-(422, 1, 28, 1, 'Rizki Zakaria', '2025-09-29 06:15:31'),
-(423, 1, 31, 1, 'Rizki Zakaria', '2025-09-29 06:15:31'),
-(424, 1, 34, 1, 'Rizki Zakaria', '2025-09-29 06:15:31'),
-(425, 1, 35, 1, 'Rizki Zakaria', '2025-09-29 06:15:31'),
-(426, 1, 36, 1, 'Rizki Zakaria', '2025-09-29 06:15:31'),
-(427, 1, 37, 1, 'Rizki Zakaria', '2025-09-29 06:15:31'),
-(428, 1, 38, 1, 'Rizki Zakaria', '2025-09-29 06:15:31'),
-(429, 1, 39, 1, 'Rizki Zakaria', '2025-09-29 06:15:31'),
-(430, 1, 40, 1, 'Rizki Zakaria', '2025-09-29 06:15:31'),
-(431, 1, 29, 1, 'Rizki Zakaria', '2025-09-29 06:15:31'),
-(432, 1, 30, 1, 'Rizki Zakaria', '2025-09-29 06:15:31'),
-(433, 1, 1, 1, 'Rizki Zakaria', '2025-09-29 06:15:31'),
-(434, 1, 2, 1, 'Rizki Zakaria', '2025-09-29 06:15:31'),
-(435, 1, 3, 1, 'Rizki Zakaria', '2025-09-29 06:15:31'),
-(436, 1, 4, 1, 'Rizki Zakaria', '2025-09-29 06:15:31'),
-(437, 1, 5, 1, 'Rizki Zakaria', '2025-09-29 06:15:31'),
-(438, 1, 14, 1, 'Rizki Zakaria', '2025-09-29 06:15:31'),
-(439, 1, 20, 1, 'Rizki Zakaria', '2025-09-29 06:15:31'),
-(440, 1, 23, 1, 'Rizki Zakaria', '2025-09-29 06:15:31'),
-(441, 1, 26, 1, 'Rizki Zakaria', '2025-09-29 06:15:31'),
-(442, 1, 7, 1, 'Rizki Zakaria', '2025-09-29 06:15:31'),
-(443, 1, 8, 1, 'Rizki Zakaria', '2025-09-29 06:15:31'),
-(444, 1, 9, 1, 'Rizki Zakaria', '2025-09-29 06:15:31'),
-(445, 1, 16, 1, 'Rizki Zakaria', '2025-09-29 06:15:31'),
-(446, 1, 18, 1, 'Rizki Zakaria', '2025-09-29 06:15:31'),
-(447, 1, 21, 1, 'Rizki Zakaria', '2025-09-29 06:15:31'),
-(448, 1, 10, 1, 'Rizki Zakaria', '2025-09-29 06:15:31'),
-(449, 1, 11, 1, 'Rizki Zakaria', '2025-09-29 06:15:31'),
-(450, 1, 12, 1, 'Rizki Zakaria', '2025-09-29 06:15:31'),
-(451, 1, 13, 1, 'Rizki Zakaria', '2025-09-29 06:15:31'),
-(452, 1, 15, 1, 'Rizki Zakaria', '2025-09-29 06:15:31'),
-(453, 1, 17, 1, 'Rizki Zakaria', '2025-09-29 06:15:31'),
-(454, 1, 19, 1, 'Rizki Zakaria', '2025-09-29 06:15:31'),
-(455, 1, 22, 1, 'Rizki Zakaria', '2025-09-29 06:15:31'),
-(456, 1, 25, 1, 'Rizki Zakaria', '2025-09-29 06:15:31'),
-(457, 1, 27, 1, 'Rizki Zakaria', '2025-09-29 06:15:31');
+(636, 6, 6, 1, 'Rizki Zakaria', '2025-10-09 07:38:15'),
+(637, 6, 28, 1, 'Rizki Zakaria', '2025-10-09 07:38:15'),
+(638, 6, 36, 1, 'Rizki Zakaria', '2025-10-09 07:38:15'),
+(639, 6, 46, 1, 'Rizki Zakaria', '2025-10-09 07:38:15'),
+(640, 6, 30, 1, 'Rizki Zakaria', '2025-10-09 07:38:15'),
+(641, 6, 41, 1, 'Rizki Zakaria', '2025-10-09 07:38:15'),
+(642, 2, 6, 1, 'Rizki Zakaria', '2025-10-09 07:47:56'),
+(643, 2, 28, 1, 'Rizki Zakaria', '2025-10-09 07:47:56'),
+(644, 2, 37, 1, 'Rizki Zakaria', '2025-10-09 07:47:56'),
+(645, 2, 46, 1, 'Rizki Zakaria', '2025-10-09 07:47:56'),
+(646, 2, 30, 1, 'Rizki Zakaria', '2025-10-09 07:47:56'),
+(647, 2, 41, 1, 'Rizki Zakaria', '2025-10-09 07:47:56'),
+(742, 1, 6, 1, 'Rizki Zakaria', '2025-10-21 02:01:06'),
+(743, 1, 32, 1, 'Rizki Zakaria', '2025-10-21 02:01:06'),
+(744, 1, 33, 1, 'Rizki Zakaria', '2025-10-21 02:01:06'),
+(745, 1, 28, 1, 'Rizki Zakaria', '2025-10-21 02:01:06'),
+(746, 1, 31, 1, 'Rizki Zakaria', '2025-10-21 02:01:06'),
+(747, 1, 34, 1, 'Rizki Zakaria', '2025-10-21 02:01:06'),
+(748, 1, 35, 1, 'Rizki Zakaria', '2025-10-21 02:01:06'),
+(749, 1, 36, 1, 'Rizki Zakaria', '2025-10-21 02:01:06'),
+(750, 1, 37, 1, 'Rizki Zakaria', '2025-10-21 02:01:06'),
+(751, 1, 38, 1, 'Rizki Zakaria', '2025-10-21 02:01:06'),
+(752, 1, 39, 1, 'Rizki Zakaria', '2025-10-21 02:01:06'),
+(753, 1, 40, 1, 'Rizki Zakaria', '2025-10-21 02:01:06'),
+(754, 1, 46, 1, 'Rizki Zakaria', '2025-10-21 02:01:06'),
+(755, 1, 29, 1, 'Rizki Zakaria', '2025-10-21 02:01:06'),
+(756, 1, 47, 1, 'Rizki Zakaria', '2025-10-21 02:01:06'),
+(757, 1, 48, 1, 'Rizki Zakaria', '2025-10-21 02:01:06'),
+(758, 1, 30, 1, 'Rizki Zakaria', '2025-10-21 02:01:06'),
+(759, 1, 41, 1, 'Rizki Zakaria', '2025-10-21 02:01:06'),
+(760, 1, 49, 1, 'Rizki Zakaria', '2025-10-21 02:01:06'),
+(761, 1, 1, 1, 'Rizki Zakaria', '2025-10-21 02:01:06'),
+(762, 1, 2, 1, 'Rizki Zakaria', '2025-10-21 02:01:06'),
+(763, 1, 3, 1, 'Rizki Zakaria', '2025-10-21 02:01:06'),
+(764, 1, 4, 1, 'Rizki Zakaria', '2025-10-21 02:01:06'),
+(765, 1, 5, 1, 'Rizki Zakaria', '2025-10-21 02:01:06'),
+(766, 1, 14, 1, 'Rizki Zakaria', '2025-10-21 02:01:06'),
+(767, 1, 20, 1, 'Rizki Zakaria', '2025-10-21 02:01:06'),
+(768, 1, 23, 1, 'Rizki Zakaria', '2025-10-21 02:01:06'),
+(769, 1, 26, 1, 'Rizki Zakaria', '2025-10-21 02:01:06'),
+(770, 1, 43, 1, 'Rizki Zakaria', '2025-10-21 02:01:06'),
+(771, 1, 7, 1, 'Rizki Zakaria', '2025-10-21 02:01:06'),
+(772, 1, 8, 1, 'Rizki Zakaria', '2025-10-21 02:01:06'),
+(773, 1, 9, 1, 'Rizki Zakaria', '2025-10-21 02:01:06'),
+(774, 1, 16, 1, 'Rizki Zakaria', '2025-10-21 02:01:06'),
+(775, 1, 18, 1, 'Rizki Zakaria', '2025-10-21 02:01:06'),
+(776, 1, 21, 1, 'Rizki Zakaria', '2025-10-21 02:01:06'),
+(777, 1, 44, 1, 'Rizki Zakaria', '2025-10-21 02:01:06'),
+(778, 1, 10, 1, 'Rizki Zakaria', '2025-10-21 02:01:06'),
+(779, 1, 11, 1, 'Rizki Zakaria', '2025-10-21 02:01:06'),
+(780, 1, 12, 1, 'Rizki Zakaria', '2025-10-21 02:01:06'),
+(781, 1, 13, 1, 'Rizki Zakaria', '2025-10-21 02:01:06'),
+(782, 1, 15, 1, 'Rizki Zakaria', '2025-10-21 02:01:06'),
+(783, 1, 17, 1, 'Rizki Zakaria', '2025-10-21 02:01:06'),
+(784, 1, 19, 1, 'Rizki Zakaria', '2025-10-21 02:01:06'),
+(785, 1, 22, 1, 'Rizki Zakaria', '2025-10-21 02:01:06'),
+(786, 1, 25, 1, 'Rizki Zakaria', '2025-10-21 02:01:06'),
+(787, 1, 27, 1, 'Rizki Zakaria', '2025-10-21 02:01:06'),
+(788, 1, 45, 1, 'Rizki Zakaria', '2025-10-21 02:01:06');
+
+-- --------------------------------------------------------
+
+--
+-- Struktur dari tabel `tbl_defect`
+--
+
+CREATE TABLE `tbl_defect` (
+  `id_defect` int(11) NOT NULL,
+  `defect` varchar(50) NOT NULL,
+  `description` varchar(100) NOT NULL,
+  `is_deleted` tinyint(4) NOT NULL,
+  `updated_by` varchar(50) NOT NULL,
+  `timestamp` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data untuk tabel `tbl_defect`
+--
+
+INSERT INTO `tbl_defect` (`id_defect`, `defect`, `description`, `is_deleted`, `updated_by`, `timestamp`) VALUES
+(1, 'Stain', '', 0, 'Rizki Zakaria', '2025-09-30 07:04:38'),
+(2, 'Wrinkle', '', 0, 'Rizki Zakaria', '2025-09-30 07:04:48'),
+(3, 'Broken', '', 0, 'Rizki Zakaria', '2025-09-30 07:22:33');
 
 -- --------------------------------------------------------
 
@@ -190,16 +247,24 @@ CREATE TABLE `tbl_komponen` (
 --
 
 INSERT INTO `tbl_komponen` (`id_komponen`, `model`, `style`, `nama_komponen`, `is_deleted`, `updated_by`, `timestamp`) VALUES
-(9, 'M VAPOR LITE 3  CLY', '', 'Vamp', 0, 'Rizki Zakaria', '2025-09-23 07:34:05'),
-(10, 'M VAPOR LITE 3  CLY', '', 'Quarter In', 0, 'Rizki Zakaria', '2025-09-23 07:34:05'),
-(11, 'M VAPOR LITE 3  CLY', '', 'Quarter Out', 0, 'Rizki Zakaria', '2025-09-23 07:34:05'),
-(12, 'M VAPOR LITE 3  CLY', '', 'Tip', 0, 'Rizki Zakaria', '2025-09-23 07:34:05'),
-(13, 'NIKE AIR MAX INVIGOR (GS)', '', 'Vamp Set', 0, 'Rizki Zakaria', '2025-09-29 01:21:31'),
-(14, 'NIKE AIR MAX INVIGOR (GS)', '', 'Mudguard In', 0, 'Rizki Zakaria', '2025-09-29 01:21:31'),
-(15, 'NIKE AIR MAX INVIGOR (GS)', '', 'Mudguard Out', 0, 'Rizki Zakaria', '2025-09-29 01:21:31'),
-(16, 'NIKE AIR MAX INVIGOR (PS)', '', 'Vamp Set', 0, 'Rizki Zakaria', '2025-09-29 01:21:31'),
-(17, 'NIKE AIR MAX INVIGOR (PS)', '', 'Mudguard In', 0, 'Rizki Zakaria', '2025-09-29 01:21:31'),
-(18, 'NIKE AIR MAX INVIGOR (PS)', '', 'Mudguard Out', 0, 'Rizki Zakaria', '2025-09-29 01:21:31');
+(19, 'NIKE COURT VISION LO NN', '', 'Mudguard Out', 0, 'Rizki Zakaria', '2025-10-08 03:31:39'),
+(20, 'NIKE COURT VISION LO NN', '', 'Mudguard In', 0, 'Rizki Zakaria', '2025-10-08 03:31:39'),
+(21, 'W NIKE COURT VISION LO P NBK', '', 'Mudguard Out', 0, 'Rizki Zakaria', '2025-10-08 03:31:39'),
+(22, 'W NIKE COURT VISION LO P NBK', '', 'Mudguard In', 0, 'Rizki Zakaria', '2025-10-08 03:31:39'),
+(23, 'NIKE AIR MAX INVIGOR (GS)', '', 'Tip Set', 0, 'Rizki Zakaria', '2025-10-09 02:00:21'),
+(24, 'NIKE AIR MAX INVIGOR (GS)', '', 'Tip', 0, 'Rizki Zakaria', '2025-10-09 02:00:21'),
+(25, 'NIKE AIR MAX INVIGOR (PS)', '', 'Tip Set', 0, 'Rizki Zakaria', '2025-10-09 02:00:21'),
+(26, 'NIKE AIR MAX INVIGOR (PS)', '', 'Tip', 0, 'Rizki Zakaria', '2025-10-09 02:00:21'),
+(27, 'NIKE AIR MAX INVIGOR (TD)', '', 'Tip Set', 0, 'Rizki Zakaria', '2025-10-09 02:00:21'),
+(28, 'NIKE AIR MAX INVIGOR (TD)', '', 'Tip', 0, 'Rizki Zakaria', '2025-10-09 02:00:21'),
+(29, 'AIR MAX INVIGOR PRINT (PS)', '', 'Tip Set', 0, 'Rizki Zakaria', '2025-10-09 02:00:21'),
+(30, 'AIR MAX INVIGOR PRINT (PS)', '', 'Tip', 0, 'Rizki Zakaria', '2025-10-09 02:00:21'),
+(31, 'NIKE DIAMOND STANDOUT MTL', '', 'Quarter Set', 0, 'Rizki Zakaria', '2025-10-09 03:11:48'),
+(32, 'NIKE DIAMOND STANDOUT MTL', '', 'Quarter In', 0, 'Rizki Zakaria', '2025-10-09 03:11:48'),
+(33, 'NIKE DIAMOND STANDOUT MCS', '', 'Quarter Set', 0, 'Rizki Zakaria', '2025-10-09 03:11:48'),
+(34, 'NIKE DIAMOND STANDOUT MCS', '', 'Quarter In', 0, 'Rizki Zakaria', '2025-10-09 03:11:48'),
+(35, 'NIKE COURT BOROUGH LOW PREM', '', 'Backtab 3D', 0, 'Rizki Zakaria', '2025-10-14 03:14:42'),
+(36, 'NIKE COURT BOROUGH LOW PREM', '', 'Backtab', 0, 'Rizki Zakaria', '2025-10-14 03:14:42');
 
 -- --------------------------------------------------------
 
@@ -218,13 +283,15 @@ CREATE TABLE `tbl_komponen_proses` (
 --
 
 INSERT INTO `tbl_komponen_proses` (`id_proses`, `id_input`, `id_output`) VALUES
-(7, 10, 9),
-(8, 11, 9),
-(9, 12, 9),
-(10, 14, 13),
-(11, 15, 13),
-(12, 17, 16),
-(13, 18, 16);
+(14, 20, 19),
+(15, 22, 21),
+(16, 24, 23),
+(17, 26, 25),
+(18, 28, 27),
+(19, 30, 29),
+(20, 32, 31),
+(21, 34, 33),
+(22, 36, 35);
 
 -- --------------------------------------------------------
 
@@ -17354,6 +17421,7 @@ CREATE TABLE `tbl_transaksi` (
   `scan_with` varchar(100) DEFAULT NULL,
   `scan_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `keterangan` varchar(250) NOT NULL,
+  `defect_qty` longtext NOT NULL,
   `count_barcode` varchar(10) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
@@ -17361,9 +17429,35 @@ CREATE TABLE `tbl_transaksi` (
 -- Dumping data untuk tabel `tbl_transaksi`
 --
 
-INSERT INTO `tbl_transaksi` (`id_trans`, `job_order`, `bucket`, `po_code`, `po_item`, `model`, `style`, `ncvs`, `lot`, `komponen_qty`, `type_scan`, `hour`, `barcode`, `created_by`, `date_created`, `status`, `validated_by`, `validated_at`, `scan_with`, `scan_at`, `keterangan`, `count_barcode`) VALUES
-(4, '1006-107-33', '251006SO', '4510739493', '50', 'NIKE AIR MAX INVIGOR (GS)', '749572-003', '107', '[1,2,3,4,5,6,7,8]', '[{\"komponen\":14,\"qty\":10},{\"komponen\":15,\"qty\":10}]', 'SCAN_IN_VENDOR', '8', '4510739493-50-107-20250929083541-4', 'Rizki Zakaria', '2025-09-29 08:35:41', 'REJECTED', 'Rizki Zakaria', '2025-09-29 15:29:33', 'Rizki Zakaria', '2025-09-29 08:04:14', 'Kurang komponen', NULL),
-(5, '1006-101-82', '251006SO', '4510732637', '30', 'M VAPOR LITE 3  CLY', 'HQ5292-402', '101', '[1,2,3,4,5,6,7,8]', '[{\"komponen\":10,\"qty\":40},{\"komponen\":11,\"qty\":40}]', 'SCAN_IN_VENDOR', '8', '4510732637-30-101-20250929085325-5', 'Rizki Zakaria', '2025-09-29 08:53:25', 'APPROVED', 'Rizki Zakaria', '2025-09-29 15:29:23', 'Rizki Zakaria', '2025-09-29 08:05:16', 'Quarter in dan out kurang 10', NULL);
+INSERT INTO `tbl_transaksi` (`id_trans`, `job_order`, `bucket`, `po_code`, `po_item`, `model`, `style`, `ncvs`, `lot`, `komponen_qty`, `type_scan`, `hour`, `barcode`, `created_by`, `date_created`, `status`, `validated_by`, `validated_at`, `scan_with`, `scan_at`, `keterangan`, `defect_qty`, `count_barcode`) VALUES
+(1, '1006-101-1', '251006SO', '3503861490', '50', 'NIKE COURT VISION LO NN', 'DH2987-002', '101', '[1,2]', '[{\"komponen\":20,\"size\":\"004\",\"qty\":12},{\"komponen\":20,\"size\":\"005\",\"qty\":12},{\"komponen\":20,\"size\":\"006\",\"qty\":12},{\"komponen\":20,\"size\":\"007\",\"qty\":30}]', 'SCAN_OUT_TO_PRODUCTION', '2', '3503861490-50-101-20251017152231-1', 'Rizki Zakaria', '2025-10-17 15:22:31', 'PENDING', NULL, NULL, 'Rizki Zakaria', '2025-10-20 01:11:59', '', '[{\"komponen\":20,\"size\":\"004\",\"defect\":1,\"qty\":2}]', NULL),
+(2, '1006-101-1', '251006SO', '3503861490', '50', 'NIKE COURT VISION LO NN', 'DH2987-002', '101', '[1,2]', '[{\"komponen\":\"20\",\"size\":\"008\",\"qty\":60},{\"komponen\":\"20\",\"size\":\"009\",\"qty\":72},{\"komponen\":\"20\",\"size\":\"08T\",\"qty\":84},{\"komponen\":\"20\",\"size\":\"09T\",\"qty\":60}]', 'SCAN_IN_WAREHOUSE', '7', '3503861490-50-101-20251020094327-2', 'Rizki Zakaria', '2025-10-20 09:43:27', 'PENDING', NULL, NULL, 'Rizki Zakaria', '2025-10-20 07:08:15', '', '', NULL);
+
+-- --------------------------------------------------------
+
+--
+-- Struktur dari tabel `tbl_transaksi_kekurangan`
+--
+
+CREATE TABLE `tbl_transaksi_kekurangan` (
+  `id_kekurangan` int(11) NOT NULL,
+  `id_trans_asal` int(11) DEFAULT NULL,
+  `job_order` varchar(50) DEFAULT NULL,
+  `komponen_qty` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`komponen_qty`)),
+  `defect_qty` int(11) NOT NULL DEFAULT 0,
+  `total_kekurangan` int(11) DEFAULT NULL,
+  `status` enum('pending','confirmed','resolved') DEFAULT 'pending',
+  `last_gate` varchar(50) NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data untuk tabel `tbl_transaksi_kekurangan`
+--
+
+INSERT INTO `tbl_transaksi_kekurangan` (`id_kekurangan`, `id_trans_asal`, `job_order`, `komponen_qty`, `defect_qty`, `total_kekurangan`, `status`, `last_gate`, `created_at`, `updated_at`) VALUES
+(1, 1, '1006-101-1', '[{\"komponen\":20,\"size\":\"004\",\"qty\":2}]', 2, 2, 'confirmed', 'SCAN_OUT_TO_PRODUCTION', '2025-10-20 01:11:52', '2025-10-20 01:12:22');
 
 -- --------------------------------------------------------
 
@@ -17389,8 +17483,9 @@ CREATE TABLE `tbl_user` (
 --
 
 INSERT INTO `tbl_user` (`id_user`, `username`, `role_id`, `nik_user`, `pass_user`, `pass_plain`, `last_login`, `is_deleted`, `updated_by`, `timestamp`) VALUES
-(2, 'Rizki Zakaria', 1, '108854', '$2y$10$umYh9ACEbNeaScodVfO4HeoLmQtMuDmBEehpIpslvES6cGEv5xFYK', '123456', '2025-09-29 00:56:09', 0, 'Rizki Zakaria', '2025-09-09 03:48:31'),
-(12, 'Rizki Ciko', 5, '09050001', '$2y$10$op5qq7Mw0Dh4msiaPTVUeu70NARxCdDYdg6RVyrOD6fTgURXh/Rfm', '123456', '2025-09-25 01:15:53', 0, 'Rizki Zakaria', '2025-09-19 08:01:12');
+(2, 'Rizki Zakaria', 1, '108854', '$2y$10$umYh9ACEbNeaScodVfO4HeoLmQtMuDmBEehpIpslvES6cGEv5xFYK', '123456', '2025-10-21 00:16:16', 0, 'Rizki Zakaria', '2025-09-09 03:48:31'),
+(12, 'Rizki Ciko', 6, '09050001', '$2y$10$op5qq7Mw0Dh4msiaPTVUeu70NARxCdDYdg6RVyrOD6fTgURXh/Rfm', '123456', '2025-10-10 01:46:44', 0, 'Rizki Zakaria', '2025-10-09 07:37:10'),
+(13, 'Agung Firmansyah', 2, '107501', '$2y$10$TL1jlXoNR8l2M60QGtzptuhthOIQkN4KrV9Cu3TE35s8UU5fLMiu6', '123456', '2025-10-10 01:46:59', 0, 'Rizki Zakaria', '2025-10-09 07:47:27');
 
 -- --------------------------------------------------------
 
@@ -17413,8 +17508,72 @@ CREATE TABLE `tbl_vendor` (
 --
 
 INSERT INTO `tbl_vendor` (`id_vendor`, `name_vendor`, `code_vendor`, `alamat`, `is_deleted`, `updated_by`, `timestamp`) VALUES
-(1, 'Adis Dimension Footwear', 'ADF-001', '', 0, 'Rizki Zakaria', '2025-09-19 07:45:04'),
+(1, 'Adis Dimension Footwear', 'ADF-001', '', 1, 'Rizki Zakaria', '2025-10-13 06:31:24'),
 (2, 'Multi Karya Usaha', 'MKU-001', '', 0, 'Rizki Zakaria', '2025-09-19 07:47:13');
+
+-- --------------------------------------------------------
+
+--
+-- Struktur dari tabel `tbl_vendor_proses`
+--
+
+CREATE TABLE `tbl_vendor_proses` (
+  `id_vendor_proses` int(11) NOT NULL,
+  `id_vendor` int(11) NOT NULL,
+  `id_proses` int(11) NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data untuk tabel `tbl_vendor_proses`
+--
+
+INSERT INTO `tbl_vendor_proses` (`id_vendor_proses`, `id_vendor`, `id_proses`, `created_at`, `updated_at`) VALUES
+(1, 2, 14, '2025-10-08 03:31:39', '2025-10-08 03:31:39'),
+(2, 2, 15, '2025-10-08 03:31:39', '2025-10-08 03:31:39'),
+(3, 2, 16, '2025-10-09 02:00:21', '2025-10-09 02:00:21'),
+(4, 2, 17, '2025-10-09 02:00:21', '2025-10-09 02:00:21'),
+(5, 2, 18, '2025-10-09 02:00:21', '2025-10-09 02:00:21'),
+(6, 2, 19, '2025-10-09 02:00:21', '2025-10-09 02:00:21'),
+(7, 2, 20, '2025-10-09 03:11:48', '2025-10-09 03:11:48'),
+(8, 2, 21, '2025-10-09 03:11:48', '2025-10-09 03:11:48'),
+(9, 2, 22, '2025-10-14 03:14:42', '2025-10-14 03:14:42');
+
+-- --------------------------------------------------------
+
+--
+-- Struktur dari tabel `tlog_defect`
+--
+
+CREATE TABLE `tlog_defect` (
+  `id_log_defect` int(11) NOT NULL,
+  `id_defect` int(11) NOT NULL,
+  `updated_by` varchar(50) NOT NULL,
+  `action_type` varchar(50) NOT NULL,
+  `old_data` text DEFAULT NULL,
+  `new_data` text NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data untuk tabel `tlog_defect`
+--
+
+INSERT INTO `tlog_defect` (`id_log_defect`, `id_defect`, `updated_by`, `action_type`, `old_data`, `new_data`, `created_at`, `updated_at`) VALUES
+(1, 1, 'Rizki Zakaria', 'INSERT', NULL, '{\"defect\":\"Stain\",\"description\":\"\"}', '2025-09-30 07:04:38', '2025-09-30 07:04:38'),
+(2, 2, 'Rizki Zakaria', 'INSERT', NULL, '{\"defect\":\"Wrinkle\",\"description\":\"\"}', '2025-09-30 07:04:48', '2025-09-30 07:04:48'),
+(3, 3, 'Rizki Zakaria', 'INSERT', NULL, '{\"defect\":\"Brokennnn\",\"description\":\"\"}', '2025-09-30 07:08:12', '2025-09-30 07:08:12'),
+(4, 3, 'Rizki Zakaria', 'UPDATE', '{\"defect\":\"Brokennnn\",\"description\":\"\"}', '{\"defect\":\"Broken\",\"description\":\"\"}', '2025-09-30 07:09:36', '2025-09-30 07:09:36'),
+(5, 3, 'Rizki Zakaria', 'REMOVE', '{\"id_defect\":3,\"defect\":\"Broken\",\"description\":\"\",\"is_deleted\":0,\"updated_by\":\"Rizki Zakaria\",\"timestamp\":\"2025-09-30 14:09:36\"}', '{\"id_defect\":3,\"defect\":\"Broken\",\"description\":\"\",\"is_deleted\":1,\"updated_by\":\"Rizki Zakaria\",\"timestamp\":\"2025-09-30 14:09:36\"}', '2025-09-30 07:12:01', '2025-09-30 07:12:01'),
+(6, 3, 'Rizki Zakaria', 'RESTORE', '{\"id_defect\":3,\"defect\":\"Broken\",\"description\":\"\",\"is_deleted\":1,\"updated_by\":\"Rizki Zakaria\",\"timestamp\":\"2025-09-30 14:12:01\"}', '{\"id_defect\":3,\"defect\":\"Broken\",\"description\":\"\",\"is_deleted\":0,\"updated_by\":\"Rizki Zakaria\",\"timestamp\":\"2025-09-30 14:12:01\"}', '2025-09-30 07:22:33', '2025-09-30 07:22:33'),
+(7, 4, 'Rizki Zakaria', 'INSERT', NULL, '{\"defect\":\"Test\",\"description\":\"\"}', '2025-09-30 07:22:46', '2025-09-30 07:22:46'),
+(8, 4, 'Rizki Zakaria', 'UPDATE', '{\"defect\":\"Test\",\"description\":\"\"}', '{\"defect\":\"Test2\",\"description\":\"\"}', '2025-09-30 07:22:51', '2025-09-30 07:22:51'),
+(9, 4, 'Rizki Zakaria', 'REMOVE', '{\"id_defect\":4,\"defect\":\"Test2\",\"description\":\"\",\"is_deleted\":0,\"updated_by\":\"Rizki Zakaria\",\"timestamp\":\"2025-09-30 14:22:51\"}', '{\"id_defect\":4,\"defect\":\"Test2\",\"description\":\"\",\"is_deleted\":1,\"updated_by\":\"Rizki Zakaria\",\"timestamp\":\"2025-09-30 14:22:51\"}', '2025-09-30 07:22:55', '2025-09-30 07:22:55'),
+(10, 4, 'Rizki Zakaria', 'RESTORE', '{\"id_defect\":4,\"defect\":\"Test2\",\"description\":\"\",\"is_deleted\":1,\"updated_by\":\"Rizki Zakaria\",\"timestamp\":\"2025-09-30 14:22:55\"}', '{\"id_defect\":4,\"defect\":\"Test2\",\"description\":\"\",\"is_deleted\":0,\"updated_by\":\"Rizki Zakaria\",\"timestamp\":\"2025-09-30 14:22:55\"}', '2025-09-30 07:23:02', '2025-09-30 07:23:02'),
+(11, 4, 'Rizki Zakaria', 'REMOVE', '{\"id_defect\":4,\"defect\":\"Test2\",\"description\":\"\",\"is_deleted\":0,\"updated_by\":\"Rizki Zakaria\",\"timestamp\":\"2025-09-30 14:23:02\"}', '{\"id_defect\":4,\"defect\":\"Test2\",\"description\":\"\",\"is_deleted\":1,\"updated_by\":\"Rizki Zakaria\",\"timestamp\":\"2025-09-30 14:23:02\"}', '2025-09-30 07:23:08', '2025-09-30 07:23:08'),
+(12, 4, 'Rizki Zakaria', 'DELETE', '{\"id_defect\":4,\"defect\":\"Test2\",\"description\":\"\",\"is_deleted\":1,\"updated_by\":\"Rizki Zakaria\",\"timestamp\":\"2025-09-30 14:23:08\"}', '{\"note\":\"Defect dihapus permanen oleh Rizki Zakaria pada 2025-09-30 14:23:15\"}', '2025-09-30 07:23:15', '2025-09-30 07:23:15');
 
 -- --------------------------------------------------------
 
@@ -17478,7 +17637,16 @@ INSERT INTO `tlog_komponen` (`id_log_komponen`, `id_komponen`, `updated_by`, `ac
 (38, 14, 'Rizki Zakaria', 'INSERT', NULL, '{\"model\":\"NIKE AIR MAX INVIGOR (GS)\",\"style\":\"\",\"input\":\"Mudguard In\",\"output\":\"Vamp Set\"}', '2025-09-29 01:21:31', '2025-09-29 01:21:31'),
 (39, 15, 'Rizki Zakaria', 'INSERT', NULL, '{\"model\":\"NIKE AIR MAX INVIGOR (GS)\",\"style\":\"\",\"input\":\"Mudguard Out\",\"output\":\"Vamp Set\"}', '2025-09-29 01:21:31', '2025-09-29 01:21:31'),
 (40, 17, 'Rizki Zakaria', 'INSERT', NULL, '{\"model\":\"NIKE AIR MAX INVIGOR (PS)\",\"style\":\"\",\"input\":\"Mudguard In\",\"output\":\"Vamp Set\"}', '2025-09-29 01:21:31', '2025-09-29 01:21:31'),
-(41, 18, 'Rizki Zakaria', 'INSERT', NULL, '{\"model\":\"NIKE AIR MAX INVIGOR (PS)\",\"style\":\"\",\"input\":\"Mudguard Out\",\"output\":\"Vamp Set\"}', '2025-09-29 01:21:31', '2025-09-29 01:21:31');
+(41, 18, 'Rizki Zakaria', 'INSERT', NULL, '{\"model\":\"NIKE AIR MAX INVIGOR (PS)\",\"style\":\"\",\"input\":\"Mudguard Out\",\"output\":\"Vamp Set\"}', '2025-09-29 01:21:31', '2025-09-29 01:21:31'),
+(42, 20, 'Rizki Zakaria', 'INSERT', NULL, '{\"model\":\"NIKE COURT VISION LO NN\",\"style\":\"\",\"input\":\"Mudguard In\",\"output\":\"Mudguard Out\",\"vendor\":2}', '2025-10-08 03:31:39', '2025-10-08 03:31:39'),
+(43, 22, 'Rizki Zakaria', 'INSERT', NULL, '{\"model\":\"W NIKE COURT VISION LO P NBK\",\"style\":\"\",\"input\":\"Mudguard In\",\"output\":\"Mudguard Out\",\"vendor\":2}', '2025-10-08 03:31:39', '2025-10-08 03:31:39'),
+(44, 24, 'Rizki Zakaria', 'INSERT', NULL, '{\"model\":\"NIKE AIR MAX INVIGOR (GS)\",\"style\":\"\",\"input\":\"Tip\",\"output\":\"Tip Set\",\"vendor\":2}', '2025-10-09 02:00:21', '2025-10-09 02:00:21'),
+(45, 26, 'Rizki Zakaria', 'INSERT', NULL, '{\"model\":\"NIKE AIR MAX INVIGOR (PS)\",\"style\":\"\",\"input\":\"Tip\",\"output\":\"Tip Set\",\"vendor\":2}', '2025-10-09 02:00:21', '2025-10-09 02:00:21'),
+(46, 28, 'Rizki Zakaria', 'INSERT', NULL, '{\"model\":\"NIKE AIR MAX INVIGOR (TD)\",\"style\":\"\",\"input\":\"Tip\",\"output\":\"Tip Set\",\"vendor\":2}', '2025-10-09 02:00:21', '2025-10-09 02:00:21'),
+(47, 30, 'Rizki Zakaria', 'INSERT', NULL, '{\"model\":\"AIR MAX INVIGOR PRINT (PS)\",\"style\":\"\",\"input\":\"Tip\",\"output\":\"Tip Set\",\"vendor\":2}', '2025-10-09 02:00:21', '2025-10-09 02:00:21'),
+(48, 32, 'Rizki Zakaria', 'INSERT', NULL, '{\"model\":\"NIKE DIAMOND STANDOUT MTL\",\"style\":\"\",\"input\":\"Quarter In\",\"output\":\"Quarter Set\",\"vendor\":2}', '2025-10-09 03:11:48', '2025-10-09 03:11:48'),
+(49, 34, 'Rizki Zakaria', 'INSERT', NULL, '{\"model\":\"NIKE DIAMOND STANDOUT MCS\",\"style\":\"\",\"input\":\"Quarter In\",\"output\":\"Quarter Set\",\"vendor\":2}', '2025-10-09 03:11:48', '2025-10-09 03:11:48'),
+(50, 36, 'Rizki Zakaria', 'INSERT', NULL, '{\"model\":\"NIKE COURT BOROUGH LOW PREM\",\"style\":\"\",\"input\":\"Backtab\",\"output\":\"Backtab 3D\",\"vendor\":2}', '2025-10-14 03:14:42', '2025-10-14 03:14:42');
 
 -- --------------------------------------------------------
 
@@ -17547,7 +17715,42 @@ INSERT INTO `tlog_login` (`id_log`, `id_user`, `ip_address`, `user_agent`, `logi
 (46, 2, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-26 13:46:53'),
 (47, 2, '10.5.72.105', 'Mozilla/5.0 (Linux; Android 11; K2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/94.0.4606.61 Safari/537.36', '2025-09-26 14:28:22'),
 (48, 2, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-26 14:45:10'),
-(49, 2, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-29 07:56:09');
+(49, 2, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-09-29 07:56:09'),
+(50, 2, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-08 09:31:51'),
+(51, 2, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36', '2025-10-08 09:44:01'),
+(52, 2, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '2025-10-09 07:18:29'),
+(53, 2, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '2025-10-09 09:50:20'),
+(54, 2, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '2025-10-09 10:25:51'),
+(55, 2, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '2025-10-09 10:52:59'),
+(56, 2, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '2025-10-09 13:53:30'),
+(57, 12, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '2025-10-09 14:12:42'),
+(58, 2, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '2025-10-09 14:13:11'),
+(59, 12, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '2025-10-09 14:37:45'),
+(60, 2, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '2025-10-09 14:37:58'),
+(61, 12, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '2025-10-09 14:38:24'),
+(62, 2, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '2025-10-09 14:41:30'),
+(63, 12, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '2025-10-09 14:46:19'),
+(64, 2, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '2025-10-09 14:47:06'),
+(65, 13, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '2025-10-09 14:48:11'),
+(66, 2, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '2025-10-09 14:53:53'),
+(67, 13, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '2025-10-09 14:54:50'),
+(68, 2, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '2025-10-09 15:04:57'),
+(69, 13, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '2025-10-09 16:01:54'),
+(70, 2, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '2025-10-09 16:08:06'),
+(71, 13, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '2025-10-10 07:53:28'),
+(72, 2, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '2025-10-10 07:54:06'),
+(73, 12, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '2025-10-10 08:46:44'),
+(74, 13, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '2025-10-10 08:46:59'),
+(75, 2, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '2025-10-10 08:49:36'),
+(76, 2, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '2025-10-13 10:11:41'),
+(77, 2, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '2025-10-14 07:16:23'),
+(78, 2, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '2025-10-14 07:39:41'),
+(79, 2, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '2025-10-15 07:16:13'),
+(80, 2, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '2025-10-15 09:40:24'),
+(81, 2, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '2025-10-16 07:31:24'),
+(82, 2, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '2025-10-17 07:11:57'),
+(83, 2, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '2025-10-20 07:20:32'),
+(84, 2, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36', '2025-10-21 07:16:16');
 
 -- --------------------------------------------------------
 
@@ -17665,7 +17868,26 @@ INSERT INTO `tlog_roles` (`id_log_role`, `id`, `updated_by`, `action_type`, `old
 (33, 1, 'Rizki Zakaria', 'UPDATE CHECKLIST', '[\"1\",\"2\",\"3\",\"4\",\"5\",\"6\",\"7\",\"8\",\"9\",\"10\",\"11\",\"12\",\"13\",\"14\",\"15\",\"16\",\"17\",\"18\",\"19\",\"20\",\"21\",\"22\",\"23\",\"25\",\"26\",\"27\",\"28\",\"29\",\"30\",\"31\"]', '[6,28,31,29,30,1,2,3,4,5,14,20,23,26,7,8,9,16,18,21,10,11,12,13,15,17,19,22,25,27]', '2025-09-25 02:40:16', '2025-09-25 02:40:16'),
 (34, 1, 'Rizki Zakaria', 'UPDATE CHECKLIST', '[\"1\",\"2\",\"3\",\"4\",\"5\",\"6\",\"7\",\"8\",\"9\",\"10\",\"11\",\"12\",\"13\",\"14\",\"15\",\"16\",\"17\",\"18\",\"19\",\"20\",\"21\",\"22\",\"23\",\"25\",\"26\",\"27\",\"28\",\"29\",\"30\",\"31\",\"32\",\"33\"]', '[6,32,33,28,31,29,30,1,2,3,4,5,14,20,23,26,7,8,9,16,18,21,10,11,12,13,15,17,19,22,25,27]', '2025-09-29 01:50:52', '2025-09-29 01:50:52'),
 (35, 1, 'Rizki Zakaria', 'UPDATE CHECKLIST', '[\"1\",\"2\",\"3\",\"4\",\"5\",\"6\",\"7\",\"8\",\"9\",\"10\",\"11\",\"12\",\"13\",\"14\",\"15\",\"16\",\"17\",\"18\",\"19\",\"20\",\"21\",\"22\",\"23\",\"25\",\"26\",\"27\",\"28\",\"29\",\"30\",\"31\",\"32\",\"33\",\"34\"]', '[6,32,33,28,31,34,29,30,1,2,3,4,5,14,20,23,26,7,8,9,16,18,21,10,11,12,13,15,17,19,22,25,27]', '2025-09-29 03:07:43', '2025-09-29 03:07:43'),
-(36, 1, 'Rizki Zakaria', 'UPDATE CHECKLIST', '[\"1\",\"2\",\"3\",\"4\",\"5\",\"6\",\"7\",\"8\",\"9\",\"10\",\"11\",\"12\",\"13\",\"14\",\"15\",\"16\",\"17\",\"18\",\"19\",\"20\",\"21\",\"22\",\"23\",\"25\",\"26\",\"27\",\"28\",\"29\",\"30\",\"31\",\"32\",\"33\",\"34\",\"35\",\"36\",\"37\",\"38\",\"39\",\"40\"]', '[6,32,33,28,31,34,35,36,37,38,39,40,29,30,1,2,3,4,5,14,20,23,26,7,8,9,16,18,21,10,11,12,13,15,17,19,22,25,27]', '2025-09-29 06:15:31', '2025-09-29 06:15:31');
+(36, 1, 'Rizki Zakaria', 'UPDATE CHECKLIST', '[\"1\",\"2\",\"3\",\"4\",\"5\",\"6\",\"7\",\"8\",\"9\",\"10\",\"11\",\"12\",\"13\",\"14\",\"15\",\"16\",\"17\",\"18\",\"19\",\"20\",\"21\",\"22\",\"23\",\"25\",\"26\",\"27\",\"28\",\"29\",\"30\",\"31\",\"32\",\"33\",\"34\",\"35\",\"36\",\"37\",\"38\",\"39\",\"40\"]', '[6,32,33,28,31,34,35,36,37,38,39,40,29,30,1,2,3,4,5,14,20,23,26,7,8,9,16,18,21,10,11,12,13,15,17,19,22,25,27]', '2025-09-29 06:15:31', '2025-09-29 06:15:31'),
+(37, 1, 'Rizki Zakaria', 'UPDATE CHECKLIST', '[\"1\",\"2\",\"3\",\"4\",\"5\",\"6\",\"7\",\"8\",\"9\",\"10\",\"11\",\"12\",\"13\",\"14\",\"15\",\"16\",\"17\",\"18\",\"19\",\"20\",\"21\",\"22\",\"23\",\"25\",\"26\",\"27\",\"28\",\"29\",\"30\",\"31\",\"32\",\"33\",\"34\",\"35\",\"36\",\"37\",\"38\",\"39\",\"40\",\"41\"]', '[6,32,33,28,31,34,35,36,37,38,39,40,29,30,41,1,2,3,4,5,14,20,23,26,7,8,9,16,18,21,10,11,12,13,15,17,19,22,25,27]', '2025-10-08 03:06:30', '2025-10-08 03:06:30'),
+(38, 1, 'Rizki Zakaria', 'UPDATE CHECKLIST', '[\"1\",\"2\",\"3\",\"4\",\"5\",\"6\",\"7\",\"8\",\"9\",\"10\",\"11\",\"12\",\"13\",\"14\",\"15\",\"16\",\"17\",\"18\",\"19\",\"20\",\"21\",\"22\",\"23\",\"25\",\"26\",\"27\",\"28\",\"29\",\"30\",\"31\",\"32\",\"33\",\"34\",\"35\",\"36\",\"37\",\"38\",\"39\",\"40\",\"41\",\"43\"]', '[6,32,33,28,31,34,35,36,37,38,39,40,29,30,41,1,2,3,4,5,14,20,23,26,43,7,8,9,16,18,21,10,11,12,13,15,17,19,22,25,27]', '2025-10-08 03:36:41', '2025-10-08 03:36:41'),
+(39, 1, 'Rizki Zakaria', 'UPDATE CHECKLIST', '[\"1\",\"2\",\"3\",\"4\",\"5\",\"6\",\"7\",\"8\",\"9\",\"10\",\"11\",\"12\",\"13\",\"14\",\"15\",\"16\",\"17\",\"18\",\"19\",\"20\",\"21\",\"22\",\"23\",\"25\",\"26\",\"27\",\"28\",\"29\",\"30\",\"31\",\"32\",\"33\",\"34\",\"35\",\"36\",\"37\",\"38\",\"39\",\"40\",\"41\",\"43\",\"44\",\"45\"]', '[6,32,33,28,31,34,35,36,37,38,39,40,29,30,41,1,2,3,4,5,14,20,23,26,43,7,8,9,16,18,21,44,10,11,12,13,15,17,19,22,25,27,45]', '2025-10-08 03:40:15', '2025-10-08 03:40:15'),
+(40, 1, 'Rizki Zakaria', 'UPDATE CHECKLIST', '[\"1\",\"2\",\"3\",\"4\",\"5\",\"6\",\"7\",\"8\",\"9\",\"10\",\"11\",\"12\",\"13\",\"14\",\"15\",\"16\",\"17\",\"18\",\"19\",\"20\",\"21\",\"22\",\"23\",\"25\",\"26\",\"27\",\"28\",\"29\",\"30\",\"31\",\"32\",\"33\",\"34\",\"35\",\"36\",\"37\",\"38\",\"39\",\"40\",\"41\",\"43\",\"44\",\"45\",\"46\"]', '[6,32,33,28,31,34,35,36,37,38,39,40,46,29,30,41,1,2,3,4,5,14,20,23,26,43,7,8,9,16,18,21,44,10,11,12,13,15,17,19,22,25,27,45]', '2025-10-08 04:11:22', '2025-10-08 04:11:22'),
+(41, 5, 'Rizki Zakaria', 'UPDATE', '{\"role_name\":\"SCAN IN WH\",\"gate_type\":\"SCAN IN WH\",\"description\":\"\"}', '{\"role_name\":\"SCAN IN WAREHOUSE\",\"gate_type\":\"SCAN IN WAREHOUSE\",\"description\":\"\"}', '2025-10-09 07:32:55', '2025-10-09 07:32:55'),
+(42, 3, 'Rizki Zakaria', 'RESTORE', '{\"id\":3,\"role_name\":\"SCAN IN WH\",\"gate_type\":\"SCAN IN WH\",\"description\":\"\",\"is_deleted\":1,\"updated_by\":\"Rizki Zakaria\",\"timestamp\":\"2025-09-19 07:49:08\"}', '{\"id\":3,\"role_name\":\"SCAN IN WH\",\"gate_type\":\"SCAN IN WH\",\"description\":\"\",\"is_deleted\":0,\"updated_by\":\"Rizki Zakaria\",\"timestamp\":\"2025-09-19 07:49:08\"}', '2025-10-09 07:33:11', '2025-10-09 07:33:11'),
+(43, 2, 'Rizki Zakaria', 'RESTORE', '{\"id\":2,\"role_name\":\"SCAN OUT VENDOR\",\"gate_type\":\"SCAN OUT VENDOR\",\"description\":\"\",\"is_deleted\":1,\"updated_by\":\"Rizki Zakaria\",\"timestamp\":\"2025-09-19 07:49:12\"}', '{\"id\":2,\"role_name\":\"SCAN OUT VENDOR\",\"gate_type\":\"SCAN OUT VENDOR\",\"description\":\"\",\"is_deleted\":0,\"updated_by\":\"Rizki Zakaria\",\"timestamp\":\"2025-09-19 07:49:12\"}', '2025-10-09 07:33:14', '2025-10-09 07:33:14'),
+(44, 3, 'Rizki Zakaria', 'UPDATE', '{\"role_name\":\"SCAN IN WH\",\"gate_type\":\"SCAN IN WH\",\"description\":\"\"}', '{\"role_name\":\"SCAN OUT TO VENDOR\",\"gate_type\":\"SCAN OUT TO VENDOR\",\"description\":\"\"}', '2025-10-09 07:34:25', '2025-10-09 07:34:25'),
+(45, 2, 'Rizki Zakaria', 'UPDATE', '{\"role_name\":\"SCAN OUT VENDOR\",\"gate_type\":\"SCAN OUT VENDOR\",\"description\":\"\"}', '{\"role_name\":\"SCAN OUT VENDOR\",\"gate_type\":\"SCAN OUT VENDOR\",\"description\":\"\"}', '2025-10-09 07:34:46', '2025-10-09 07:34:46'),
+(46, 6, 'Rizki Zakaria', 'INSERT', NULL, '{\"role_name\":\"SCAN IN VENDOR\",\"gate_type\":\"SCAN IN VENDOR\",\"description\":\"\"}', '2025-10-09 07:35:14', '2025-10-09 07:35:14'),
+(47, 7, 'Rizki Zakaria', 'INSERT', NULL, '{\"role_name\":\"SCAN IN INCOMING\",\"gate_type\":\"SCAN IN INCOMING\",\"description\":\"\"}', '2025-10-09 07:35:28', '2025-10-09 07:35:28'),
+(48, 8, 'Rizki Zakaria', 'INSERT', NULL, '{\"role_name\":\"SCAN CHECK QC\",\"gate_type\":\"SCAN CHECK QC\",\"description\":\"\"}', '2025-10-09 07:36:14', '2025-10-09 07:36:14'),
+(49, 9, 'Rizki Zakaria', 'INSERT', NULL, '{\"role_name\":\"SCAN OUT TO PRODUCTION\",\"gate_type\":\"SCAN OUT TO PRODUCTION\",\"description\":\"\"}', '2025-10-09 07:36:23', '2025-10-09 07:36:23'),
+(50, 6, 'Rizki Zakaria', 'INSERT CHECKLIST', '[]', '[6,36,46,30,41]', '2025-10-09 07:37:36', '2025-10-09 07:37:36'),
+(51, 6, 'Rizki Zakaria', 'UPDATE CHECKLIST', '[\"6\",\"30\",\"36\",\"41\",\"46\"]', '[6,28,36,46,30,41]', '2025-10-09 07:38:15', '2025-10-09 07:38:15'),
+(52, 2, 'Rizki Zakaria', 'INSERT CHECKLIST', '[]', '[6,28,37,46,30,41]', '2025-10-09 07:47:56', '2025-10-09 07:47:56'),
+(53, 1, 'Rizki Zakaria', 'UPDATE CHECKLIST', '[\"1\",\"2\",\"3\",\"4\",\"5\",\"6\",\"7\",\"8\",\"9\",\"10\",\"11\",\"12\",\"13\",\"14\",\"15\",\"16\",\"17\",\"18\",\"19\",\"20\",\"21\",\"22\",\"23\",\"25\",\"26\",\"27\",\"28\",\"29\",\"30\",\"31\",\"32\",\"33\",\"34\",\"35\",\"36\",\"37\",\"38\",\"39\",\"40\",\"41\",\"43\",\"44\",\"45\",\"46\",\"47\"]', '[6,32,33,28,31,34,35,36,37,38,39,40,46,29,47,30,41,1,2,3,4,5,14,20,23,26,43,7,8,9,16,18,21,44,10,11,12,13,15,17,19,22,25,27,45]', '2025-10-13 07:20:54', '2025-10-13 07:20:54'),
+(54, 1, 'Rizki Zakaria', 'UPDATE CHECKLIST', '[\"1\",\"2\",\"3\",\"4\",\"5\",\"6\",\"7\",\"8\",\"9\",\"10\",\"11\",\"12\",\"13\",\"14\",\"15\",\"16\",\"17\",\"18\",\"19\",\"20\",\"21\",\"22\",\"23\",\"25\",\"26\",\"27\",\"28\",\"29\",\"30\",\"31\",\"32\",\"33\",\"34\",\"35\",\"36\",\"37\",\"38\",\"39\",\"40\",\"41\",\"43\",\"44\",\"45\",\"46\",\"47\",\"48\"]', '[6,32,33,28,31,34,35,36,37,38,39,40,46,29,47,48,30,41,1,2,3,4,5,14,20,23,26,43,7,8,9,16,18,21,44,10,11,12,13,15,17,19,22,25,27,45]', '2025-10-15 07:27:30', '2025-10-15 07:27:30'),
+(55, 1, 'Rizki Zakaria', 'UPDATE CHECKLIST', '[\"1\",\"2\",\"3\",\"4\",\"5\",\"6\",\"7\",\"8\",\"9\",\"10\",\"11\",\"12\",\"13\",\"14\",\"15\",\"16\",\"17\",\"18\",\"19\",\"20\",\"21\",\"22\",\"23\",\"25\",\"26\",\"27\",\"28\",\"29\",\"30\",\"31\",\"32\",\"33\",\"34\",\"35\",\"36\",\"37\",\"38\",\"39\",\"40\",\"41\",\"43\",\"44\",\"45\",\"46\",\"47\",\"48\",\"49\"]', '[6,32,33,28,31,34,35,36,37,38,39,40,46,29,47,48,30,41,49,1,2,3,4,5,14,20,23,26,43,7,8,9,16,18,21,44,10,11,12,13,15,17,19,22,25,27,45]', '2025-10-21 02:01:06', '2025-10-21 02:01:06');
 
 -- --------------------------------------------------------
 
@@ -17721,28 +17943,17 @@ CREATE TABLE `tlog_transaksi` (
 --
 
 INSERT INTO `tlog_transaksi` (`id_log_trans`, `id_trans`, `updated_by`, `action_type`, `old_data`, `new_data`, `created_at`, `updated_at`) VALUES
-(1, 4, 'Rizki Zakaria', 'INSERT', NULL, '{\"id_trans\":4,\"job_order\":\"1006-107-33\",\"bucket\":\"251006SO\",\"po_code\":\"4510739493\",\"po_item\":\"50\",\"model\":\"NIKE AIR MAX INVIGOR (GS)\",\"style\":\"749572-003\",\"ncvs\":\"107\",\"lot\":[1,2,3,4,5,6,7,8],\"komponen_qty\":[{\"komponen\":\"14\",\"qty\":20},{\"komponen\":\"15\",\"qty\":20}],\"barcode\":\"4510739493-50-107-20250929083541-4\",\"status\":\"PENDING\"}', '2025-09-29 08:35:41', '2025-09-29 08:35:41'),
-(2, 5, 'Rizki Zakaria', 'INSERT', NULL, '{\"id_trans\":5,\"job_order\":\"1006-101-82\",\"bucket\":\"251006SO\",\"po_code\":\"4510732637\",\"po_item\":\"30\",\"model\":\"M VAPOR LITE 3  CLY\",\"style\":\"HQ5292-402\",\"ncvs\":\"101\",\"lot\":[1,2,3,4,5,6,7,8],\"komponen_qty\":[{\"komponen\":\"10\",\"qty\":50},{\"komponen\":\"11\",\"qty\":50}],\"barcode\":\"4510732637-30-101-20250929085325-5\",\"status\":\"PENDING\"}', '2025-09-29 08:53:25', '2025-09-29 08:53:25'),
-(3, 5, 'Rizki Zakaria', 'APPROVE', '{\"id_trans\":5,\"job_order\":\"1006-101-82\",\"bucket\":\"251006SO\",\"po_code\":\"4510732637\",\"po_item\":\"30\",\"model\":\"M VAPOR LITE 3  CLY\",\"style\":\"HQ5292-402\",\"ncvs\":\"101\",\"lot\":\"[1,2,3,4,5,6,7,8]\",\"komponen_qty\":\"[{\\\"komponen\\\":\\\"10\\\",\\\"qty\\\":50},{\\\"komponen\\\":\\\"11\\\",\\\"qty\\\":50}]\",\"type_scan\":\"CREATE_BARCODE\",\"hour\":null,\"barcode\":\"4510732637-30-101-20250929085325-5\",\"created_by\":\"Rizki Zakaria\",\"date_created\":\"2025-09-29 08:53:25\",\"status\":\"PENDING\",\"validated_by\":null,\"validated_at\":null,\"count_barcode\":null}', '{\"id_trans\":5,\"job_order\":\"1006-101-82\",\"bucket\":\"251006SO\",\"po_code\":\"4510732637\",\"po_item\":\"30\",\"model\":\"M VAPOR LITE 3  CLY\",\"style\":\"HQ5292-402\",\"ncvs\":\"101\",\"lot\":\"[1,2,3,4,5,6,7,8]\",\"komponen_qty\":\"[{\\\"komponen\\\":\\\"10\\\",\\\"qty\\\":50},{\\\"komponen\\\":\\\"11\\\",\\\"qty\\\":50}]\",\"type_scan\":\"CREATE_BARCODE\",\"hour\":null,\"barcode\":\"4510732637-30-101-20250929085325-5\",\"created_by\":\"Rizki Zakaria\",\"date_created\":\"2025-09-29 08:53:25\",\"status\":\"APPROVED\",\"validated_by\":\"Rizki Zakaria\",\"validated_at\":\"2025-09-29 09:30:58\",\"count_barcode\":null}', '2025-09-29 09:30:58', '2025-09-29 09:30:58'),
-(4, 4, 'Rizki Zakaria', 'REJECT', '{\"id_trans\":4,\"job_order\":\"1006-107-33\",\"bucket\":\"251006SO\",\"po_code\":\"4510739493\",\"po_item\":\"50\",\"model\":\"NIKE AIR MAX INVIGOR (GS)\",\"style\":\"749572-003\",\"ncvs\":\"107\",\"lot\":\"[1,2,3,4,5,6,7,8]\",\"komponen_qty\":\"[{\\\"komponen\\\":\\\"14\\\",\\\"qty\\\":20},{\\\"komponen\\\":\\\"15\\\",\\\"qty\\\":20}]\",\"type_scan\":\"CREATE_BARCODE\",\"hour\":null,\"barcode\":\"4510739493-50-107-20250929083541-4\",\"created_by\":\"Rizki Zakaria\",\"date_created\":\"2025-09-29 08:35:41\",\"status\":\"PENDING\",\"validated_by\":null,\"validated_at\":null,\"count_barcode\":null}', '{\"id_trans\":4,\"job_order\":\"1006-107-33\",\"bucket\":\"251006SO\",\"po_code\":\"4510739493\",\"po_item\":\"50\",\"model\":\"NIKE AIR MAX INVIGOR (GS)\",\"style\":\"749572-003\",\"ncvs\":\"107\",\"lot\":\"[1,2,3,4,5,6,7,8]\",\"komponen_qty\":\"[{\\\"komponen\\\":\\\"14\\\",\\\"qty\\\":20},{\\\"komponen\\\":\\\"15\\\",\\\"qty\\\":20}]\",\"type_scan\":\"CREATE_BARCODE\",\"hour\":null,\"barcode\":\"4510739493-50-107-20250929083541-4\",\"created_by\":\"Rizki Zakaria\",\"date_created\":\"2025-09-29 08:35:41\",\"status\":\"REJECTED\",\"validated_by\":\"Rizki Zakaria\",\"validated_at\":\"2025-09-29 09:31:20\",\"count_barcode\":null}', '2025-09-29 09:31:20', '2025-09-29 09:31:20'),
-(5, 4, 'Rizki Zakaria', 'APPROVE', '{\"id_trans\":4,\"job_order\":\"1006-107-33\",\"bucket\":\"251006SO\",\"po_code\":\"4510739493\",\"po_item\":\"50\",\"model\":\"NIKE AIR MAX INVIGOR (GS)\",\"style\":\"749572-003\",\"ncvs\":\"107\",\"lot\":\"[1,2,3,4,5,6,7,8]\",\"komponen_qty\":\"[{\\\"komponen\\\":\\\"14\\\",\\\"qty\\\":20},{\\\"komponen\\\":\\\"15\\\",\\\"qty\\\":20}]\",\"type_scan\":\"CREATE_BARCODE\",\"hour\":null,\"barcode\":\"4510739493-50-107-20250929083541-4\",\"created_by\":\"Rizki Zakaria\",\"date_created\":\"2025-09-29 08:35:41\",\"status\":\"REJECTED\",\"validated_by\":\"Rizki Zakaria\",\"validated_at\":\"2025-09-29 09:31:20\",\"count_barcode\":null}', '{\"id_trans\":4,\"job_order\":\"1006-107-33\",\"bucket\":\"251006SO\",\"po_code\":\"4510739493\",\"po_item\":\"50\",\"model\":\"NIKE AIR MAX INVIGOR (GS)\",\"style\":\"749572-003\",\"ncvs\":\"107\",\"lot\":\"[1,2,3,4,5,6,7,8]\",\"komponen_qty\":\"[{\\\"komponen\\\":\\\"14\\\",\\\"qty\\\":20},{\\\"komponen\\\":\\\"15\\\",\\\"qty\\\":20}]\",\"type_scan\":\"CREATE_BARCODE\",\"hour\":null,\"barcode\":\"4510739493-50-107-20250929083541-4\",\"created_by\":\"Rizki Zakaria\",\"date_created\":\"2025-09-29 08:35:41\",\"status\":\"APPROVED\",\"validated_by\":\"Rizki Zakaria\",\"validated_at\":\"2025-09-29 09:31:31\",\"count_barcode\":null}', '2025-09-29 09:31:31', '2025-09-29 09:31:31'),
-(6, 4, 'Rizki Zakaria', 'SCAN_IN_WAREHOUSE', '{\"id_trans\":4,\"job_order\":\"1006-107-33\",\"bucket\":\"251006SO\",\"po_code\":\"4510739493\",\"po_item\":\"50\",\"model\":\"NIKE AIR MAX INVIGOR (GS)\",\"style\":\"749572-003\",\"ncvs\":\"107\",\"lot\":\"[1,2,3,4,5,6,7,8]\",\"komponen_qty\":\"[{\\\"komponen\\\":\\\"14\\\",\\\"qty\\\":20},{\\\"komponen\\\":\\\"15\\\",\\\"qty\\\":20}]\",\"type_scan\":\"CREATE_BARCODE\",\"hour\":null,\"barcode\":\"4510739493-50-107-20250929083541-4\",\"created_by\":\"Rizki Zakaria\",\"date_created\":\"2025-09-29 08:35:41\",\"status\":\"APPROVED\",\"validated_by\":\"Rizki Zakaria\",\"validated_at\":\"2025-09-29 09:31:31\",\"scan_with\":null,\"scan_at\":\"2025-09-29 10:24:58\",\"count_barcode\":null}', '{\"id_trans\":4,\"job_order\":\"1006-107-33\",\"bucket\":\"251006SO\",\"po_code\":\"4510739493\",\"po_item\":\"50\",\"model\":\"NIKE AIR MAX INVIGOR (GS)\",\"style\":\"749572-003\",\"ncvs\":\"107\",\"lot\":\"[1,2,3,4,5,6,7,8]\",\"komponen_qty\":\"[{\\\"komponen\\\":\\\"14\\\",\\\"qty\\\":20},{\\\"komponen\\\":\\\"15\\\",\\\"qty\\\":20}]\",\"type_scan\":\"SCAN_IN_WAREHOUSE\",\"hour\":\"4\",\"barcode\":\"4510739493-50-107-20250929083541-4\",\"created_by\":\"Rizki Zakaria\",\"date_created\":\"2025-09-29 08:35:41\",\"status\":\"APPROVED\",\"validated_by\":\"Rizki Zakaria\",\"validated_at\":\"2025-09-29 09:31:31\",\"scan_with\":\"Rizki Zakaria\",\"scan_at\":\"2025-09-29 10:40:36\",\"count_barcode\":null}', '2025-09-29 10:40:36', '2025-09-29 10:40:36'),
-(7, 5, 'Rizki Zakaria', 'SCAN_IN_WAREHOUSE', '{\"id_trans\":5,\"job_order\":\"1006-101-82\",\"bucket\":\"251006SO\",\"po_code\":\"4510732637\",\"po_item\":\"30\",\"model\":\"M VAPOR LITE 3  CLY\",\"style\":\"HQ5292-402\",\"ncvs\":\"101\",\"lot\":\"[1,2,3,4,5,6,7,8]\",\"komponen_qty\":\"[{\\\"komponen\\\":\\\"10\\\",\\\"qty\\\":50},{\\\"komponen\\\":\\\"11\\\",\\\"qty\\\":50}]\",\"type_scan\":\"CREATE_BARCODE\",\"hour\":null,\"barcode\":\"4510732637-30-101-20250929085325-5\",\"created_by\":\"Rizki Zakaria\",\"date_created\":\"2025-09-29 08:53:25\",\"status\":\"APPROVED\",\"validated_by\":\"Rizki Zakaria\",\"validated_at\":\"2025-09-29 09:30:58\",\"scan_with\":null,\"scan_at\":\"2025-09-29 10:24:58\",\"count_barcode\":null}', '{\"id_trans\":5,\"job_order\":\"1006-101-82\",\"bucket\":\"251006SO\",\"po_code\":\"4510732637\",\"po_item\":\"30\",\"model\":\"M VAPOR LITE 3  CLY\",\"style\":\"HQ5292-402\",\"ncvs\":\"101\",\"lot\":\"[1,2,3,4,5,6,7,8]\",\"komponen_qty\":\"[{\\\"komponen\\\":\\\"10\\\",\\\"qty\\\":50},{\\\"komponen\\\":\\\"11\\\",\\\"qty\\\":50}]\",\"type_scan\":\"SCAN_IN_WAREHOUSE\",\"hour\":\"4\",\"barcode\":\"4510732637-30-101-20250929085325-5\",\"created_by\":\"Rizki Zakaria\",\"date_created\":\"2025-09-29 08:53:25\",\"status\":\"APPROVED\",\"validated_by\":\"Rizki Zakaria\",\"validated_at\":\"2025-09-29 09:30:58\",\"scan_with\":\"Rizki Zakaria\",\"scan_at\":\"2025-09-29 10:41:31\",\"count_barcode\":null}', '2025-09-29 10:41:31', '2025-09-29 10:41:31'),
-(8, 4, 'Rizki Zakaria', 'SCAN_IN_WAREHOUSE', '{\"id_trans\":4,\"job_order\":\"1006-107-33\",\"bucket\":\"251006SO\",\"po_code\":\"4510739493\",\"po_item\":\"50\",\"model\":\"NIKE AIR MAX INVIGOR (GS)\",\"style\":\"749572-003\",\"ncvs\":\"107\",\"lot\":\"[1,2,3,4,5,6,7,8]\",\"komponen_qty\":\"[{\\\"komponen\\\":\\\"14\\\",\\\"qty\\\":20},{\\\"komponen\\\":\\\"15\\\",\\\"qty\\\":20}]\",\"type_scan\":\"SCAN_IN_WAREHOUSE\",\"hour\":\"4\",\"barcode\":\"4510739493-50-107-20250929083541-4\",\"created_by\":\"Rizki Zakaria\",\"date_created\":\"2025-09-29 08:35:41\",\"status\":\"APPROVED\",\"validated_by\":\"Rizki Zakaria\",\"validated_at\":\"2025-09-29 09:31:31\",\"scan_with\":\"Rizki Zakaria\",\"scan_at\":\"2025-09-29 10:40:36\",\"count_barcode\":null}', '{\"id_trans\":4,\"job_order\":\"1006-107-33\",\"bucket\":\"251006SO\",\"po_code\":\"4510739493\",\"po_item\":\"50\",\"model\":\"NIKE AIR MAX INVIGOR (GS)\",\"style\":\"749572-003\",\"ncvs\":\"107\",\"lot\":\"[1,2,3,4,5,6,7,8]\",\"komponen_qty\":\"[{\\\"komponen\\\":\\\"14\\\",\\\"qty\\\":20},{\\\"komponen\\\":\\\"15\\\",\\\"qty\\\":20}]\",\"type_scan\":\"SCAN_IN_WAREHOUSE\",\"hour\":\"4\",\"barcode\":\"4510739493-50-107-20250929083541-4\",\"created_by\":\"Rizki Zakaria\",\"date_created\":\"2025-09-29 08:35:41\",\"status\":\"APPROVED\",\"validated_by\":\"Rizki Zakaria\",\"validated_at\":\"2025-09-29 09:31:31\",\"scan_with\":\"Rizki Zakaria\",\"scan_at\":\"2025-09-29 10:46:28\",\"count_barcode\":null}', '2025-09-29 10:46:28', '2025-09-29 10:46:28'),
-(9, 4, 'Rizki Zakaria', 'SCAN_IN_WAREHOUSE', '{\"id_trans\":4,\"job_order\":\"1006-107-33\",\"bucket\":\"251006SO\",\"po_code\":\"4510739493\",\"po_item\":\"50\",\"model\":\"NIKE AIR MAX INVIGOR (GS)\",\"style\":\"749572-003\",\"ncvs\":\"107\",\"lot\":\"[1,2,3,4,5,6,7,8]\",\"komponen_qty\":\"[{\\\"komponen\\\":\\\"14\\\",\\\"qty\\\":20},{\\\"komponen\\\":\\\"15\\\",\\\"qty\\\":20}]\",\"type_scan\":\"SCAN_IN_WAREHOUSE\",\"hour\":\"4\",\"barcode\":\"4510739493-50-107-20250929083541-4\",\"created_by\":\"Rizki Zakaria\",\"date_created\":\"2025-09-29 08:35:41\",\"status\":\"APPROVED\",\"validated_by\":\"Rizki Zakaria\",\"validated_at\":\"2025-09-29 09:31:31\",\"scan_with\":\"Rizki Zakaria\",\"scan_at\":\"2025-09-29 10:46:28\",\"count_barcode\":null}', '{\"id_trans\":4,\"job_order\":\"1006-107-33\",\"bucket\":\"251006SO\",\"po_code\":\"4510739493\",\"po_item\":\"50\",\"model\":\"NIKE AIR MAX INVIGOR (GS)\",\"style\":\"749572-003\",\"ncvs\":\"107\",\"lot\":\"[1,2,3,4,5,6,7,8]\",\"komponen_qty\":\"[{\\\"komponen\\\":\\\"14\\\",\\\"qty\\\":20},{\\\"komponen\\\":\\\"15\\\",\\\"qty\\\":20}]\",\"type_scan\":\"SCAN_IN_WAREHOUSE\",\"hour\":\"4\",\"barcode\":\"4510739493-50-107-20250929083541-4\",\"created_by\":\"Rizki Zakaria\",\"date_created\":\"2025-09-29 08:35:41\",\"status\":\"APPROVED\",\"validated_by\":\"Rizki Zakaria\",\"validated_at\":\"2025-09-29 09:31:31\",\"scan_with\":\"Rizki Zakaria\",\"scan_at\":\"2025-09-29 10:48:58\",\"count_barcode\":null}', '2025-09-29 10:48:58', '2025-09-29 10:48:58'),
-(10, 5, 'Rizki Zakaria', 'SCAN_IN_WAREHOUSE', '{\"id_trans\":5,\"job_order\":\"1006-101-82\",\"bucket\":\"251006SO\",\"po_code\":\"4510732637\",\"po_item\":\"30\",\"model\":\"M VAPOR LITE 3  CLY\",\"style\":\"HQ5292-402\",\"ncvs\":\"101\",\"lot\":\"[1,2,3,4,5,6,7,8]\",\"komponen_qty\":\"[{\\\"komponen\\\":\\\"10\\\",\\\"qty\\\":50},{\\\"komponen\\\":\\\"11\\\",\\\"qty\\\":50}]\",\"type_scan\":\"SCAN_IN_WAREHOUSE\",\"hour\":\"4\",\"barcode\":\"4510732637-30-101-20250929085325-5\",\"created_by\":\"Rizki Zakaria\",\"date_created\":\"2025-09-29 08:53:25\",\"status\":\"APPROVED\",\"validated_by\":\"Rizki Zakaria\",\"validated_at\":\"2025-09-29 09:30:58\",\"scan_with\":\"Rizki Zakaria\",\"scan_at\":\"2025-09-29 10:41:31\",\"count_barcode\":null}', '{\"id_trans\":5,\"job_order\":\"1006-101-82\",\"bucket\":\"251006SO\",\"po_code\":\"4510732637\",\"po_item\":\"30\",\"model\":\"M VAPOR LITE 3  CLY\",\"style\":\"HQ5292-402\",\"ncvs\":\"101\",\"lot\":\"[1,2,3,4,5,6,7,8]\",\"komponen_qty\":\"[{\\\"komponen\\\":\\\"10\\\",\\\"qty\\\":50},{\\\"komponen\\\":\\\"11\\\",\\\"qty\\\":50}]\",\"type_scan\":\"SCAN_IN_WAREHOUSE\",\"hour\":\"4\",\"barcode\":\"4510732637-30-101-20250929085325-5\",\"created_by\":\"Rizki Zakaria\",\"date_created\":\"2025-09-29 08:53:25\",\"status\":\"APPROVED\",\"validated_by\":\"Rizki Zakaria\",\"validated_at\":\"2025-09-29 09:30:58\",\"scan_with\":\"Rizki Zakaria\",\"scan_at\":\"2025-09-29 10:49:05\",\"count_barcode\":null}', '2025-09-29 10:49:05', '2025-09-29 10:49:05'),
-(11, 4, 'Rizki Zakaria', 'SCAN_OUT_TO_VENDOR', '{\"id_trans\":4,\"job_order\":\"1006-107-33\",\"bucket\":\"251006SO\",\"po_code\":\"4510739493\",\"po_item\":\"50\",\"model\":\"NIKE AIR MAX INVIGOR (GS)\",\"style\":\"749572-003\",\"ncvs\":\"107\",\"lot\":\"[1,2,3,4,5,6,7,8]\",\"komponen_qty\":\"[{\\\"komponen\\\":\\\"14\\\",\\\"qty\\\":20},{\\\"komponen\\\":\\\"15\\\",\\\"qty\\\":20}]\",\"type_scan\":\"SCAN_IN_WAREHOUSE\",\"hour\":\"4\",\"barcode\":\"4510739493-50-107-20250929083541-4\",\"created_by\":\"Rizki Zakaria\",\"date_created\":\"2025-09-29 08:35:41\",\"status\":\"APPROVED\",\"validated_by\":\"Rizki Zakaria\",\"validated_at\":\"2025-09-29 09:31:31\",\"scan_with\":\"Rizki Zakaria\",\"scan_at\":\"2025-09-29 10:48:58\",\"count_barcode\":null}', '{\"id_trans\":4,\"job_order\":\"1006-107-33\",\"bucket\":\"251006SO\",\"po_code\":\"4510739493\",\"po_item\":\"50\",\"model\":\"NIKE AIR MAX INVIGOR (GS)\",\"style\":\"749572-003\",\"ncvs\":\"107\",\"lot\":\"[1,2,3,4,5,6,7,8]\",\"komponen_qty\":\"[{\\\"komponen\\\":\\\"14\\\",\\\"qty\\\":20},{\\\"komponen\\\":\\\"15\\\",\\\"qty\\\":20}]\",\"type_scan\":\"SCAN_OUT_TO_VENDOR\",\"hour\":\"6\",\"barcode\":\"4510739493-50-107-20250929083541-4\",\"created_by\":\"Rizki Zakaria\",\"date_created\":\"2025-09-29 08:35:41\",\"status\":\"APPROVED\",\"validated_by\":\"Rizki Zakaria\",\"validated_at\":\"2025-09-29 09:31:31\",\"scan_with\":\"Rizki Zakaria\",\"scan_at\":\"2025-09-29 13:21:28\",\"count_barcode\":null}', '2025-09-29 13:21:28', '2025-09-29 13:21:28'),
-(12, 4, 'Rizki Zakaria', 'SCAN_IN_WAREHOUSE', '{\"id_trans\":4,\"job_order\":\"1006-107-33\",\"bucket\":\"251006SO\",\"po_code\":\"4510739493\",\"po_item\":\"50\",\"model\":\"NIKE AIR MAX INVIGOR (GS)\",\"style\":\"749572-003\",\"ncvs\":\"107\",\"lot\":\"[1,2,3,4,5,6,7,8]\",\"komponen_qty\":\"[{\\\"komponen\\\":\\\"14\\\",\\\"qty\\\":20},{\\\"komponen\\\":\\\"15\\\",\\\"qty\\\":20}]\",\"type_scan\":\"SCAN_OUT_TO_VENDOR\",\"hour\":\"6\",\"barcode\":\"4510739493-50-107-20250929083541-4\",\"created_by\":\"Rizki Zakaria\",\"date_created\":\"2025-09-29 08:35:41\",\"status\":\"APPROVED\",\"validated_by\":\"Rizki Zakaria\",\"validated_at\":\"2025-09-29 09:31:31\",\"scan_with\":\"Rizki Zakaria\",\"scan_at\":\"2025-09-29 13:21:28\",\"count_barcode\":null}', '{\"id_trans\":4,\"job_order\":\"1006-107-33\",\"bucket\":\"251006SO\",\"po_code\":\"4510739493\",\"po_item\":\"50\",\"model\":\"NIKE AIR MAX INVIGOR (GS)\",\"style\":\"749572-003\",\"ncvs\":\"107\",\"lot\":\"[1,2,3,4,5,6,7,8]\",\"komponen_qty\":\"[{\\\"komponen\\\":\\\"14\\\",\\\"qty\\\":20},{\\\"komponen\\\":\\\"15\\\",\\\"qty\\\":20}]\",\"type_scan\":\"SCAN_IN_WAREHOUSE\",\"hour\":\"6\",\"barcode\":\"4510739493-50-107-20250929083541-4\",\"created_by\":\"Rizki Zakaria\",\"date_created\":\"2025-09-29 08:35:41\",\"status\":\"APPROVED\",\"validated_by\":\"Rizki Zakaria\",\"validated_at\":\"2025-09-29 09:31:31\",\"scan_with\":\"Rizki Zakaria\",\"scan_at\":\"2025-09-29 13:21:45\",\"count_barcode\":null}', '2025-09-29 13:21:45', '2025-09-29 13:21:45'),
-(13, 4, 'Rizki Zakaria', 'SCAN_OUT_TO_VENDOR', '{\"id_trans\":4,\"job_order\":\"1006-107-33\",\"bucket\":\"251006SO\",\"po_code\":\"4510739493\",\"po_item\":\"50\",\"model\":\"NIKE AIR MAX INVIGOR (GS)\",\"style\":\"749572-003\",\"ncvs\":\"107\",\"lot\":\"[1,2,3,4,5,6,7,8]\",\"komponen_qty\":\"[{\\\"komponen\\\":\\\"14\\\",\\\"qty\\\":20},{\\\"komponen\\\":\\\"15\\\",\\\"qty\\\":20}]\",\"type_scan\":\"SCAN_IN_WAREHOUSE\",\"hour\":\"6\",\"barcode\":\"4510739493-50-107-20250929083541-4\",\"created_by\":\"Rizki Zakaria\",\"date_created\":\"2025-09-29 08:35:41\",\"status\":\"APPROVED\",\"validated_by\":\"Rizki Zakaria\",\"validated_at\":\"2025-09-29 09:31:31\",\"scan_with\":\"Rizki Zakaria\",\"scan_at\":\"2025-09-29 13:21:45\",\"count_barcode\":null}', '{\"id_trans\":4,\"job_order\":\"1006-107-33\",\"bucket\":\"251006SO\",\"po_code\":\"4510739493\",\"po_item\":\"50\",\"model\":\"NIKE AIR MAX INVIGOR (GS)\",\"style\":\"749572-003\",\"ncvs\":\"107\",\"lot\":\"[1,2,3,4,5,6,7,8]\",\"komponen_qty\":\"[{\\\"komponen\\\":\\\"14\\\",\\\"qty\\\":20},{\\\"komponen\\\":\\\"15\\\",\\\"qty\\\":20}]\",\"type_scan\":\"SCAN_OUT_TO_VENDOR\",\"hour\":\"6\",\"barcode\":\"4510739493-50-107-20250929083541-4\",\"created_by\":\"Rizki Zakaria\",\"date_created\":\"2025-09-29 08:35:41\",\"status\":\"APPROVED\",\"validated_by\":\"Rizki Zakaria\",\"validated_at\":\"2025-09-29 09:31:31\",\"scan_with\":\"Rizki Zakaria\",\"scan_at\":\"2025-09-29 13:43:48\",\"count_barcode\":null}', '2025-09-29 13:43:48', '2025-09-29 13:43:48'),
-(14, 5, 'Rizki Zakaria', 'SCAN_OUT_TO_VENDOR', '{\"id_trans\":5,\"job_order\":\"1006-101-82\",\"bucket\":\"251006SO\",\"po_code\":\"4510732637\",\"po_item\":\"30\",\"model\":\"M VAPOR LITE 3  CLY\",\"style\":\"HQ5292-402\",\"ncvs\":\"101\",\"lot\":\"[1,2,3,4,5,6,7,8]\",\"komponen_qty\":\"[{\\\"komponen\\\":\\\"10\\\",\\\"qty\\\":50},{\\\"komponen\\\":\\\"11\\\",\\\"qty\\\":50}]\",\"type_scan\":\"SCAN_IN_WAREHOUSE\",\"hour\":\"4\",\"barcode\":\"4510732637-30-101-20250929085325-5\",\"created_by\":\"Rizki Zakaria\",\"date_created\":\"2025-09-29 08:53:25\",\"status\":\"APPROVED\",\"validated_by\":\"Rizki Zakaria\",\"validated_at\":\"2025-09-29 09:30:58\",\"scan_with\":\"Rizki Zakaria\",\"scan_at\":\"2025-09-29 10:49:05\",\"count_barcode\":null}', '{\"id_trans\":5,\"job_order\":\"1006-101-82\",\"bucket\":\"251006SO\",\"po_code\":\"4510732637\",\"po_item\":\"30\",\"model\":\"M VAPOR LITE 3  CLY\",\"style\":\"HQ5292-402\",\"ncvs\":\"101\",\"lot\":\"[1,2,3,4,5,6,7,8]\",\"komponen_qty\":\"[{\\\"komponen\\\":\\\"10\\\",\\\"qty\\\":50},{\\\"komponen\\\":\\\"11\\\",\\\"qty\\\":50}]\",\"type_scan\":\"SCAN_OUT_TO_VENDOR\",\"hour\":\"6\",\"barcode\":\"4510732637-30-101-20250929085325-5\",\"created_by\":\"Rizki Zakaria\",\"date_created\":\"2025-09-29 08:53:25\",\"status\":\"APPROVED\",\"validated_by\":\"Rizki Zakaria\",\"validated_at\":\"2025-09-29 09:30:58\",\"scan_with\":\"Rizki Zakaria\",\"scan_at\":\"2025-09-29 13:48:53\",\"count_barcode\":null}', '2025-09-29 13:48:53', '2025-09-29 13:48:53'),
-(15, 5, 'Rizki Zakaria', 'SCAN_IN_VENDOR', '{\"id_trans\":5,\"job_order\":\"1006-101-82\",\"bucket\":\"251006SO\",\"po_code\":\"4510732637\",\"po_item\":\"30\",\"model\":\"M VAPOR LITE 3  CLY\",\"style\":\"HQ5292-402\",\"ncvs\":\"101\",\"lot\":\"[1,2,3,4,5,6,7,8]\",\"komponen_qty\":\"[{\\\"komponen\\\":\\\"10\\\",\\\"qty\\\":50},{\\\"komponen\\\":\\\"11\\\",\\\"qty\\\":50}]\",\"type_scan\":\"SCAN_OUT_TO_VENDOR\",\"hour\":\"6\",\"barcode\":\"4510732637-30-101-20250929085325-5\",\"created_by\":\"Rizki Zakaria\",\"date_created\":\"2025-09-29 08:53:25\",\"status\":\"APPROVED\",\"validated_by\":\"Rizki Zakaria\",\"validated_at\":\"2025-09-29 09:30:58\",\"scan_with\":\"Rizki Zakaria\",\"scan_at\":\"2025-09-29 13:48:53\",\"keterangan\":\"\",\"count_barcode\":null}', '{\"id_trans\":5,\"job_order\":\"1006-101-82\",\"bucket\":\"251006SO\",\"po_code\":\"4510732637\",\"po_item\":\"30\",\"model\":\"M VAPOR LITE 3  CLY\",\"style\":\"HQ5292-402\",\"ncvs\":\"101\",\"lot\":\"[1,2,3,4,5,6,7,8]\",\"komponen_qty\":\"[{\\\"komponen\\\":10,\\\"qty\\\":50},{\\\"komponen\\\":11,\\\"qty\\\":50}]\",\"type_scan\":\"SCAN_IN_VENDOR\",\"hour\":\"7\",\"barcode\":\"4510732637-30-101-20250929085325-5\",\"created_by\":\"Rizki Zakaria\",\"date_created\":\"2025-09-29 08:53:25\",\"status\":\"APPROVED\",\"validated_by\":\"Rizki Zakaria\",\"validated_at\":\"2025-09-29 09:30:58\",\"scan_with\":\"Rizki Zakaria\",\"scan_at\":\"2025-09-29 14:43:56\",\"keterangan\":\"\",\"count_barcode\":null}', '2025-09-29 14:43:56', '2025-09-29 14:43:56'),
-(16, 4, 'Rizki Zakaria', 'SCAN_IN_VENDOR', '{\"id_trans\":4,\"job_order\":\"1006-107-33\",\"bucket\":\"251006SO\",\"po_code\":\"4510739493\",\"po_item\":\"50\",\"model\":\"NIKE AIR MAX INVIGOR (GS)\",\"style\":\"749572-003\",\"ncvs\":\"107\",\"lot\":\"[1,2,3,4,5,6,7,8]\",\"komponen_qty\":\"[{\\\"komponen\\\":\\\"14\\\",\\\"qty\\\":20},{\\\"komponen\\\":\\\"15\\\",\\\"qty\\\":20}]\",\"type_scan\":\"SCAN_OUT_TO_VENDOR\",\"hour\":\"6\",\"barcode\":\"4510739493-50-107-20250929083541-4\",\"created_by\":\"Rizki Zakaria\",\"date_created\":\"2025-09-29 08:35:41\",\"status\":\"APPROVED\",\"validated_by\":\"Rizki Zakaria\",\"validated_at\":\"2025-09-29 09:31:31\",\"scan_with\":\"Rizki Zakaria\",\"scan_at\":\"2025-09-29 13:43:48\",\"keterangan\":\"\",\"count_barcode\":null}', '{\"id_trans\":4,\"job_order\":\"1006-107-33\",\"bucket\":\"251006SO\",\"po_code\":\"4510739493\",\"po_item\":\"50\",\"model\":\"NIKE AIR MAX INVIGOR (GS)\",\"style\":\"749572-003\",\"ncvs\":\"107\",\"lot\":\"[1,2,3,4,5,6,7,8]\",\"komponen_qty\":\"[{\\\"komponen\\\":14,\\\"qty\\\":20},{\\\"komponen\\\":15,\\\"qty\\\":20}]\",\"type_scan\":\"SCAN_IN_VENDOR\",\"hour\":null,\"barcode\":\"4510739493-50-107-20250929083541-4\",\"created_by\":\"Rizki Zakaria\",\"date_created\":\"2025-09-29 08:35:41\",\"status\":\"APPROVED\",\"validated_by\":\"Rizki Zakaria\",\"validated_at\":\"2025-09-29 09:31:31\",\"scan_with\":\"Rizki Zakaria\",\"scan_at\":\"2025-09-29 15:00:11\",\"keterangan\":\"\",\"count_barcode\":null}', '2025-09-29 15:00:11', '2025-09-29 15:00:11'),
-(17, 4, 'Rizki Zakaria', 'SCAN_IN_VENDOR', '{\"id_trans\":4,\"job_order\":\"1006-107-33\",\"bucket\":\"251006SO\",\"po_code\":\"4510739493\",\"po_item\":\"50\",\"model\":\"NIKE AIR MAX INVIGOR (GS)\",\"style\":\"749572-003\",\"ncvs\":\"107\",\"lot\":\"[1,2,3,4,5,6,7,8]\",\"komponen_qty\":\"[{\\\"komponen\\\":14,\\\"qty\\\":20},{\\\"komponen\\\":15,\\\"qty\\\":20}]\",\"type_scan\":\"SCAN_OUT_TO_VENDOR\",\"hour\":null,\"barcode\":\"4510739493-50-107-20250929083541-4\",\"created_by\":\"Rizki Zakaria\",\"date_created\":\"2025-09-29 08:35:41\",\"status\":\"APPROVED\",\"validated_by\":\"Rizki Zakaria\",\"validated_at\":\"2025-09-29 09:31:31\",\"scan_with\":\"Rizki Zakaria\",\"scan_at\":\"2025-09-29 15:00:11\",\"keterangan\":\"\",\"count_barcode\":null}', '{\"id_trans\":4,\"job_order\":\"1006-107-33\",\"bucket\":\"251006SO\",\"po_code\":\"4510739493\",\"po_item\":\"50\",\"model\":\"NIKE AIR MAX INVIGOR (GS)\",\"style\":\"749572-003\",\"ncvs\":\"107\",\"lot\":\"[1,2,3,4,5,6,7,8]\",\"komponen_qty\":\"[{\\\"komponen\\\":14,\\\"qty\\\":20},{\\\"komponen\\\":15,\\\"qty\\\":20}]\",\"type_scan\":\"SCAN_IN_VENDOR\",\"hour\":\"8\",\"barcode\":\"4510739493-50-107-20250929083541-4\",\"created_by\":\"Rizki Zakaria\",\"date_created\":\"2025-09-29 08:35:41\",\"status\":\"APPROVED\",\"validated_by\":\"Rizki Zakaria\",\"validated_at\":\"2025-09-29 09:31:31\",\"scan_with\":\"Rizki Zakaria\",\"scan_at\":\"2025-09-29 15:01:50\",\"keterangan\":\"\",\"count_barcode\":null}', '2025-09-29 15:01:50', '2025-09-29 15:01:50'),
-(18, 5, 'Rizki Zakaria', 'PENDING_IN_VENDOR', '{\"id_trans\":5,\"job_order\":\"1006-101-82\",\"bucket\":\"251006SO\",\"po_code\":\"4510732637\",\"po_item\":\"30\",\"model\":\"M VAPOR LITE 3  CLY\",\"style\":\"HQ5292-402\",\"ncvs\":\"101\",\"lot\":\"[1,2,3,4,5,6,7,8]\",\"komponen_qty\":\"[{\\\"komponen\\\":10,\\\"qty\\\":50},{\\\"komponen\\\":11,\\\"qty\\\":50}]\",\"type_scan\":\"SCAN_OUT_TO_VENDOR\",\"hour\":\"7\",\"barcode\":\"4510732637-30-101-20250929085325-5\",\"created_by\":\"Rizki Zakaria\",\"date_created\":\"2025-09-29 08:53:25\",\"status\":\"APPROVED\",\"validated_by\":\"Rizki Zakaria\",\"validated_at\":\"2025-09-29 09:30:58\",\"scan_with\":\"Rizki Zakaria\",\"scan_at\":\"2025-09-29 14:43:56\",\"keterangan\":\"\",\"count_barcode\":null}', '{\"id_trans\":5,\"job_order\":\"1006-101-82\",\"bucket\":\"251006SO\",\"po_code\":\"4510732637\",\"po_item\":\"30\",\"model\":\"M VAPOR LITE 3  CLY\",\"style\":\"HQ5292-402\",\"ncvs\":\"101\",\"lot\":\"[1,2,3,4,5,6,7,8]\",\"komponen_qty\":\"[{\\\"komponen\\\":10,\\\"qty\\\":40},{\\\"komponen\\\":11,\\\"qty\\\":40}]\",\"type_scan\":\"SCAN_IN_VENDOR\",\"hour\":\"8\",\"barcode\":\"4510732637-30-101-20250929085325-5\",\"created_by\":\"Rizki Zakaria\",\"date_created\":\"2025-09-29 08:53:25\",\"status\":\"PENDING_IN_VENDOR\",\"validated_by\":\"Rizki Zakaria\",\"validated_at\":\"2025-09-29 09:30:58\",\"scan_with\":\"Rizki Zakaria\",\"scan_at\":\"2025-09-29 15:02:26\",\"keterangan\":\"Quarter in dan out kurang 10\",\"count_barcode\":null}', '2025-09-29 15:02:26', '2025-09-29 15:02:26'),
-(19, 4, 'Rizki Zakaria', 'PENDING_IN_VENDOR', '{\"id_trans\":4,\"job_order\":\"1006-107-33\",\"bucket\":\"251006SO\",\"po_code\":\"4510739493\",\"po_item\":\"50\",\"model\":\"NIKE AIR MAX INVIGOR (GS)\",\"style\":\"749572-003\",\"ncvs\":\"107\",\"lot\":\"[1,2,3,4,5,6,7,8]\",\"komponen_qty\":\"[{\\\"komponen\\\":14,\\\"qty\\\":20},{\\\"komponen\\\":15,\\\"qty\\\":20}]\",\"type_scan\":\"SCAN_OUT_TO_VENDOR\",\"hour\":\"8\",\"barcode\":\"4510739493-50-107-20250929083541-4\",\"created_by\":\"Rizki Zakaria\",\"date_created\":\"2025-09-29 08:35:41\",\"status\":\"APPROVED\",\"validated_by\":\"Rizki Zakaria\",\"validated_at\":\"2025-09-29 09:31:31\",\"scan_with\":\"Rizki Zakaria\",\"scan_at\":\"2025-09-29 15:01:50\",\"keterangan\":\"\",\"count_barcode\":null}', '{\"id_trans\":4,\"job_order\":\"1006-107-33\",\"bucket\":\"251006SO\",\"po_code\":\"4510739493\",\"po_item\":\"50\",\"model\":\"NIKE AIR MAX INVIGOR (GS)\",\"style\":\"749572-003\",\"ncvs\":\"107\",\"lot\":\"[1,2,3,4,5,6,7,8]\",\"komponen_qty\":\"[{\\\"komponen\\\":14,\\\"qty\\\":10},{\\\"komponen\\\":15,\\\"qty\\\":10}]\",\"type_scan\":\"SCAN_IN_VENDOR\",\"hour\":\"8\",\"barcode\":\"4510739493-50-107-20250929083541-4\",\"created_by\":\"Rizki Zakaria\",\"date_created\":\"2025-09-29 08:35:41\",\"status\":\"PENDING_IN_VENDOR\",\"validated_by\":\"Rizki Zakaria\",\"validated_at\":\"2025-09-29 09:31:31\",\"scan_with\":\"Rizki Zakaria\",\"scan_at\":\"2025-09-29 15:04:14\",\"keterangan\":\"Kurang komponen\",\"count_barcode\":null}', '2025-09-29 15:04:14', '2025-09-29 15:04:14'),
-(20, 5, 'Rizki Zakaria', 'SCAN_IN_VENDOR', '{\"id_trans\":5,\"job_order\":\"1006-101-82\",\"bucket\":\"251006SO\",\"po_code\":\"4510732637\",\"po_item\":\"30\",\"model\":\"M VAPOR LITE 3  CLY\",\"style\":\"HQ5292-402\",\"ncvs\":\"101\",\"lot\":\"[1,2,3,4,5,6,7,8]\",\"komponen_qty\":\"[{\\\"komponen\\\":10,\\\"qty\\\":40},{\\\"komponen\\\":11,\\\"qty\\\":40}]\",\"type_scan\":\"SCAN_OUT_TO_VENDOR\",\"hour\":\"8\",\"barcode\":\"4510732637-30-101-20250929085325-5\",\"created_by\":\"Rizki Zakaria\",\"date_created\":\"2025-09-29 08:53:25\",\"status\":\"PENDING_IN_VENDOR\",\"validated_by\":\"Rizki Zakaria\",\"validated_at\":\"2025-09-29 09:30:58\",\"scan_with\":\"Rizki Zakaria\",\"scan_at\":\"2025-09-29 15:02:26\",\"keterangan\":\"Quarter in dan out kurang 10\",\"count_barcode\":null}', '{\"id_trans\":5,\"job_order\":\"1006-101-82\",\"bucket\":\"251006SO\",\"po_code\":\"4510732637\",\"po_item\":\"30\",\"model\":\"M VAPOR LITE 3  CLY\",\"style\":\"HQ5292-402\",\"ncvs\":\"101\",\"lot\":\"[1,2,3,4,5,6,7,8]\",\"komponen_qty\":\"[{\\\"komponen\\\":10,\\\"qty\\\":40},{\\\"komponen\\\":11,\\\"qty\\\":40}]\",\"type_scan\":\"SCAN_IN_VENDOR\",\"hour\":\"8\",\"barcode\":\"4510732637-30-101-20250929085325-5\",\"created_by\":\"Rizki Zakaria\",\"date_created\":\"2025-09-29 08:53:25\",\"status\":\"PENDING_IN_VENDOR\",\"validated_by\":\"Rizki Zakaria\",\"validated_at\":\"2025-09-29 09:30:58\",\"scan_with\":\"Rizki Zakaria\",\"scan_at\":\"2025-09-29 15:05:16\",\"keterangan\":\"Quarter in dan out kurang 10\",\"count_barcode\":null}', '2025-09-29 15:05:16', '2025-09-29 15:05:16'),
-(21, 5, 'Rizki Zakaria', 'APPROVE', '{\"id_trans\":5,\"job_order\":\"1006-101-82\",\"bucket\":\"251006SO\",\"po_code\":\"4510732637\",\"po_item\":\"30\",\"model\":\"M VAPOR LITE 3  CLY\",\"style\":\"HQ5292-402\",\"ncvs\":\"101\",\"lot\":\"[1,2,3,4,5,6,7,8]\",\"komponen_qty\":\"[{\\\"komponen\\\":10,\\\"qty\\\":40},{\\\"komponen\\\":11,\\\"qty\\\":40}]\",\"type_scan\":\"SCAN_IN_VENDOR\",\"hour\":\"8\",\"barcode\":\"4510732637-30-101-20250929085325-5\",\"created_by\":\"Rizki Zakaria\",\"date_created\":\"2025-09-29 08:53:25\",\"status\":\"PENDING_IN_VENDOR\",\"validated_by\":\"Rizki Zakaria\",\"validated_at\":\"2025-09-29 09:30:58\",\"scan_with\":\"Rizki Zakaria\",\"scan_at\":\"2025-09-29 15:05:16\",\"keterangan\":\"Quarter in dan out kurang 10\",\"count_barcode\":null}', '{\"id_trans\":5,\"job_order\":\"1006-101-82\",\"bucket\":\"251006SO\",\"po_code\":\"4510732637\",\"po_item\":\"30\",\"model\":\"M VAPOR LITE 3  CLY\",\"style\":\"HQ5292-402\",\"ncvs\":\"101\",\"lot\":\"[1,2,3,4,5,6,7,8]\",\"komponen_qty\":\"[{\\\"komponen\\\":10,\\\"qty\\\":40},{\\\"komponen\\\":11,\\\"qty\\\":40}]\",\"type_scan\":\"SCAN_IN_VENDOR\",\"hour\":\"8\",\"barcode\":\"4510732637-30-101-20250929085325-5\",\"created_by\":\"Rizki Zakaria\",\"date_created\":\"2025-09-29 08:53:25\",\"status\":\"APPROVED\",\"validated_by\":\"Rizki Zakaria\",\"validated_at\":\"2025-09-29 15:29:23\",\"scan_with\":\"Rizki Zakaria\",\"scan_at\":\"2025-09-29 15:05:16\",\"keterangan\":\"Quarter in dan out kurang 10\",\"count_barcode\":null}', '2025-09-29 15:29:23', '2025-09-29 15:29:23'),
-(22, 4, 'Rizki Zakaria', 'REJECT', '{\"id_trans\":4,\"job_order\":\"1006-107-33\",\"bucket\":\"251006SO\",\"po_code\":\"4510739493\",\"po_item\":\"50\",\"model\":\"NIKE AIR MAX INVIGOR (GS)\",\"style\":\"749572-003\",\"ncvs\":\"107\",\"lot\":\"[1,2,3,4,5,6,7,8]\",\"komponen_qty\":\"[{\\\"komponen\\\":14,\\\"qty\\\":10},{\\\"komponen\\\":15,\\\"qty\\\":10}]\",\"type_scan\":\"SCAN_IN_VENDOR\",\"hour\":\"8\",\"barcode\":\"4510739493-50-107-20250929083541-4\",\"created_by\":\"Rizki Zakaria\",\"date_created\":\"2025-09-29 08:35:41\",\"status\":\"PENDING_IN_VENDOR\",\"validated_by\":\"Rizki Zakaria\",\"validated_at\":\"2025-09-29 09:31:31\",\"scan_with\":\"Rizki Zakaria\",\"scan_at\":\"2025-09-29 15:04:14\",\"keterangan\":\"Kurang komponen\",\"count_barcode\":null}', '{\"id_trans\":4,\"job_order\":\"1006-107-33\",\"bucket\":\"251006SO\",\"po_code\":\"4510739493\",\"po_item\":\"50\",\"model\":\"NIKE AIR MAX INVIGOR (GS)\",\"style\":\"749572-003\",\"ncvs\":\"107\",\"lot\":\"[1,2,3,4,5,6,7,8]\",\"komponen_qty\":\"[{\\\"komponen\\\":14,\\\"qty\\\":10},{\\\"komponen\\\":15,\\\"qty\\\":10}]\",\"type_scan\":\"SCAN_IN_VENDOR\",\"hour\":\"8\",\"barcode\":\"4510739493-50-107-20250929083541-4\",\"created_by\":\"Rizki Zakaria\",\"date_created\":\"2025-09-29 08:35:41\",\"status\":\"REJECTED\",\"validated_by\":\"Rizki Zakaria\",\"validated_at\":\"2025-09-29 15:29:33\",\"scan_with\":\"Rizki Zakaria\",\"scan_at\":\"2025-09-29 15:04:14\",\"keterangan\":\"Kurang komponen\",\"count_barcode\":null}', '2025-09-29 15:29:33', '2025-09-29 15:29:33');
+(1, 1, 'Rizki Zakaria', 'INSERT', NULL, '{\"id_trans\":1,\"job_order\":\"1006-101-1\",\"bucket\":\"251006SO\",\"po_code\":\"3503861490\",\"po_item\":\"50\",\"model\":\"NIKE COURT VISION LO NN\",\"style\":\"DH2987-002\",\"ncvs\":\"101\",\"lot\":[1,2],\"komponen_qty\":[{\"komponen\":\"20\",\"size\":\"004\",\"qty\":12},{\"komponen\":\"20\",\"size\":\"005\",\"qty\":12},{\"komponen\":\"20\",\"size\":\"006\",\"qty\":12},{\"komponen\":\"20\",\"size\":\"007\",\"qty\":30}],\"barcode\":\"3503861490-50-101-20251017152231-1\",\"status\":\"PENDING\",\"hour\":\"8\",\"type_scan\":\"CREATE_BARCODE\",\"created_by\":\"Rizki Zakaria\"}', '2025-10-17 15:22:31', '2025-10-17 15:22:31'),
+(2, 1, 'Rizki Zakaria', 'SCAN_IN_WAREHOUSE', '{\"id_trans\":1,\"job_order\":\"1006-101-1\",\"bucket\":\"251006SO\",\"po_code\":\"3503861490\",\"po_item\":\"50\",\"model\":\"NIKE COURT VISION LO NN\",\"style\":\"DH2987-002\",\"ncvs\":\"101\",\"lot\":\"[1,2]\",\"komponen_qty\":\"[{\\\"komponen\\\":\\\"20\\\",\\\"size\\\":\\\"004\\\",\\\"qty\\\":12},{\\\"komponen\\\":\\\"20\\\",\\\"size\\\":\\\"005\\\",\\\"qty\\\":12},{\\\"komponen\\\":\\\"20\\\",\\\"size\\\":\\\"006\\\",\\\"qty\\\":12},{\\\"komponen\\\":\\\"20\\\",\\\"size\\\":\\\"007\\\",\\\"qty\\\":30}]\",\"type_scan\":\"CREATE_BARCODE\",\"hour\":\"8\",\"barcode\":\"3503861490-50-101-20251017152231-1\",\"created_by\":\"Rizki Zakaria\",\"date_created\":\"2025-10-17 15:22:31\",\"status\":\"PENDING\",\"validated_by\":null,\"validated_at\":null,\"scan_with\":null,\"scan_at\":\"2025-10-17 15:22:31\",\"keterangan\":\"\",\"defect_qty\":\"\",\"count_barcode\":null}', '{\"id_trans\":1,\"job_order\":\"1006-101-1\",\"bucket\":\"251006SO\",\"po_code\":\"3503861490\",\"po_item\":\"50\",\"model\":\"NIKE COURT VISION LO NN\",\"style\":\"DH2987-002\",\"ncvs\":\"101\",\"lot\":\"[1,2]\",\"komponen_qty\":\"[{\\\"komponen\\\":\\\"20\\\",\\\"size\\\":\\\"004\\\",\\\"qty\\\":12},{\\\"komponen\\\":\\\"20\\\",\\\"size\\\":\\\"005\\\",\\\"qty\\\":12},{\\\"komponen\\\":\\\"20\\\",\\\"size\\\":\\\"006\\\",\\\"qty\\\":12},{\\\"komponen\\\":\\\"20\\\",\\\"size\\\":\\\"007\\\",\\\"qty\\\":30}]\",\"type_scan\":\"SCAN_IN_WAREHOUSE\",\"hour\":\"2\",\"barcode\":\"3503861490-50-101-20251017152231-1\",\"created_by\":\"Rizki Zakaria\",\"date_created\":\"2025-10-17 15:22:31\",\"status\":\"PENDING\",\"validated_by\":null,\"validated_at\":null,\"scan_with\":\"Rizki Zakaria\",\"scan_at\":\"2025-10-20 08:11:03\",\"keterangan\":\"\",\"defect_qty\":\"\",\"count_barcode\":null}', '2025-10-20 08:11:03', '2025-10-20 08:11:03'),
+(3, 1, 'Rizki Zakaria', 'SCAN_OUT_TO_VENDOR', '{\"id_trans\":1,\"job_order\":\"1006-101-1\",\"bucket\":\"251006SO\",\"po_code\":\"3503861490\",\"po_item\":\"50\",\"model\":\"NIKE COURT VISION LO NN\",\"style\":\"DH2987-002\",\"ncvs\":\"101\",\"lot\":\"[1,2]\",\"komponen_qty\":\"[{\\\"komponen\\\":\\\"20\\\",\\\"size\\\":\\\"004\\\",\\\"qty\\\":12},{\\\"komponen\\\":\\\"20\\\",\\\"size\\\":\\\"005\\\",\\\"qty\\\":12},{\\\"komponen\\\":\\\"20\\\",\\\"size\\\":\\\"006\\\",\\\"qty\\\":12},{\\\"komponen\\\":\\\"20\\\",\\\"size\\\":\\\"007\\\",\\\"qty\\\":30}]\",\"type_scan\":\"SCAN_IN_WAREHOUSE\",\"hour\":\"2\",\"barcode\":\"3503861490-50-101-20251017152231-1\",\"created_by\":\"Rizki Zakaria\",\"date_created\":\"2025-10-17 15:22:31\",\"status\":\"PENDING\",\"validated_by\":null,\"validated_at\":null,\"scan_with\":\"Rizki Zakaria\",\"scan_at\":\"2025-10-20 08:11:03\",\"keterangan\":\"\",\"defect_qty\":\"\",\"count_barcode\":null}', '{\"id_trans\":1,\"job_order\":\"1006-101-1\",\"bucket\":\"251006SO\",\"po_code\":\"3503861490\",\"po_item\":\"50\",\"model\":\"NIKE COURT VISION LO NN\",\"style\":\"DH2987-002\",\"ncvs\":\"101\",\"lot\":\"[1,2]\",\"komponen_qty\":\"[{\\\"komponen\\\":\\\"20\\\",\\\"size\\\":\\\"004\\\",\\\"qty\\\":12},{\\\"komponen\\\":\\\"20\\\",\\\"size\\\":\\\"005\\\",\\\"qty\\\":12},{\\\"komponen\\\":\\\"20\\\",\\\"size\\\":\\\"006\\\",\\\"qty\\\":12},{\\\"komponen\\\":\\\"20\\\",\\\"size\\\":\\\"007\\\",\\\"qty\\\":30}]\",\"type_scan\":\"SCAN_OUT_TO_VENDOR\",\"hour\":\"2\",\"barcode\":\"3503861490-50-101-20251017152231-1\",\"created_by\":\"Rizki Zakaria\",\"date_created\":\"2025-10-17 15:22:31\",\"status\":\"PENDING\",\"validated_by\":null,\"validated_at\":null,\"scan_with\":\"Rizki Zakaria\",\"scan_at\":\"2025-10-20 08:11:30\",\"keterangan\":\"\",\"defect_qty\":\"\",\"count_barcode\":null}', '2025-10-20 08:11:30', '2025-10-20 08:11:30'),
+(4, 1, 'Rizki Zakaria', 'SCAN_IN_VENDOR', '{\"id_trans\":1,\"job_order\":\"1006-101-1\",\"bucket\":\"251006SO\",\"po_code\":\"3503861490\",\"po_item\":\"50\",\"model\":\"NIKE COURT VISION LO NN\",\"style\":\"DH2987-002\",\"ncvs\":\"101\",\"lot\":\"[1,2]\",\"komponen_qty\":\"[{\\\"komponen\\\":\\\"20\\\",\\\"size\\\":\\\"004\\\",\\\"qty\\\":12},{\\\"komponen\\\":\\\"20\\\",\\\"size\\\":\\\"005\\\",\\\"qty\\\":12},{\\\"komponen\\\":\\\"20\\\",\\\"size\\\":\\\"006\\\",\\\"qty\\\":12},{\\\"komponen\\\":\\\"20\\\",\\\"size\\\":\\\"007\\\",\\\"qty\\\":30}]\",\"type_scan\":\"SCAN_OUT_TO_VENDOR\",\"hour\":\"2\",\"barcode\":\"3503861490-50-101-20251017152231-1\",\"created_by\":\"Rizki Zakaria\",\"date_created\":\"2025-10-17 15:22:31\",\"status\":\"PENDING\",\"validated_by\":null,\"validated_at\":null,\"scan_with\":\"Rizki Zakaria\",\"scan_at\":\"2025-10-20 08:11:30\",\"keterangan\":\"\",\"defect_qty\":\"\",\"count_barcode\":null}', '{\"id_trans\":1,\"job_order\":\"1006-101-1\",\"bucket\":\"251006SO\",\"po_code\":\"3503861490\",\"po_item\":\"50\",\"model\":\"NIKE COURT VISION LO NN\",\"style\":\"DH2987-002\",\"ncvs\":\"101\",\"lot\":\"[1,2]\",\"komponen_qty\":\"[{\\\"komponen\\\":20,\\\"size\\\":\\\"004\\\",\\\"qty\\\":12},{\\\"komponen\\\":20,\\\"size\\\":\\\"005\\\",\\\"qty\\\":12},{\\\"komponen\\\":20,\\\"size\\\":\\\"006\\\",\\\"qty\\\":12},{\\\"komponen\\\":20,\\\"size\\\":\\\"007\\\",\\\"qty\\\":30}]\",\"type_scan\":\"SCAN_IN_VENDOR\",\"hour\":\"2\",\"barcode\":\"3503861490-50-101-20251017152231-1\",\"created_by\":\"Rizki Zakaria\",\"date_created\":\"2025-10-17 15:22:31\",\"status\":\"PENDING\",\"validated_by\":null,\"validated_at\":null,\"scan_with\":\"Rizki Zakaria\",\"scan_at\":\"2025-10-20 08:11:34\",\"keterangan\":\"\",\"defect_qty\":\"\",\"count_barcode\":null}', '2025-10-20 08:11:34', '2025-10-20 08:11:34'),
+(5, 1, 'Rizki Zakaria', 'SCAN_OUT_VENDOR', '{\"id_trans\":1,\"job_order\":\"1006-101-1\",\"bucket\":\"251006SO\",\"po_code\":\"3503861490\",\"po_item\":\"50\",\"model\":\"NIKE COURT VISION LO NN\",\"style\":\"DH2987-002\",\"ncvs\":\"101\",\"lot\":\"[1,2]\",\"komponen_qty\":\"[{\\\"komponen\\\":20,\\\"size\\\":\\\"004\\\",\\\"qty\\\":12},{\\\"komponen\\\":20,\\\"size\\\":\\\"005\\\",\\\"qty\\\":12},{\\\"komponen\\\":20,\\\"size\\\":\\\"006\\\",\\\"qty\\\":12},{\\\"komponen\\\":20,\\\"size\\\":\\\"007\\\",\\\"qty\\\":30}]\",\"type_scan\":\"SCAN_IN_VENDOR\",\"hour\":\"2\",\"barcode\":\"3503861490-50-101-20251017152231-1\",\"created_by\":\"Rizki Zakaria\",\"date_created\":\"2025-10-17 15:22:31\",\"status\":\"PENDING\",\"validated_by\":null,\"validated_at\":null,\"scan_with\":\"Rizki Zakaria\",\"scan_at\":\"2025-10-20 08:11:34\",\"keterangan\":\"\",\"defect_qty\":\"\",\"count_barcode\":null}', '{\"id_trans\":1,\"job_order\":\"1006-101-1\",\"bucket\":\"251006SO\",\"po_code\":\"3503861490\",\"po_item\":\"50\",\"model\":\"NIKE COURT VISION LO NN\",\"style\":\"DH2987-002\",\"ncvs\":\"101\",\"lot\":\"[1,2]\",\"komponen_qty\":\"[{\\\"komponen\\\":20,\\\"size\\\":\\\"004\\\",\\\"qty\\\":12},{\\\"komponen\\\":20,\\\"size\\\":\\\"005\\\",\\\"qty\\\":12},{\\\"komponen\\\":20,\\\"size\\\":\\\"006\\\",\\\"qty\\\":12},{\\\"komponen\\\":20,\\\"size\\\":\\\"007\\\",\\\"qty\\\":30}]\",\"type_scan\":\"SCAN_OUT_VENDOR\",\"hour\":\"2\",\"barcode\":\"3503861490-50-101-20251017152231-1\",\"created_by\":\"Rizki Zakaria\",\"date_created\":\"2025-10-17 15:22:31\",\"status\":\"PENDING\",\"validated_by\":null,\"validated_at\":null,\"scan_with\":\"Rizki Zakaria\",\"scan_at\":\"2025-10-20 08:11:37\",\"keterangan\":\"\",\"defect_qty\":\"\",\"count_barcode\":null}', '2025-10-20 08:11:37', '2025-10-20 08:11:37'),
+(6, 1, 'Rizki Zakaria', 'SCAN_IN_INCOMING', '{\"id_trans\":1,\"job_order\":\"1006-101-1\",\"bucket\":\"251006SO\",\"po_code\":\"3503861490\",\"po_item\":\"50\",\"model\":\"NIKE COURT VISION LO NN\",\"style\":\"DH2987-002\",\"ncvs\":\"101\",\"lot\":\"[1,2]\",\"komponen_qty\":\"[{\\\"komponen\\\":20,\\\"size\\\":\\\"004\\\",\\\"qty\\\":12},{\\\"komponen\\\":20,\\\"size\\\":\\\"005\\\",\\\"qty\\\":12},{\\\"komponen\\\":20,\\\"size\\\":\\\"006\\\",\\\"qty\\\":12},{\\\"komponen\\\":20,\\\"size\\\":\\\"007\\\",\\\"qty\\\":30}]\",\"type_scan\":\"SCAN_OUT_VENDOR\",\"hour\":\"2\",\"barcode\":\"3503861490-50-101-20251017152231-1\",\"created_by\":\"Rizki Zakaria\",\"date_created\":\"2025-10-17 15:22:31\",\"status\":\"PENDING\",\"validated_by\":null,\"validated_at\":null,\"scan_with\":\"Rizki Zakaria\",\"scan_at\":\"2025-10-20 08:11:37\",\"keterangan\":\"\",\"defect_qty\":\"\",\"count_barcode\":null}', '{\"id_trans\":1,\"job_order\":\"1006-101-1\",\"bucket\":\"251006SO\",\"po_code\":\"3503861490\",\"po_item\":\"50\",\"model\":\"NIKE COURT VISION LO NN\",\"style\":\"DH2987-002\",\"ncvs\":\"101\",\"lot\":\"[1,2]\",\"komponen_qty\":\"[{\\\"komponen\\\":20,\\\"size\\\":\\\"004\\\",\\\"qty\\\":12},{\\\"komponen\\\":20,\\\"size\\\":\\\"005\\\",\\\"qty\\\":12},{\\\"komponen\\\":20,\\\"size\\\":\\\"006\\\",\\\"qty\\\":12},{\\\"komponen\\\":20,\\\"size\\\":\\\"007\\\",\\\"qty\\\":30}]\",\"type_scan\":\"SCAN_IN_INCOMING\",\"hour\":\"2\",\"barcode\":\"3503861490-50-101-20251017152231-1\",\"created_by\":\"Rizki Zakaria\",\"date_created\":\"2025-10-17 15:22:31\",\"status\":\"PENDING\",\"validated_by\":null,\"validated_at\":null,\"scan_with\":\"Rizki Zakaria\",\"scan_at\":\"2025-10-20 08:11:41\",\"keterangan\":\"\",\"defect_qty\":\"\",\"count_barcode\":null}', '2025-10-20 08:11:41', '2025-10-20 08:11:41'),
+(7, 1, 'Rizki Zakaria', 'SCAN_CHECK_QC', '{\"id_trans\":1,\"job_order\":\"1006-101-1\",\"bucket\":\"251006SO\",\"po_code\":\"3503861490\",\"po_item\":\"50\",\"model\":\"NIKE COURT VISION LO NN\",\"style\":\"DH2987-002\",\"ncvs\":\"101\",\"lot\":\"[1,2]\",\"komponen_qty\":\"[{\\\"komponen\\\":20,\\\"size\\\":\\\"004\\\",\\\"qty\\\":12},{\\\"komponen\\\":20,\\\"size\\\":\\\"005\\\",\\\"qty\\\":12},{\\\"komponen\\\":20,\\\"size\\\":\\\"006\\\",\\\"qty\\\":12},{\\\"komponen\\\":20,\\\"size\\\":\\\"007\\\",\\\"qty\\\":30}]\",\"type_scan\":\"SCAN_IN_INCOMING\",\"hour\":\"2\",\"barcode\":\"3503861490-50-101-20251017152231-1\",\"created_by\":\"Rizki Zakaria\",\"date_created\":\"2025-10-17 15:22:31\",\"status\":\"PENDING\",\"validated_by\":null,\"validated_at\":null,\"scan_with\":\"Rizki Zakaria\",\"scan_at\":\"2025-10-20 08:11:41\",\"keterangan\":\"\",\"defect_qty\":\"\",\"count_barcode\":null}', '{\"id_trans\":1,\"job_order\":\"1006-101-1\",\"bucket\":\"251006SO\",\"po_code\":\"3503861490\",\"po_item\":\"50\",\"model\":\"NIKE COURT VISION LO NN\",\"style\":\"DH2987-002\",\"ncvs\":\"101\",\"lot\":\"[1,2]\",\"komponen_qty\":\"[{\\\"komponen\\\":20,\\\"size\\\":\\\"004\\\",\\\"qty\\\":12},{\\\"komponen\\\":20,\\\"size\\\":\\\"005\\\",\\\"qty\\\":12},{\\\"komponen\\\":20,\\\"size\\\":\\\"006\\\",\\\"qty\\\":12},{\\\"komponen\\\":20,\\\"size\\\":\\\"007\\\",\\\"qty\\\":30}]\",\"type_scan\":\"SCAN_CHECK_QC\",\"hour\":\"2\",\"barcode\":\"3503861490-50-101-20251017152231-1\",\"created_by\":\"Rizki Zakaria\",\"date_created\":\"2025-10-17 15:22:31\",\"status\":\"PENDING\",\"validated_by\":null,\"validated_at\":null,\"scan_with\":\"Rizki Zakaria\",\"scan_at\":\"2025-10-20 08:11:52\",\"keterangan\":\"\",\"defect_qty\":\"[{\\\"komponen\\\":20,\\\"size\\\":\\\"004\\\",\\\"defect\\\":1,\\\"qty\\\":2}]\",\"count_barcode\":null}', '2025-10-20 08:11:52', '2025-10-20 08:11:52'),
+(8, 1, 'Rizki Zakaria', 'SCAN_OUT_TO_PRODUCTION', '{\"id_trans\":1,\"job_order\":\"1006-101-1\",\"bucket\":\"251006SO\",\"po_code\":\"3503861490\",\"po_item\":\"50\",\"model\":\"NIKE COURT VISION LO NN\",\"style\":\"DH2987-002\",\"ncvs\":\"101\",\"lot\":\"[1,2]\",\"komponen_qty\":\"[{\\\"komponen\\\":20,\\\"size\\\":\\\"004\\\",\\\"qty\\\":12},{\\\"komponen\\\":20,\\\"size\\\":\\\"005\\\",\\\"qty\\\":12},{\\\"komponen\\\":20,\\\"size\\\":\\\"006\\\",\\\"qty\\\":12},{\\\"komponen\\\":20,\\\"size\\\":\\\"007\\\",\\\"qty\\\":30}]\",\"type_scan\":\"SCAN_CHECK_QC\",\"hour\":\"2\",\"barcode\":\"3503861490-50-101-20251017152231-1\",\"created_by\":\"Rizki Zakaria\",\"date_created\":\"2025-10-17 15:22:31\",\"status\":\"PENDING\",\"validated_by\":null,\"validated_at\":null,\"scan_with\":\"Rizki Zakaria\",\"scan_at\":\"2025-10-20 08:11:52\",\"keterangan\":\"\",\"defect_qty\":\"[{\\\"komponen\\\":20,\\\"size\\\":\\\"004\\\",\\\"defect\\\":1,\\\"qty\\\":2}]\",\"count_barcode\":null}', '{\"id_trans\":1,\"job_order\":\"1006-101-1\",\"bucket\":\"251006SO\",\"po_code\":\"3503861490\",\"po_item\":\"50\",\"model\":\"NIKE COURT VISION LO NN\",\"style\":\"DH2987-002\",\"ncvs\":\"101\",\"lot\":\"[1,2]\",\"komponen_qty\":\"[{\\\"komponen\\\":20,\\\"size\\\":\\\"004\\\",\\\"qty\\\":12},{\\\"komponen\\\":20,\\\"size\\\":\\\"005\\\",\\\"qty\\\":12},{\\\"komponen\\\":20,\\\"size\\\":\\\"006\\\",\\\"qty\\\":12},{\\\"komponen\\\":20,\\\"size\\\":\\\"007\\\",\\\"qty\\\":30}]\",\"type_scan\":\"SCAN_OUT_TO_PRODUCTION\",\"hour\":\"2\",\"barcode\":\"3503861490-50-101-20251017152231-1\",\"created_by\":\"Rizki Zakaria\",\"date_created\":\"2025-10-17 15:22:31\",\"status\":\"PENDING\",\"validated_by\":null,\"validated_at\":null,\"scan_with\":\"Rizki Zakaria\",\"scan_at\":\"2025-10-20 08:11:59\",\"keterangan\":\"\",\"defect_qty\":\"[{\\\"komponen\\\":20,\\\"size\\\":\\\"004\\\",\\\"defect\\\":1,\\\"qty\\\":2}]\",\"count_barcode\":null}', '2025-10-20 08:11:59', '2025-10-20 08:11:59'),
+(9, 1, 'Rizki Zakaria', 'CONFIRM_KEKURANGAN', '{\"id_kekurangan\":1,\"id_trans_asal\":1,\"job_order\":\"1006-101-1\",\"komponen_qty\":\"[{\\\"komponen\\\":20,\\\"size\\\":\\\"004\\\",\\\"qty\\\":2}]\",\"defect_qty\":2,\"total_kekurangan\":2,\"status\":\"pending\",\"last_gate\":\"SCAN_CHECK_QC\",\"created_at\":\"2025-10-20 08:11:52\",\"updated_at\":\"2025-10-20 08:11:52\"}', '{\"id_kekurangan\":1,\"id_trans_asal\":1,\"job_order\":\"1006-101-1\",\"komponen_qty\":\"[{\\\"komponen\\\":20,\\\"size\\\":\\\"004\\\",\\\"qty\\\":2,\\\"lot\\\":[1,2]}]\",\"defect_qty\":2,\"total_kekurangan\":2,\"status\":\"confirmed\",\"last_gate\":\"SCAN_OUT_TO_PRODUCTION\",\"created_at\":\"2025-10-20 08:11:52\",\"updated_at\":\"2025-10-20 08:12:22\"}', '2025-10-20 08:12:22', '2025-10-20 08:12:22'),
+(10, 2, 'Rizki Zakaria', 'INSERT', NULL, '{\"id_trans\":2,\"job_order\":\"1006-101-1\",\"bucket\":\"251006SO\",\"po_code\":\"3503861490\",\"po_item\":\"50\",\"model\":\"NIKE COURT VISION LO NN\",\"style\":\"DH2987-002\",\"ncvs\":\"101\",\"lot\":[1,2],\"komponen_qty\":[{\"komponen\":\"20\",\"size\":\"008\",\"qty\":60},{\"komponen\":\"20\",\"size\":\"009\",\"qty\":72},{\"komponen\":\"20\",\"size\":\"08T\",\"qty\":84},{\"komponen\":\"20\",\"size\":\"09T\",\"qty\":60}],\"barcode\":\"3503861490-50-101-20251020094327-2\",\"status\":\"PENDING\",\"hour\":\"3\",\"type_scan\":\"CREATE_BARCODE\",\"created_by\":\"Rizki Zakaria\"}', '2025-10-20 09:43:27', '2025-10-20 09:43:27'),
+(11, 2, 'Rizki Zakaria', 'SCAN_IN_WAREHOUSE', '{\"id_trans\":2,\"job_order\":\"1006-101-1\",\"bucket\":\"251006SO\",\"po_code\":\"3503861490\",\"po_item\":\"50\",\"model\":\"NIKE COURT VISION LO NN\",\"style\":\"DH2987-002\",\"ncvs\":\"101\",\"lot\":\"[1,2]\",\"komponen_qty\":\"[{\\\"komponen\\\":\\\"20\\\",\\\"size\\\":\\\"008\\\",\\\"qty\\\":60},{\\\"komponen\\\":\\\"20\\\",\\\"size\\\":\\\"009\\\",\\\"qty\\\":72},{\\\"komponen\\\":\\\"20\\\",\\\"size\\\":\\\"08T\\\",\\\"qty\\\":84},{\\\"komponen\\\":\\\"20\\\",\\\"size\\\":\\\"09T\\\",\\\"qty\\\":60}]\",\"type_scan\":\"CREATE_BARCODE\",\"hour\":\"3\",\"barcode\":\"3503861490-50-101-20251020094327-2\",\"created_by\":\"Rizki Zakaria\",\"date_created\":\"2025-10-20 09:43:27\",\"status\":\"PENDING\",\"validated_by\":null,\"validated_at\":null,\"scan_with\":null,\"scan_at\":\"2025-10-20 09:43:27\",\"keterangan\":\"\",\"defect_qty\":\"\",\"count_barcode\":null}', '{\"id_trans\":2,\"job_order\":\"1006-101-1\",\"bucket\":\"251006SO\",\"po_code\":\"3503861490\",\"po_item\":\"50\",\"model\":\"NIKE COURT VISION LO NN\",\"style\":\"DH2987-002\",\"ncvs\":\"101\",\"lot\":\"[1,2]\",\"komponen_qty\":\"[{\\\"komponen\\\":\\\"20\\\",\\\"size\\\":\\\"008\\\",\\\"qty\\\":60},{\\\"komponen\\\":\\\"20\\\",\\\"size\\\":\\\"009\\\",\\\"qty\\\":72},{\\\"komponen\\\":\\\"20\\\",\\\"size\\\":\\\"08T\\\",\\\"qty\\\":84},{\\\"komponen\\\":\\\"20\\\",\\\"size\\\":\\\"09T\\\",\\\"qty\\\":60}]\",\"type_scan\":\"SCAN_IN_WAREHOUSE\",\"hour\":\"7\",\"barcode\":\"3503861490-50-101-20251020094327-2\",\"created_by\":\"Rizki Zakaria\",\"date_created\":\"2025-10-20 09:43:27\",\"status\":\"PENDING\",\"validated_by\":null,\"validated_at\":null,\"scan_with\":\"Rizki Zakaria\",\"scan_at\":\"2025-10-20 14:08:15\",\"keterangan\":\"\",\"defect_qty\":\"\",\"count_barcode\":null}', '2025-10-20 14:08:15', '2025-10-20 14:08:15');
 
 -- --------------------------------------------------------
 
@@ -17831,7 +18042,9 @@ INSERT INTO `tlog_user` (`id_log_user`, `id_user`, `updated_by`, `action_type`, 
 (41, 9, 'Rizki Zakaria', 'DELETE', '{\"id_user\":9,\"username\":\"admin\",\"role_id\":1,\"nik_user\":\"5555\",\"pass_user\":\"$2y$10$6TcStUbD\\/3pn\\/pHUIhQCc.sTDulTAdhVahxkn7.UAEc8pzZknQjGS\",\"pass_plain\":\"asas\",\"last_login\":null,\"is_deleted\":1,\"updated_by\":\"Rizki Zakaria\",\"timestamp\":\"2025-09-18 10:23:32\"}', '{\"note\":\"User dihapus permanen oleh Rizki Zakaria pada 2025-09-18 13:27:46\"}', '2025-09-18 06:27:46', '2025-09-18 06:27:46'),
 (42, 10, 'Rizki Zakaria', 'DELETE', '{\"id_user\":10,\"username\":\"adminTIERS\",\"role_id\":2,\"nik_user\":\"6879\",\"pass_user\":\"$2y$10$40O6UBMU2ZEgNxjgIxX\\/tOqo.p3BvelM8NUDHSMcAUnwSWBg.O6Bq\",\"pass_plain\":\"1325\",\"last_login\":null,\"is_deleted\":1,\"updated_by\":\"Rizki Zakaria\",\"timestamp\":\"2025-09-18 10:23:29\"}', '{\"note\":\"User dihapus permanen oleh Rizki Zakaria pada 2025-09-18 13:27:50\"}', '2025-09-18 06:27:50', '2025-09-18 06:27:50'),
 (43, 12, 'Rizki Zakaria', 'INSERT', NULL, '{\"username\":\"Ciko Rizki\",\"nik_user\":\"09050001\",\"role_id\":\"5\"}', '2025-09-19 01:11:52', '2025-09-19 01:11:52'),
-(44, 12, 'Rizki Zakaria', 'UPDATE', '{\"username\":\"Ciko Rizki\",\"nik_user\":\"09050001\",\"role_id\":\"5\"}', '{\"username\":\"Rizki Ciko\",\"nik_user\":\"09050001\",\"role_id\":\"5\"}', '2025-09-19 08:01:12', '2025-09-19 08:01:12');
+(44, 12, 'Rizki Zakaria', 'UPDATE', '{\"username\":\"Ciko Rizki\",\"nik_user\":\"09050001\",\"role_id\":\"5\"}', '{\"username\":\"Rizki Ciko\",\"nik_user\":\"09050001\",\"role_id\":\"5\"}', '2025-09-19 08:01:12', '2025-09-19 08:01:12'),
+(45, 12, 'Rizki Zakaria', 'UPDATE', '{\"username\":\"Rizki Ciko\",\"nik_user\":\"09050001\",\"role_id\":\"5\"}', '{\"username\":\"Rizki Ciko\",\"nik_user\":\"09050001\",\"role_id\":\"6\"}', '2025-10-09 07:37:10', '2025-10-09 07:37:10'),
+(46, 13, 'Rizki Zakaria', 'INSERT', NULL, '{\"username\":\"Agung Firmansyah\",\"nik_user\":\"107501\",\"role_id\":\"2\"}', '2025-10-09 07:47:27', '2025-10-09 07:47:27');
 
 -- --------------------------------------------------------
 
@@ -17863,7 +18076,8 @@ INSERT INTO `tlog_vendor` (`id_log_vendor`, `id_vendor`, `updated_by`, `action_t
 (6, 3, 'Rizki Zakaria', 'REMOVE', '{\"id_vendor\":3,\"name_vendor\":\"Dharma Polimetal\",\"code_vendor\":\"DP-001\",\"alamat\":\"\",\"is_deleted\":0,\"updated_by\":\"Rizki Zakaria\",\"timestamp\":\"2025-09-19 15:06:53\"}', '{\"id_vendor\":3,\"name_vendor\":\"Dharma Polimetal\",\"code_vendor\":\"DP-001\",\"alamat\":\"\",\"is_deleted\":1,\"updated_by\":\"Rizki Zakaria\",\"timestamp\":\"2025-09-19 15:06:53\"}', '2025-09-19 08:18:44', '2025-09-19 08:18:44'),
 (7, 3, 'Rizki Zakaria', 'RESTORE', '{\"id_vendor\":3,\"name_vendor\":\"Dharma Polimetal\",\"code_vendor\":\"DP-001\",\"alamat\":\"\",\"is_deleted\":1,\"updated_by\":\"Rizki Zakaria\",\"timestamp\":\"2025-09-19 15:18:44\"}', '{\"id_vendor\":3,\"name_vendor\":\"Dharma Polimetal\",\"code_vendor\":\"DP-001\",\"alamat\":\"\",\"is_deleted\":0,\"updated_by\":\"Rizki Zakaria\",\"timestamp\":\"2025-09-19 15:18:44\"}', '2025-09-19 09:37:09', '2025-09-19 09:37:09'),
 (8, 3, 'Rizki Zakaria', 'REMOVE', '{\"id_vendor\":3,\"name_vendor\":\"Dharma Polimetal\",\"code_vendor\":\"DP-001\",\"alamat\":\"\",\"is_deleted\":0,\"updated_by\":\"Rizki Zakaria\",\"timestamp\":\"2025-09-19 16:37:09\"}', '{\"id_vendor\":3,\"name_vendor\":\"Dharma Polimetal\",\"code_vendor\":\"DP-001\",\"alamat\":\"\",\"is_deleted\":1,\"updated_by\":\"Rizki Zakaria\",\"timestamp\":\"2025-09-19 16:37:09\"}', '2025-09-19 09:37:32', '2025-09-19 09:37:32'),
-(9, 3, 'Rizki Zakaria', 'DELETE', '{\"id_vendor\":3,\"name_vendor\":\"Dharma Polimetal\",\"code_vendor\":\"DP-001\",\"alamat\":\"\",\"is_deleted\":1,\"updated_by\":\"Rizki Zakaria\",\"timestamp\":\"2025-09-19 16:37:32\"}', '{\"note\":\"Vendor dihapus permanen oleh Rizki Zakaria pada 2025-09-19 16:37:52\"}', '2025-09-19 09:37:52', '2025-09-19 09:37:52');
+(9, 3, 'Rizki Zakaria', 'DELETE', '{\"id_vendor\":3,\"name_vendor\":\"Dharma Polimetal\",\"code_vendor\":\"DP-001\",\"alamat\":\"\",\"is_deleted\":1,\"updated_by\":\"Rizki Zakaria\",\"timestamp\":\"2025-09-19 16:37:32\"}', '{\"note\":\"Vendor dihapus permanen oleh Rizki Zakaria pada 2025-09-19 16:37:52\"}', '2025-09-19 09:37:52', '2025-09-19 09:37:52'),
+(10, 1, 'Rizki Zakaria', 'REMOVE', '{\"id_vendor\":1,\"name_vendor\":\"Adis Dimension Footwear\",\"code_vendor\":\"ADF-001\",\"alamat\":\"\",\"is_deleted\":0,\"updated_by\":\"Rizki Zakaria\",\"timestamp\":\"2025-09-19 14:45:04\"}', '{\"id_vendor\":1,\"name_vendor\":\"Adis Dimension Footwear\",\"code_vendor\":\"ADF-001\",\"alamat\":\"\",\"is_deleted\":1,\"updated_by\":\"Rizki Zakaria\",\"timestamp\":\"2025-09-19 14:45:04\"}', '2025-10-13 06:31:24', '2025-10-13 06:31:24');
 
 --
 -- Indexes for dumped tables
@@ -17888,6 +18102,12 @@ ALTER TABLE `role_permissions`
   ADD PRIMARY KEY (`id`),
   ADD UNIQUE KEY `role_id` (`role_id`,`menu_id`),
   ADD KEY `menu_id` (`menu_id`);
+
+--
+-- Indeks untuk tabel `tbl_defect`
+--
+ALTER TABLE `tbl_defect`
+  ADD PRIMARY KEY (`id_defect`);
 
 --
 -- Indeks untuk tabel `tbl_komponen`
@@ -17945,6 +18165,12 @@ ALTER TABLE `tbl_transaksi`
   ADD KEY `idx_trans_lookup` (`job_order`,`bucket`,`po_code`,`po_item`);
 
 --
+-- Indeks untuk tabel `tbl_transaksi_kekurangan`
+--
+ALTER TABLE `tbl_transaksi_kekurangan`
+  ADD PRIMARY KEY (`id_kekurangan`);
+
+--
 -- Indeks untuk tabel `tbl_user`
 --
 ALTER TABLE `tbl_user`
@@ -17956,6 +18182,18 @@ ALTER TABLE `tbl_user`
 --
 ALTER TABLE `tbl_vendor`
   ADD PRIMARY KEY (`id_vendor`);
+
+--
+-- Indeks untuk tabel `tbl_vendor_proses`
+--
+ALTER TABLE `tbl_vendor_proses`
+  ADD PRIMARY KEY (`id_vendor_proses`);
+
+--
+-- Indeks untuk tabel `tlog_defect`
+--
+ALTER TABLE `tlog_defect`
+  ADD PRIMARY KEY (`id_log_defect`);
 
 --
 -- Indeks untuk tabel `tlog_komponen`
@@ -18027,31 +18265,37 @@ ALTER TABLE `tlog_vendor`
 -- AUTO_INCREMENT untuk tabel `menus`
 --
 ALTER TABLE `menus`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=41;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=50;
 
 --
 -- AUTO_INCREMENT untuk tabel `roles`
 --
 ALTER TABLE `roles`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
 
 --
 -- AUTO_INCREMENT untuk tabel `role_permissions`
 --
 ALTER TABLE `role_permissions`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=458;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=789;
+
+--
+-- AUTO_INCREMENT untuk tabel `tbl_defect`
+--
+ALTER TABLE `tbl_defect`
+  MODIFY `id_defect` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
 -- AUTO_INCREMENT untuk tabel `tbl_komponen`
 --
 ALTER TABLE `tbl_komponen`
-  MODIFY `id_komponen` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=19;
+  MODIFY `id_komponen` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=37;
 
 --
 -- AUTO_INCREMENT untuk tabel `tbl_komponen_proses`
 --
 ALTER TABLE `tbl_komponen_proses`
-  MODIFY `id_proses` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=14;
+  MODIFY `id_proses` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=23;
 
 --
 -- AUTO_INCREMENT untuk tabel `tbl_master_data`
@@ -18087,13 +18331,19 @@ ALTER TABLE `tbl_time`
 -- AUTO_INCREMENT untuk tabel `tbl_transaksi`
 --
 ALTER TABLE `tbl_transaksi`
-  MODIFY `id_trans` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+  MODIFY `id_trans` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+
+--
+-- AUTO_INCREMENT untuk tabel `tbl_transaksi_kekurangan`
+--
+ALTER TABLE `tbl_transaksi_kekurangan`
+  MODIFY `id_kekurangan` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
 -- AUTO_INCREMENT untuk tabel `tbl_user`
 --
 ALTER TABLE `tbl_user`
-  MODIFY `id_user` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
+  MODIFY `id_user` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=14;
 
 --
 -- AUTO_INCREMENT untuk tabel `tbl_vendor`
@@ -18102,16 +18352,28 @@ ALTER TABLE `tbl_vendor`
   MODIFY `id_vendor` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
+-- AUTO_INCREMENT untuk tabel `tbl_vendor_proses`
+--
+ALTER TABLE `tbl_vendor_proses`
+  MODIFY `id_vendor_proses` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
+
+--
+-- AUTO_INCREMENT untuk tabel `tlog_defect`
+--
+ALTER TABLE `tlog_defect`
+  MODIFY `id_log_defect` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
+
+--
 -- AUTO_INCREMENT untuk tabel `tlog_komponen`
 --
 ALTER TABLE `tlog_komponen`
-  MODIFY `id_log_komponen` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=42;
+  MODIFY `id_log_komponen` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=51;
 
 --
 -- AUTO_INCREMENT untuk tabel `tlog_login`
 --
 ALTER TABLE `tlog_login`
-  MODIFY `id_log` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=50;
+  MODIFY `id_log` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=85;
 
 --
 -- AUTO_INCREMENT untuk tabel `tlog_ncvs`
@@ -18129,7 +18391,7 @@ ALTER TABLE `tlog_plan`
 -- AUTO_INCREMENT untuk tabel `tlog_roles`
 --
 ALTER TABLE `tlog_roles`
-  MODIFY `id_log_role` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=37;
+  MODIFY `id_log_role` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=56;
 
 --
 -- AUTO_INCREMENT untuk tabel `tlog_time`
@@ -18141,7 +18403,7 @@ ALTER TABLE `tlog_time`
 -- AUTO_INCREMENT untuk tabel `tlog_transaksi`
 --
 ALTER TABLE `tlog_transaksi`
-  MODIFY `id_log_trans` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=23;
+  MODIFY `id_log_trans` bigint(20) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=12;
 
 --
 -- AUTO_INCREMENT untuk tabel `tlog_upload_master`
@@ -18153,13 +18415,13 @@ ALTER TABLE `tlog_upload_master`
 -- AUTO_INCREMENT untuk tabel `tlog_user`
 --
 ALTER TABLE `tlog_user`
-  MODIFY `id_log_user` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=45;
+  MODIFY `id_log_user` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=47;
 
 --
 -- AUTO_INCREMENT untuk tabel `tlog_vendor`
 --
 ALTER TABLE `tlog_vendor`
-  MODIFY `id_log_vendor` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
+  MODIFY `id_log_vendor` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=11;
 
 --
 -- Ketidakleluasaan untuk tabel pelimpahan (Dumped Tables)
