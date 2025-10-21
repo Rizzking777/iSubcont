@@ -819,6 +819,9 @@ let printerCharacteristic = null;
 
 const SERVICE_UUID = 0x18F0;
 const CHARACTERISTIC_UUID = 0x2AF1;
+// const SERVICE_UUID = '000018f0-0000-1000-8000-00805f9b34fb';
+// const CHARACTERISTIC_UUID = '00002af1-0000-1000-8000-00805f9b34fb';
+
 
 async function connectPrinterBluetooth() {
   try {
@@ -1015,7 +1018,6 @@ document.addEventListener('DOMContentLoaded', ()=>{
   });
 });
 </script>
-
 
 
 <script>
