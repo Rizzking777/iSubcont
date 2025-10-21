@@ -1019,7 +1019,6 @@ document.addEventListener('DOMContentLoaded', ()=>{
 </script>
 
 
-
 <script>
   // Diagnostic printing: try several tiny patterns (8x8, stripe, checker)
 // Call runPrintDiagnostics() from console (e.g. after connect).

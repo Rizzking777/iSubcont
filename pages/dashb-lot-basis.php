@@ -2,7 +2,7 @@
 // menghubungkan php dengan koneksi database
 require_once __DIR__ . '/../config/function.php';
 require_once __DIR__ . '/../config/auth.php';
-checkAuth('out_control'); // cek apakah sudah login dan punya akses ke menu ini
+checkAuth('lot_basis'); // cek apakah sudah login dan punya akses ke menu ini
 
 $nik = $_SESSION['nik_user'];
 $username = $_SESSION['username']; // Query ringkasan per job_order
@@ -109,7 +109,7 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
   <meta charset="utf-8">
   <meta content="width=device-width, initial-scale=1.0" name="viewport">
 
-  <title>iSubcont - Reports</title>
+  <title>iSubcont - Dashboards</title>
   <meta content="" name="description">
   <meta content="" name="keywords">
 
@@ -156,7 +156,7 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
 
   <!-- Header -->
   <?php
-  $page = 'out_control';
+  $page = 'lot_basis';
   include_once __DIR__ . '/../includes/header.php';
   ?>
   <!-- End Header -->
@@ -165,7 +165,7 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
 
     <div class="pagetitle text-black" style="background-color: #f0e6d2; padding: 10px 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
       <h1 style="font-size: 1.8rem; font-weight: 700; font-family: 'Roboto', sans-serif;">
-        Subcont Out Control
+        Search Lot Basis
       </h1>
     </div>
 
@@ -214,8 +214,6 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
                     <th class="text-center">Bucket</th>
                     <th class="text-center">PO Code</th>
                     <th class="text-center">PO Item</th>
-                    <th class="text-center">Lot</th>
-                    <th class="text-center">Size</th>
                     <th class="text-center">Model</th>
                     <th class="text-center">Style</th>
                   </tr>
@@ -341,7 +339,7 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
           searching: false,
           deferLoading: 0,
           ajax: {
-            url: "./../config/get_data.php",
+            url: "./../config/get_data_lot_basis.php",
             type: "POST",
             data: function(d) {
               d.bucket = $("#bucket").val();
@@ -356,8 +354,6 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
             { data: "bucket" },
             { data: "po_code" },
             { data: "po_item" },
-            { data: "lot" },
-            { data: "size" },
             { data: "model" },
             { data: "style" }
           ]

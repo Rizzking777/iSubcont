@@ -46,5 +46,15 @@ Komponen 20 | Size 008 | OLD=28 | NEW=28 | SELISIH=0
 Komponen 20 | Size 009 | OLD=34 | NEW=34 | SELISIH=0
 TOTAL KEKURANGAN: 0
 --- DEBUG KEKURANGAN ---
+<<<<<<< HEAD
 Komponen 24 | Size 006 | OLD=20 | NEW=20 | SELISIH=0
+=======
+Komponen 36 | Size 007 | OLD=6 | NEW=6 | SELISIH=0
+Komponen 36 | Size 008 | OLD=18 | NEW=18 | SELISIH=0
+Komponen 36 | Size 009 | OLD=31 | NEW=31 | SELISIH=0
+TOTAL KEKURANGAN: 0
+--- DEBUG KEKURANGAN ---
+Komponen 20 | Size 007 | OLD=36 | NEW=36 | SELISIH=0
+Komponen 20 | Size 008 | OLD=70 | NEW=70 | SELISIH=0
+>>>>>>> abb03426709a371e84025c943f69b1cfeda47f6c
 TOTAL KEKURANGAN: 0
