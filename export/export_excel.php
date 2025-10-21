@@ -8,9 +8,11 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 // Ambil parameter
 $job_order = $_GET['job_order'] ?? '';
 $lot_param = $_GET['lot'] ?? '';
+$id_trans  = $_GET['id_trans'] ?? '';
 
 if (!$job_order) die("Job Order tidak ditemukan.");
 if (!$lot_param) die("Lot tidak ditemukan.");
+if (!$id_trans) die("ID Trans tidak ditemukan.");
 
 // Parse lot
 $selectedLots = array_map('trim', explode(',', $lot_param));
@@ -28,9 +30,10 @@ $result = $stmt->get_result();
 $header = $result->fetch_assoc();
 
 // ================== DETAIL DATA ==================
-$sql_detail = "SELECT komponen_qty, lot FROM tbl_transaksi WHERE job_order = ?";
+// Ambil hanya transaksi sesuai id_trans
+$sql_detail = "SELECT komponen_qty, lot FROM tbl_transaksi WHERE job_order = ? AND id_trans = ?";
 $stmt2 = $conn->prepare($sql_detail);
-$stmt2->bind_param("s", $job_order);
+$stmt2->bind_param("si", $job_order, $id_trans);
 $stmt2->execute();
 $res_detail = $stmt2->get_result();
 
@@ -41,8 +44,8 @@ while ($rowK = $qKom->fetch_assoc()) {
     $kompMap[$rowK['id_komponen']] = $rowK['nama_komponen'];
 }
 
-// ================== Pivot gabungan lot ==================
-$rows = [];
+// ================== Pivot gabungan semua lot ==================
+$rows = [];   // $rows[komponen][size] = qty
 $sizes = [];
 
 while ($r = $res_detail->fetch_assoc()) {
@@ -56,24 +59,28 @@ while ($r = $res_detail->fetch_assoc()) {
     $komp_data = json_decode($r['komponen_qty'], true);
     if (!is_array($komp_data)) continue;
 
-    foreach ($lot_list as $lot_val) {
-        foreach ($komp_data as $item) {
-            $compId = $item['komponen'];
-            $comp   = $kompMap[$compId] ?? $compId;
-            $size   = $item['size'];
-            $qty    = (int)($item['qty'] ?? 0);
+    foreach ($komp_data as $item) {
+        $compId = $item['komponen'];
+        $comp   = $kompMap[$compId] ?? $compId;
+        $size   = $item['size'];
+        $qty    = (int)($item['qty'] ?? 0);
 
-            $sizes[$size] = true;
+        $sizes[$size] = true;
 
-            // Gabungkan semua lot ke satu pivot
-            $rows[$comp][$size] = ($rows[$comp][$size] ?? 0) + $qty;
-        }
+        // Gabungkan semua lot menjadi satu pivot
+        $rows[$comp][$size] = ($rows[$comp][$size] ?? 0) + $qty;
     }
 }
 
-// Urutkan size
+// --- Urutkan size (seperti sebelumnya) ---
 $sizes = array_keys($sizes);
-sort($sizes);
+usort($sizes, function ($a, $b) {
+    // Custom sort: angka dulu, lalu ada huruf
+    $aNum = (int) filter_var($a, FILTER_SANITIZE_NUMBER_INT);
+    $bNum = (int) filter_var($b, FILTER_SANITIZE_NUMBER_INT);
+    if ($aNum === $bNum) return strcmp($a, $b); // urut lexikografis jika angka sama
+    return $aNum - $bNum;
+});
 
 // ================== BUAT SPREADSHEET ==================
 $spreadsheet = new Spreadsheet();
@@ -107,10 +114,11 @@ foreach ($info as $label => $val) {
     $row++;
 }
 
-// --- Table Header ---
-$tableRow = 3;
-$tableCol = 'D';
+// Mulai table setelah header info
+$tableRow = $row + 1;
 
+// --- Header table di kolom A ---
+$tableCol = 'A';
 $sheet->setCellValue($tableCol . $tableRow, 'Komponen');
 $col = chr(ord($tableCol) + 1);
 foreach ($sizes as $s) {
@@ -119,24 +127,23 @@ foreach ($sizes as $s) {
 }
 $sheet->setCellValue($col . $tableRow, 'Total');
 
-// Styling header
-$sheet->getStyle("D{$tableRow}:{$col}{$tableRow}")
-      ->getFont()->setBold(true);
-$sheet->getStyle("D{$tableRow}:{$col}{$tableRow}")
-      ->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
+// Styling header (tetap sama)
+$sheet->getStyle("A{$tableRow}:{$col}{$tableRow}")->getFont()->setBold(true);
+$sheet->getStyle("A{$tableRow}:{$col}{$tableRow}")->getFill()
+      ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
       ->getStartColor()->setARGB('FFE0E0E0');
-$sheet->getStyle("D{$tableRow}:{$col}{$tableRow}")
-      ->getBorders()->getAllBorders()->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
-$sheet->getStyle("D{$tableRow}:{$col}{$tableRow}")
-      ->getAlignment()->setHorizontal('center')->setVertical('center');
+$sheet->getStyle("A{$tableRow}:{$col}{$tableRow}")->getBorders()
+      ->getAllBorders()->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
+$sheet->getStyle("A{$tableRow}:{$col}{$tableRow}")->getAlignment()
+      ->setHorizontal('center')->setVertical('center');
 
 $tableRow++;
 
-// --- Isi pivot gabungan lot ---
+// --- Isi pivot per komponen (gabungan semua lot sesuai id_trans) ---
 foreach ($rows as $comp => $data) {
-    $sheet->setCellValue('D' . $tableRow, $comp);
+    $sheet->setCellValue('A' . $tableRow, $comp);
 
-    $col = 'E';
+    $col = 'B';
     $total = 0;
     foreach ($sizes as $s) {
         $val = $data[$s] ?? 0;
@@ -146,11 +153,11 @@ foreach ($rows as $comp => $data) {
     }
     $sheet->setCellValue($col . $tableRow, $total);
 
-    // border & align
-    $sheet->getStyle("D{$tableRow}:{$col}{$tableRow}")
-          ->getBorders()->getAllBorders()->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
-    $sheet->getStyle("D{$tableRow}:{$col}{$tableRow}")
-          ->getAlignment()->setHorizontal('center')->setVertical('center');
+    // border & align (tetap sama)
+    $sheet->getStyle("A{$tableRow}:{$col}{$tableRow}")->getBorders()
+          ->getAllBorders()->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
+    $sheet->getStyle("A{$tableRow}:{$col}{$tableRow}")->getAlignment()
+          ->setHorizontal('center')->setVertical('center');
 
     $tableRow++;
 }
@@ -172,7 +179,7 @@ $sheet->getPageMargins()->setRight(0.5);
 
 // --- Output Excel ---
 $lotStr = implode(',', $selectedLots);
-$filename = "Export_{$job_order}_Lot_{$lotStr}.xlsx";
+$filename = "Export_{$job_order}_Lot_{$lotStr}_Trans{$id_trans}.xlsx";
 
 $writer = new Xlsx($spreadsheet);
 header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');

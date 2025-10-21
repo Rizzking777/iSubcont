@@ -74,10 +74,11 @@ $recordsTotal = $totalResult['cnt'] ?? 0;
 
 // Ambil data
 $dataQuery = "SELECT 
-    t.job_order, t.ncvs, t.bucket, t.po_code, t.po_item, t.lot, t.model, t.style 
+    t.id_trans, t.job_order, t.ncvs, t.bucket, t.po_code, t.po_item, t.lot, t.model, t.style, t.komponen_qty
     " . $sql . " 
     ORDER BY t.ncvs ASC, t.job_order ASC
     LIMIT ?, ?";
+
 $params2 = $params;
 $types2  = $types . "ii";
 $params2[] = $start;
@@ -91,7 +92,9 @@ $dataResult = $stmt2->get_result();
 $data = [];
 while ($row = $dataResult->fetch_assoc()) {
 
-    // Decode lot JSON
+    // ============================
+    // Decode lot JSON (tetap seperti sebelumnya)
+    // ============================
     if (!empty($row['lot']) && is_string($row['lot'])) {
         $decodedLot = json_decode($row['lot'], true);
         if (is_array($decodedLot)) {
@@ -101,9 +104,39 @@ while ($row = $dataResult->fetch_assoc()) {
         }
     }
 
+    // ============================
+    // Ambil Size dari komponen_qty (jika ada) dan urutkan custom
+    // ============================
+    $row['size'] = '-';
+    if (!empty($row['komponen_qty'])) {
+        $kompList = json_decode($row['komponen_qty'], true);
+        if (is_array($kompList) && count($kompList) > 0) {
+            // Ambil semua size
+            $sizes = array_map(fn($k) => $k['size'] ?? '-', $kompList);
+
+            // Custom sort: angka dulu, lalu yang diakhiri T
+            usort($sizes, function($a, $b) {
+                $aNum = rtrim($a, 'T');
+                $bNum = rtrim($b, 'T');
+
+                if ((int)$aNum !== (int)$bNum) return (int)$aNum - (int)$bNum;
+
+                if (substr($a, -1) === 'T' && substr($b, -1) !== 'T') return 1;
+                if (substr($a, -1) !== 'T' && substr($b, -1) === 'T') return -1;
+
+                return 0;
+            });
+
+            $row['size'] = implode(', ', array_unique($sizes));
+        }
+    }
+
     // Link ke detail job order
     $row['job_order'] = '<a href="dashb-timeline-detail.php?job_order=' . urlencode($row['job_order']) .
-        '&lot=' . urlencode($row['lot']) . '" class="btn btn-sm btn-outline-primary">' . htmlspecialchars($row['job_order']) . '</a>';
+        '&lot=' . urlencode($row['lot']) .
+        '&id_trans=' . urlencode($row['id_trans']) .
+        '" class="btn btn-sm btn-outline-primary" target="_blank">' .
+        htmlspecialchars($row['job_order']) . '</a>';
 
     $data[] = $row;
 }

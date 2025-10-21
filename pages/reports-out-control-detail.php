@@ -9,6 +9,7 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
 
 $job_order = $_GET['job_order'] ?? '';
 $lot_param = $_GET['lot'] ?? '';
+$id_trans = $_GET['id_trans'] ?? '';
 
 if (!$job_order) {
   die("Job Order tidak ditemukan.");
@@ -34,12 +35,12 @@ if (!$header) die("Data job order tidak ditemukan.");
 $selectedLots = array_map('trim', explode(',', $lot_param)); // ['3','4'] dll
 $selectedLots = array_filter($selectedLots, fn($l) => $l !== ''); // bersihkan empty
 
-// --- Ambil transaksi untuk job_order dan filter lot ---
+// --- Ambil transaksi untuk job_order dan filter lot & id_trans ---
 $stmt2_sql = "SELECT t.id_trans, t.job_order, t.lot, t.komponen_qty
               FROM tbl_transaksi t 
-              WHERE t.job_order = ?";
-$params = [$job_order];
-$types = "s";
+              WHERE t.job_order = ? AND t.id_trans = ?";
+$params = [$job_order, $id_trans];
+$types = "si";
 
 $stmt2 = $conn->prepare($stmt2_sql);
 $stmt2->bind_param($types, ...$params);
@@ -57,20 +58,25 @@ while ($row = $res_detail->fetch_assoc()) {
 
   // hanya ambil lot yang ada di selectedLots
   $lot_list = array_filter($lot_list, fn($l) => in_array($l, $selectedLots));
-
   if (empty($lot_list)) continue; // skip jika lot tidak match
 
   $komp_data = json_decode($row['komponen_qty'], true);
   if (!is_array($komp_data)) continue;
+
+  $lotCount = count($lot_list); // hitung jumlah lot untuk pembagian qty
 
   foreach ($lot_list as $lot_val) {
     foreach ($komp_data as $item) {
       $komp_id = $item['komponen'] ?? null;
       $size    = $item['size'] ?? null;
       $qty     = (int)($item['qty'] ?? 0);
+
       if (!$komp_id || !$size) continue;
 
-      // ambil nama komponen & vendor
+      // bagi qty per lot
+      $qty_per_lot = (int)round($qty / $lotCount);
+
+      // ambil nama komponen & vendor, cache supaya ga bolak-balik query
       if (!isset($vendor_cache[$komp_id])) {
         $stmt_k = $conn->prepare("
                     SELECT k.nama_komponen, 
@@ -97,7 +103,7 @@ while ($row = $res_detail->fetch_assoc()) {
       }
 
       // Masukkan ke pivot per lot
-      $pivot[$lot_val][$nama_komp][$size] = ($pivot[$lot_val][$nama_komp][$size] ?? 0) + $qty;
+      $pivot[$lot_val][$nama_komp][$size] = ($pivot[$lot_val][$nama_komp][$size] ?? 0) + $qty_per_lot;
       $pivot[$lot_val][$nama_komp]['vendor'] = $vendors;
       $sizes[$size] = true;
     }
@@ -117,9 +123,23 @@ foreach ($pivot as $komp => $data) {
 $all_vendors = array_unique($all_vendors);
 $vendors_per_model = !empty($all_vendors) ? implode(', ', $all_vendors) : '-';
 
-// --- Urutkan size ---
+// --- Urutkan size dengan logika angka + huruf ---
 $sizes = array_keys($sizes);
-sort($sizes);
+usort($sizes, function ($a, $b) {
+  // Pisahkan angka dan sisa huruf
+  preg_match('/(\d+)(.*)/', $a, $ma);
+  preg_match('/(\d+)(.*)/', $b, $mb);
+
+  $numA = (int)($ma[1] ?? 0);
+  $numB = (int)($mb[1] ?? 0);
+
+  if ($numA !== $numB) {
+    return $numA - $numB; // urut angka dulu
+  }
+
+  // jika angka sama, urut berdasarkan sisa string
+  return strcmp($ma[2] ?? '', $mb[2] ?? '');
+});
 
 ?>
 
@@ -294,10 +314,11 @@ sort($sizes);
               <div class="card mb-4 shadow-sm">
                 <div class="card-header d-flex justify-content-between align-items-center">
                   <div>
-                    <a href="../export/export_excel.php?job_order=<?= urlencode($header['job_order']); ?>&lot=<?= urlencode($lot_param); ?>"
+                    <a href="../export/export_excel.php?job_order=<?= urlencode($header['job_order']); ?>&lot=<?= urlencode($lot_param); ?>&id_trans=<?= urlencode($id_trans); ?>"
                       class="btn btn-outline-success btn-sm">
                       <i class="bi bi-file-earmark-excel"></i> Export
                     </a>
+
                   </div>
                 </div>
 

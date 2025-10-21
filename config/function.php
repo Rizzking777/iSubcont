@@ -3245,7 +3245,7 @@ if (isset($_POST['pending-in-vendor'])) {
             $stmt_log = $conn->prepare("
                 INSERT INTO tlog_transaksi
                 (id_trans, updated_by, action_type, old_data, new_data, created_at, updated_at)
-                VALUES (?, ?, 'QTY_TIDAK_SESUAI', ?, ?, NOW(), NOW())
+                VALUES (?, ?, 'SCAN_IN_VENDOR', ?, ?, NOW(), NOW())
             ");
             $id_trans = (int)$old_data['id_trans'];
             $stmt_log->bind_param("isss", $id_trans, $scan_with, $json_old_data, $json_new_data);
@@ -3617,7 +3617,7 @@ if (isset($_POST['pending-out-vendor'])) {
             $stmt_log = $conn->prepare("
                 INSERT INTO tlog_transaksi
                 (id_trans, updated_by, action_type, old_data, new_data, created_at, updated_at)
-                VALUES (?, ?, 'QTY_TIDAK_SESUAI', ?, ?, NOW(), NOW())
+                VALUES (?, ?, 'SCAN_OUT_VENDOR', ?, ?, NOW(), NOW())
             ");
             $id_trans = (int)$old_data['id_trans'];
             $stmt_log->bind_param("isss", $id_trans, $scan_with, $json_old_data, $json_new_data);
@@ -3900,7 +3900,7 @@ if (isset($_POST['pending-in-incoming'])) {
             $stmt_log = $conn->prepare("
                 INSERT INTO tlog_transaksi
                 (id_trans, updated_by, action_type, old_data, new_data, created_at, updated_at)
-                VALUES (?, ?, 'QTY_TIDAK_SESUAI', ?, ?, NOW(), NOW())
+                VALUES (?, ?, 'SCAN_IN_INCOMING', ?, ?, NOW(), NOW())
             ");
             $id_trans = (int)$old_data['id_trans'];
             $stmt_log->bind_param("isss", $id_trans, $scan_with, $json_old_data, $json_new_data);
@@ -4302,6 +4302,27 @@ if (isset($_POST['confirm-qc']) && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $komp_map[$kid][$sz] = $qt;
             }
         }
+
+        // 🔹 Kurangi qty berdasarkan defect sebelum encode
+        foreach ($komponen_arr as &$item) {
+            $kid  = $item['komponen'];
+            $sz   = $item['size'];
+            $orig = (int)$item['qty'];
+
+            // Hitung total defect untuk komponen+size
+            $defect_for_size = 0;
+            if (!empty($defect_arr) && is_array($defect_arr)) {
+                foreach ($defect_arr as $d) {
+                    if ($d['komponen'] == $kid && $d['size'] == $sz) {
+                        $defect_for_size += (int)($d['qty'] ?? 0);
+                    }
+                }
+            }
+
+            // Kurangi defect, pastikan minimal 0
+            $item['qty'] = max(0, $orig - $defect_for_size);
+        }
+        unset($item); // hapus reference
         $qty_json_final = json_encode($komponen_arr, JSON_UNESCAPED_UNICODE);
 
         // === Process defect input (optional, dengan size) ===
@@ -4631,7 +4652,6 @@ if (isset($_POST['scan-out-production'])) {
 // === Confirm Kekurangan ===
 if (isset($_POST['action']) && $_POST['action'] === 'confirm_kekurangan') {
 
-    // Fungsi bantu biar aman & clean
     function safe_redirect($type, $message, $redirect = '/isubcont/pages/trans-confrm-kekurangan.php')
     {
         $_SESSION[$type === 'success' ? 'green_notif' : 'red_notif'] = $message;
@@ -4647,49 +4667,81 @@ if (isset($_POST['action']) && $_POST['action'] === 'confirm_kekurangan') {
             safe_redirect('error', "ID kekurangan tidak valid.");
         }
 
-        // Ambil data lama
+        // 🔹 Ambil data kekurangan lama
         $stmt_old = $conn->prepare("SELECT * FROM tbl_transaksi_kekurangan WHERE id_kekurangan = ?");
-        if (!$stmt_old) safe_redirect('error', "Gagal prepare data lama: " . $conn->error);
         $stmt_old->bind_param("i", $id_kekurangan);
         $stmt_old->execute();
-        $result_old = $stmt_old->get_result();
-        $old_data = $result_old->fetch_assoc();
+        $old_data = $stmt_old->get_result()->fetch_assoc();
         $stmt_old->close();
 
-        if (!$old_data) {
-            safe_redirect('error', "Data kekurangan tidak ditemukan.");
-        }
-
-        if ($old_data['status'] === 'confirmed') {
+        if (!$old_data) safe_redirect('error', "Data kekurangan tidak ditemukan.");
+        if (strtolower($old_data['status']) === 'confirmed') {
             safe_redirect('error', "Data ini sudah dikonfirmasi sebelumnya.");
         }
 
-        // === Update status ===
+        $id_trans_asal = (int)($old_data['id_trans_asal'] ?? 0);
+        $last_gate_existing = $old_data['last_gate'] ?? 'UNKNOWN'; // ← ini dipertahankan
+        $lotArr = [];
+
+        // 🔹 Ambil lot dari log asal (kalau ada)
+        if ($id_trans_asal > 0) {
+            $log_stmt = $conn->prepare("
+                SELECT new_data 
+                FROM tlog_transaksi 
+                WHERE id_trans = ? 
+                ORDER BY created_at DESC LIMIT 1
+            ");
+            $log_stmt->bind_param("i", $id_trans_asal);
+            $log_stmt->execute();
+            $log_res = $log_stmt->get_result()->fetch_assoc();
+            $log_stmt->close();
+
+            if ($log_res && $log_res['new_data']) {
+                $log_json = json_decode($log_res['new_data'], true);
+                if (isset($log_json['lot'])) {
+                    $lotArr = is_array($log_json['lot']) ? $log_json['lot'] : json_decode($log_json['lot'], true);
+                }
+            }
+        }
+
+        // 🔹 Update status jadi confirmed — TAPI tidak ubah last_gate
         $stmt_upd = $conn->prepare("
             UPDATE tbl_transaksi_kekurangan 
             SET status = 'confirmed',
-                updated_at = NOW(),
-                last_gate = 'SCAN_CHECK_QC'
+                updated_at = NOW()
             WHERE id_kekurangan = ? AND status = 'pending'
         ");
-        if (!$stmt_upd) safe_redirect('error', "Gagal prepare update: " . $conn->error);
         $stmt_upd->bind_param("i", $id_kekurangan);
         $stmt_upd->execute();
         $stmt_upd->close();
 
-        // 🔍 Cek ulang dari database apakah benar sudah confirmed
+        // 🔹 Ambil ulang data setelah update
         $cek_stmt = $conn->prepare("SELECT * FROM tbl_transaksi_kekurangan WHERE id_kekurangan = ?");
         $cek_stmt->bind_param("i", $id_kekurangan);
         $cek_stmt->execute();
-        $cek_result = $cek_stmt->get_result();
-        $new_data = $cek_result->fetch_assoc();
+        $new_data = $cek_stmt->get_result()->fetch_assoc();
         $cek_stmt->close();
 
-        if (!$new_data || $new_data['status'] !== 'confirmed') {
+        if (!$new_data || strtolower($new_data['status']) !== 'confirmed') {
             safe_redirect('error', "Gagal mengupdate status (mungkin sudah dikonfirmasi).");
         }
 
-        // === Insert log ke tlog_transaksi ===
+        // 🔹 Tambahkan LOT ke komponen_qty untuk logging
+        $kompArr = json_decode($new_data['komponen_qty'], true);
+        if (!is_array($kompArr)) $kompArr = [];
+
+        foreach ($kompArr as &$k) {
+            if (!isset($k['lot'])) {
+                $k['lot'] = $lotArr;
+            }
+        }
+        unset($k);
+
+        // Tetapkan last_gate tetap dari data existing
+        $new_data['last_gate'] = $last_gate_existing;
+        $new_data['komponen_qty'] = json_encode($kompArr, JSON_UNESCAPED_UNICODE);
+
+        // 🔹 Simpan log konfirmasi (tlog_transaksi)
         $stmt_log = $conn->prepare("
             INSERT INTO tlog_transaksi
             (id_trans, updated_by, action_type, old_data, new_data, created_at, updated_at)
@@ -4697,16 +4749,15 @@ if (isset($_POST['action']) && $_POST['action'] === 'confirm_kekurangan') {
         ");
         if (!$stmt_log) safe_redirect('error', "Gagal prepare log: " . $conn->error);
 
-        $id_trans = (int)($old_data['id_trans_asal'] ?? 0);
         $action_type = 'CONFIRM_KEKURANGAN';
         $old_json = json_encode($old_data, JSON_UNESCAPED_UNICODE);
         $new_json = json_encode($new_data, JSON_UNESCAPED_UNICODE);
 
-        $stmt_log->bind_param("issss", $id_trans, $username, $action_type, $old_json, $new_json);
+        $stmt_log->bind_param("issss", $id_trans_asal, $username, $action_type, $old_json, $new_json);
         $stmt_log->execute();
         $stmt_log->close();
 
-        // ✅ Berhasil
+        // ✅ Sukses
         safe_redirect('success', "Kekurangan berhasil dikonfirmasi.");
     } catch (Exception $e) {
         safe_redirect('error', "Terjadi kesalahan: " . $e->getMessage());

@@ -215,6 +215,7 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
                     <th class="text-center">PO Code</th>
                     <th class="text-center">PO Item</th>
                     <th class="text-center">Lot</th>
+                    <th class="text-center">Size</th>
                     <th class="text-center">Model</th>
                     <th class="text-center">Style</th>
                   </tr>
@@ -356,6 +357,7 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
             { data: "po_code" },
             { data: "po_item" },
             { data: "lot" },
+            { data: "size" },
             { data: "model" },
             { data: "style" }
           ]

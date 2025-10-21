@@ -107,7 +107,10 @@ $data = [];
 while ($row = $dataResult->fetch_assoc()) {
     // 🔗 Link ke detail lot basis
     $row['job_order'] = '<a href="dashb-lot-basis-detail.php?job_order=' . urlencode($row['job_order']) . '" 
-        class="btn btn-sm btn-outline-primary">' . htmlspecialchars($row['job_order']) . '</a>';
+    class="btn btn-sm btn-outline-primary" 
+    target="_blank">'
+        . htmlspecialchars($row['job_order']) .
+        '</a>';
 
     $data[] = $row;
 }
@@ -121,4 +124,3 @@ echo json_encode([
     "recordsFiltered" => $recordsTotal,
     "data" => $data
 ]);
-?>
