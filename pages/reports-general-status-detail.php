@@ -29,268 +29,139 @@ $infoQuery = "
 ";
 $info = $conn->query($infoQuery)->fetch_assoc();
 
-// 🔹 1️⃣ Ambil LOT dan SIZE
-$lots = $conn->query("
-    SELECT DISTINCT lot 
-    FROM tbl_master_data 
-     WHERE job_order = '$job_order'
-    ORDER BY CAST(SUBSTRING_INDEX(lot, ' ', -1) AS UNSIGNED)
-")->fetch_all(MYSQLI_ASSOC);
 
-$sizesQuery = $conn->query("
-    SELECT DISTINCT size
-    FROM tbl_master_data
-     WHERE job_order = '$job_order'
-");
-$sizes = $sizesQuery->fetch_all(MYSQLI_ASSOC);
+// ===============================
+// 🔹 2️⃣ Ambil summary progress (AKUMULATIF + VALIDASI ACTION)
+// ===============================
+$summary = [
+  'total_order' => 0,
+  'scan_in' => 0,
+  'scan_out' => 0,
+  'kekurangan' => 0
+];
 
-if (empty($lots)) die("<div class='alert alert-warning'>Tidak ada LOT ditemukan untuk job order $job_order.</div>");
-if (empty($sizes)) die("<div class='alert alert-warning'>Tidak ada SIZE ditemukan untuk job order $job_order.</div>");
+// Total order dari master
+$totalOrderQuery = "SELECT SUM(qty) AS total_order FROM tbl_master_data WHERE job_order = '$job_order'";
+$totalOrder = $conn->query($totalOrderQuery)->fetch_assoc();
+$summary['total_order'] = (float)($totalOrder['total_order'] ?? 0);
 
-// Normalisasi dan sorting size
-$sizes = array_map(fn($s) => ['size' => normalizeSize($s['size'] ?? $s)], $sizes);
-usort($sizes, function ($a, $b) {
-  $sa = $a['size'];
-  $sb = $b['size'];
-  preg_match('/\d+/', $sa, $ma);
-  preg_match('/\d+/', $sb, $mb);
-  $na = intval($ma[0] ?? 0);
-  $nb = intval($mb[0] ?? 0);
-  return $na !== $nb ? $na <=> $nb : strnatcasecmp($sa, $sb);
-});
+// Ambil semua log untuk job_order ini
+$logQuery = "
+  SELECT action_type, new_data
+  FROM tlog_transaksi
+  WHERE JSON_UNQUOTE(JSON_EXTRACT(new_data, '$.job_order')) = '$job_order'
+  AND action_type IN ('SCAN_IN_WAREHOUSE', 'SCAN_OUT_TO_PRODUCTION')
+";
+$logResult = $conn->query($logQuery);
 
-// 🔹 2️⃣ Ambil data PLAN
-$planData = [];
-$planQuery = $conn->query("
-    SELECT lot, size, SUM(qty) AS total_plan
-    FROM tbl_master_data
-     WHERE job_order = '$job_order'
-    GROUP BY lot, size
-");
-while ($r = $planQuery->fetch_assoc()) {
-  $lotKey = (string)$r['lot'];
-  $sizeKey = normalizeSize($r['size']);
-  $planData[$lotKey][$sizeKey] = (int)$r['total_plan'];
-}
+while ($log = $logResult->fetch_assoc()) {
+  $action = strtoupper(trim($log['action_type']));
+  $data = json_decode($log['new_data'], true);
 
-// 🔹 3️⃣ Ambil log SCAN_OUT_TO_PRODUCTION (dengan defect + distribusi proporsional)
-$logData = [];
+  if (!is_array($data)) continue;
 
-$logQ = $conn->query("
-    SELECT 
-        JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.lot')) AS lot_json,
-        JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.komponen_qty')) AS komponen_json,
-        JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.defect_qty')) AS defect_json
-    FROM tlog_transaksi
-    WHERE JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.job_order'))='$job_order'
-      AND JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.type_scan'))='SCAN_OUT_TO_PRODUCTION'
-");
-
-while ($r = $logQ->fetch_assoc()) {
-  $lotsArr   = json_decode($r['lot_json'], true);
-  $kompArr   = json_decode($r['komponen_json'], true);
-  $defectArr = json_decode($r['defect_json'], true) ?: [];
-
-  if (!is_array($lotsArr) || !is_array($kompArr)) continue;
-
-  // Buat map defect
-  $defectMap = [];
-  foreach ($defectArr as $d) {
-    $size = normalizeSize($d['size'] ?? '');
-    $defectMap[$size] = (int)($d['qty'] ?? 0);
+  // Decode komponen_qty (string JSON di dalam JSON)
+  $komponenList = $data['komponen_qty'] ?? [];
+  if (is_string($komponenList)) {
+    $komponenList = json_decode($komponenList, true);
   }
 
-  foreach ($kompArr as $k) {
-    $size = normalizeSize($k['size'] ?? '');
-    $qtyAsli = (int)($k['qty'] ?? 0);
-    if ($size === '' || $qtyAsli <= 0) continue;
+  if (!is_array($komponenList)) continue;
 
-    // Kurangi defect (defect tidak dibagi antar lot)
-    $defect = $defectMap[$size] ?? 0;
-    $qtyFinal = max($qtyAsli - $defect, 0);
+  // Loop semua komponen dan akumulasi qty
+  foreach ($komponenList as $item) {
+    $qty = (float)($item['qty'] ?? 0);
 
-    // 🔸 Hitung total plan semua lot untuk size ini
-    $totalPlanForSize = 0;
-    foreach ($lotsArr as $lot) {
-      $lotKey = (string)$lot;
-      $totalPlanForSize += $planData[$lotKey][$size] ?? 0;
+    if ($action === 'SCAN_IN_WAREHOUSE') {
+      $summary['scan_in'] += $qty;
+    } elseif ($action === 'SCAN_OUT_TO_PRODUCTION') {
+      $summary['scan_out'] += $qty;
     }
+  }
+}
 
-    // 🔸 Distribusi proporsional berdasarkan plan
-    foreach ($lotsArr as $lot) {
-      $lotKey = (string)$lot;
-      $planLot = $planData[$lotKey][$size] ?? 0;
-      if ($totalPlanForSize > 0) {
-        $allocatedQty = round(($planLot / $totalPlanForSize) * $qtyFinal, 2);
-      } else {
-        // fallback: bagi rata kalau plan-nya nol semua
-        $allocatedQty = round($qtyFinal / count($lotsArr), 2);
+// Ambil total kekurangan
+$kekuranganQuery = "
+  SELECT SUM(total_kekurangan) AS kekurangan
+  FROM tbl_transaksi_kekurangan
+  WHERE job_order = '$job_order' AND status = 'PENDING'
+";
+$kekurangan = $conn->query($kekuranganQuery)->fetch_assoc();
+$summary['kekurangan'] = (float)($kekurangan['kekurangan'] ?? 0);
+
+
+// ===============================
+// 🔹 3️⃣ Ambil pivot LOT-SIZE
+// ===============================
+$pivotData = [];
+
+$query = "
+  SELECT action_type, new_data
+  FROM tlog_transaksi
+  WHERE action_type IN ('SCAN_IN_WAREHOUSE', 'SCAN_OUT_TO_PRODUCTION')
+  AND JSON_UNQUOTE(JSON_EXTRACT(new_data, '$.job_order')) = '$job_order'
+";
+
+$result = $conn->query($query);
+
+while ($row = $result->fetch_assoc()) {
+  $action = $row['action_type'];
+  $data = json_decode($row['new_data'], true);
+
+  if (!is_array($data)) continue;
+
+  // Decode lot (bisa berupa string "[1,2]" atau array langsung)
+  $lots = $data['lot'] ?? [];
+  if (is_string($lots)) {
+    $lots = json_decode($lots, true);
+  }
+  if (!is_array($lots)) $lots = [$lots];
+
+  // Decode komponen_qty (string JSON)
+  $komponenList = $data['komponen_qty'] ?? [];
+  if (is_string($komponenList)) {
+    $komponenList = json_decode($komponenList, true);
+  }
+
+  if (!is_array($komponenList)) continue;
+
+  // Loop LOT dan isi pivot
+  foreach ($lots as $lot) {
+    if (!isset($pivotData[$lot])) $pivotData[$lot] = ['sizes' => []];
+
+    foreach ($komponenList as $item) {
+      $size = normalizeSize($item['size'] ?? '');
+      $qty  = (float)($item['qty'] ?? 0);
+      if (!$size) continue;
+
+      if (!isset($pivotData[$lot]['sizes'][$size])) {
+        $pivotData[$lot]['sizes'][$size] = ['scan_in' => 0, 'scan_out' => 0];
       }
 
-      $logData[$lotKey][$size]['SCAN_OUT_TO_PRODUCTION'] =
-        ($logData[$lotKey][$size]['SCAN_OUT_TO_PRODUCTION'] ?? 0) + $allocatedQty;
-    }
-  }
-}
-
-// 🔹 4️⃣ Ambil log SCAN_IN_WAREHOUSE
-$inData = [];
-$inQ = $conn->query("
-    SELECT 
-        JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.lot')) AS lot_json,
-        JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.komponen_qty')) AS komponen_json
-    FROM tlog_transaksi
-    WHERE JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.job_order'))='$job_order'
-      AND JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.type_scan'))='SCAN_IN_WAREHOUSE'
-");
-while ($r = $inQ->fetch_assoc()) {
-  $lotsArr = json_decode($r['lot_json'], true);
-  $kompArr = json_decode($r['komponen_json'], true);
-  if (!is_array($lotsArr) || !is_array($kompArr)) continue;
-
-  foreach ($lotsArr as $lot) {
-    $lotKey = (string)$lot;
-    foreach ($kompArr as $k) {
-      $size = normalizeSize($k['size'] ?? '');
-      $qty  = (int)($k['qty'] ?? 0);
-      if ($size === '' || $qty <= 0) continue;
-
-      $inData[$lotKey][$size] = ($inData[$lotKey][$size] ?? 0) + $qty;
-    }
-  }
-}
-
-// 🔹 5️⃣ Ambil data kekurangan (CONFIRM_KEKURANGAN atau masih PENDING)
-$kekuranganData = [];
-
-// 🔸 Coba ambil dari log konfirmasi dulu
-$kekLogQ = $conn->query("
-    SELECT new_data
-    FROM tlog_transaksi
-    WHERE action_type = 'CONFIRM_KEKURANGAN'
-      AND JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.job_order')) = '$job_order'
-");
-
-if ($kekLogQ->num_rows > 0) {
-  // ✅ Jika ada konfirmasi, pakai data dari log
-  while ($r = $kekLogQ->fetch_assoc()) {
-    $newData = json_decode($r['new_data'], true);
-    if (!$newData) continue;
-
-    $status = strtolower(trim($newData['status'] ?? ''));
-    $kompArr = json_decode($newData['komponen_qty'], true);
-    if (!is_array($kompArr)) continue;
-
-    // --- Parsing CONFIRM_KEKURANGAN dengan perlindungan variabel ---
-    foreach ($kompArr as $k) {
-      $size = normalizeSize($k['size'] ?? '');
-      $qty  = (int)($k['kekurangan'] ?? $k['qty'] ?? 0);
-      $lotField = $k['lot'] ?? '[]';
-
-      // pastikan $lotArr selalu array valid
-      if (is_string($lotField)) {
-        $lotArr = json_decode($lotField, true);
-      } elseif (is_array($lotField)) {
-        $lotArr = $lotField;
-      } else {
-        $lotArr = [];
-      }
-
-      if (empty($lotArr)) {
-        // fallback: kekurangan tanpa lot spesifik
-        $kekuranganData[$size]['status'] = $status;
-        $kekuranganData[$size]['qty'] = $qty;
-      } else {
-        foreach ($lotArr as $l) {
-          $lotKey = (string)$l;
-          if (!isset($kekuranganData[$size]['per_lot'])) {
-            $kekuranganData[$size]['per_lot'] = [];
-          }
-          $kekuranganData[$size]['per_lot'][$lotKey] = [
-            'status' => $status,
-            'qty'    => $qty
-          ];
-        }
+      if ($action === 'SCAN_IN_WAREHOUSE') {
+        $pivotData[$lot]['sizes'][$size]['scan_in'] += $qty;
+      } elseif ($action === 'SCAN_OUT_TO_PRODUCTION') {
+        $pivotData[$lot]['sizes'][$size]['scan_out'] += $qty;
       }
     }
   }
-} else {
-  // 🔸 Jika belum ada konfirmasi, ambil dari tabel kekurangan (PENDING)
-  $kekTblQ = $conn->query("
-        SELECT komponen_qty, status, created_at
-        FROM tbl_transaksi_kekurangan
-        WHERE job_order = '$job_order' AND status = 'PENDING'
-        ORDER BY created_at DESC;
-  ");
-
-  while ($r = $kekTblQ->fetch_assoc()) {
-    $status = strtolower(trim($r['status'] ?? ''));
-    $kompArr = json_decode($r['komponen_qty'], true);
-    if (!is_array($kompArr)) continue;
-
-    foreach ($kompArr as $k) {
-      $size = normalizeSize($k['size'] ?? '');
-      $qty  = (int)($k['kekurangan'] ?? $k['qty'] ?? 0);
-
-      $kekuranganData[$size] = [
-        'status' => $status,
-        'qty'    => $qty
-      ];
-    }
-  }
 }
 
-// 🔹 6️⃣ Hitung tableData lengkap (plan + balance in + balance out)
-$tableData = [];
+// ===============================
+// 🔹 4️⃣ Ambil data kekurangan detail
+// ===============================
+$kekuranganQuery = "
+  SELECT 
+      job_order,
+      last_gate AS lot,
+      JSON_UNQUOTE(JSON_EXTRACT(komponen_qty, '$[0].size')) AS size,
+      total_kekurangan,
+      status
+  FROM tbl_transaksi_kekurangan
+  WHERE job_order = '$job_order'
+";
+$kekurangan = $conn->query($kekuranganQuery);
 
-foreach ($sizes as $s) {
-  $sizeKey = $s['size'];
-
-  foreach ($lots as $lotRow) {
-    $lot = (string)$lotRow['lot'];
-    $plan = $planData[$lot][$sizeKey] ?? 0;
-
-    // 🔹 BALANCE IN
-    $inScan = $inData[$lot][$sizeKey] ?? 0;
-    $balanceIn = ($inScan >= $plan) ? 0 : ($inScan - $plan);
-
-    // 🔹 BALANCE OUT
-    $outQty = $logData[$lot][$sizeKey]['SCAN_OUT_TO_PRODUCTION'] ?? 0;
-
-    // --- cek apakah ada CONFIRM_KEKURANGAN per lot & size ---
-    $confirmLot = false;
-    $kekuranganLotQty = 0;
-
-    if (
-      isset($kekuranganData[$sizeKey]['per_lot']) &&
-      is_array($kekuranganData[$sizeKey]['per_lot']) &&
-      isset($kekuranganData[$sizeKey]['per_lot'][$lot]) &&
-      is_array($kekuranganData[$sizeKey]['per_lot'][$lot])
-    ) {
-      $confirmLot = strtolower($kekuranganData[$sizeKey]['per_lot'][$lot]['status'] ?? '') === 'confirmed';
-      $kekuranganLotQty = (int)($kekuranganData[$sizeKey]['per_lot'][$lot]['qty'] ?? 0);
-    }
-
-    if ($confirmLot) {
-      // ✅ Jika sudah dikonfirmasi kekurangannya untuk lot ini
-      $balanceOut = 0;
-    } else {
-      // 🔸 Belum dikonfirmasi → cek selisih
-      if ($outQty < $plan) {
-        $deduct = $plan - $outQty;
-        $balanceOut = -$deduct;
-      } else {
-        $balanceOut = 0;
-      }
-    }
-
-    $tableData[$lot][$sizeKey] = [
-      'plan' => $plan,
-      'in'   => $balanceIn,
-      'out'  => $balanceOut
-    ];
-  }
-}
 
 ?>
 
@@ -435,6 +306,9 @@ foreach ($sizes as $s) {
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
+
 </head>
 
 <body>
@@ -458,7 +332,7 @@ foreach ($sizes as $s) {
       <div class="row">
         <div class="col-lg-12">
           <div class="card">
-            <div class="card-body" style="margin-top: 10px;">
+            <div class="card-body">
 
               <div class="container mt-4">
 
@@ -498,7 +372,52 @@ foreach ($sizes as $s) {
                 </div>
               </div>
 
-              
+              <!-- ==========================
+                    SUMMARY PROGRESS CHART
+                ========================== -->
+              <div class="card mt-3">
+                <div class="card-body">
+                  <h5 class="card-title mb-3">Summary Progress</h5>
+                  <canvas id="summaryChart" height="120"></canvas>
+                </div>
+              </div>
+
+              <!-- ==========================
+                  DETAIL KOMPONEN (PIVOT)
+              ========================== -->
+              <hr>
+                <p class="text-success">Description data per cell</p>
+                <p class="text-success fs-4">[ BALANCE IN | BALANCE OUT ]</p>
+              <div class="card mt-3">
+                <div class="card-body table-responsive">
+                  <h5 class="card-title mb-3">Detail Size</h5>
+                  <table id="tablePivot" class="table table-bordered text-center align-middle nowrap" style="width:100%">
+                    <thead class="table-light" id="pivotHeader"></thead>
+                    <tbody id="pivotBody"></tbody>
+                  </table>
+                </div>
+              </div>
+
+              <!-- ==========================
+                  DETAIL KEKURANGAN
+              ========================== -->
+              <hr>
+              <div class="card mt-3">
+                <div class="card-body table-responsive">
+                  <h5 class="card-title mb-3">Detail Kekurangan</h5>
+                  <table id="tableKekurangan" class="table table-bordered text-center align-middle nowrap" style="width:100%">
+                    <thead class="table-light">
+                      <tr>
+                        <th>Status</th>
+                        <th>Size</th>
+                        <th>Total Kekurangan</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody id="kekuranganBody"></tbody>
+                  </table>
+                </div>
+              </div>
 
             </div>
           </div>
@@ -595,306 +514,199 @@ foreach ($sizes as $s) {
     });
   </script>
 
-
   <script>
-    document.addEventListener('DOMContentLoaded', function() {
+    function loadSummaryChart(data) {
+      const ctx = document.getElementById("summaryChart").getContext("2d");
 
-      <?php foreach ($result_transaksi as $row): ?>
-        const modal<?= $row['id_trans']; ?> = document.getElementById('barcodeModal<?= $row['id_trans']; ?>');
-        let qrGenerated<?= $row['id_trans']; ?> = false;
+      // Ambil data
+      const totalOrder = data.total_order || 0;
+      const scanIn = data.scan_in || 0;
+      const scanOut = data.scan_out || 0;
+      const kekurangan = data.kekurangan || 0;
 
-        modal<?= $row['id_trans']; ?>.addEventListener('shown.bs.modal', function() {
-          if (!qrGenerated<?= $row['id_trans']; ?>) {
-            new QRCode(document.getElementById('qrcode<?= $row['id_trans']; ?>'), {
-              text: "<?= $row['barcode']; ?>",
-              width: 60,
-              height: 60
-            });
-            qrGenerated<?= $row['id_trans']; ?> = true;
-          }
-        });
-      <?php endforeach; ?>
+      // Hitung progress
+      const progressIn = totalOrder > 0 ? scanIn / totalOrder : 0;
+      const progressOut = totalOrder > 0 ? scanOut / totalOrder : 0;
 
-      // Print via Web Bluetooth MT200
-      document.querySelectorAll('.printNow').forEach(btn => {
-        btn.addEventListener('click', async function() {
-          const id = this.dataset.id;
-          const barcode = this.dataset.barcode;
+      // Gradient hijau lembut untuk "total order"
+      const gradientGreen = ctx.createLinearGradient(0, 0, 0, 200);
+      gradientGreen.addColorStop(0, "#6ee7b7"); // hijau muda atas
+      gradientGreen.addColorStop(1, "#10b981"); // hijau bawah
 
-          try {
-            // 1. Pilih printer MT200
-            const device = await navigator.bluetooth.requestDevice({
-              filters: [{
-                namePrefix: 'MT200'
-              }],
-              optionalServices: [0xFFE0]
-            });
+      // Warna dasar
+      let colorTotal = gradientGreen;
+      let colorIn = "#17a2b8"; // biru default
+      let colorOut = "#28a745"; // hijau normal
+      let colorKekurangan = "#f28b82"; // merah lembut
 
-            const server = await device.gatt.connect();
-            const service = await server.getPrimaryService(0xFFE0);
-            const characteristic = await service.getCharacteristic(0xFFE1);
+      // Warna kuning lembut (belum 50%)
+      const softYellow = "#facc15"; // tailwind yellow-400
 
-            // 2. Ambil data dari modal
-            const modalBody = document.getElementById('barcodeModal' + id).querySelector('.modal-body');
+      // Threshold logika
+      const goodThreshold = 0.95;
+      const warningThreshold = 0.5;
 
-            // Ambil teks info
-            let lines = [];
-            const infoDivs = modalBody.querySelectorAll('div > div, div'); // ambil semua info
-            infoDivs.forEach(d => {
-              const text = d.innerText.trim();
-              if (text) lines.push(text);
-            });
-            const infoText = lines.join('\n') + '\n\n';
+      // Logika warna SCAN IN
+      if (progressIn >= goodThreshold) {
+        colorIn = gradientGreen; // full hijau
+      } else if (progressIn >= warningThreshold) {
+        colorIn = "#17a2b8"; // biru lembut
+      } else {
+        colorIn = softYellow; // kuning lembut
+      }
 
-            // 3. Generate QR code canvas
-            const qrCanvas = modalBody.querySelector('canvas, img'); // QR code di modal
-            let qrData = null;
+      // Logika warna SCAN OUT
+      if (progressOut >= goodThreshold) {
+        colorOut = gradientGreen;
+      } else if (progressOut >= warningThreshold) {
+        colorOut = "#28a745"; // hijau normal
+      } else {
+        colorOut = softYellow; // kuning lembut
+      }
 
-            if (qrCanvas) {
-              const canvas = qrCanvas.tagName === 'CANVAS' ? qrCanvas : qrCanvas;
-              qrData = canvas.toDataURL('image/png'); // base64
-            }
+      new Chart(ctx, {
+        type: "bar",
+        data: {
+          labels: ["Total Order", "Scan In", "Scan Out", "Kekurangan"],
+          datasets: [{
+            label: "Jumlah",
+            data: [totalOrder, scanIn, scanOut, kekurangan],
+            backgroundColor: [colorTotal, colorIn, colorOut, colorKekurangan],
+            borderRadius: 8,
+            barThickness: 28,
+            borderSkipped: false,
+            categoryPercentage: 0, // makin kecil → jarak antar bar makin rapat
+            barPercentage: 0 // makin kecil → batang makin ramping
 
-            // 4. Encode ESC/POS
-            function encodeText(str) {
-              return new TextEncoder().encode(str);
-            }
-
-            // Kirim info text
-            await characteristic.writeValue(encodeText(infoText));
-
-            // Kirim QR image jika printer support (MT200 ESC/POS)
-            if (qrData) {
-              const res = await fetch(qrData);
-              const blob = await res.blob();
-              const arrayBuffer = await blob.arrayBuffer();
-              await characteristic.writeValue(new Uint8Array(arrayBuffer));
-            }
-
-            alert('Print berhasil!');
-
-            // 5. Update count_barcode via AJAX
-            fetch('./../config/update_count_barcode.php', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/x-www-form-urlencoded'
+          }]
+        },
+        options: {
+          indexAxis: "y",
+          responsive: true,
+          scales: {
+            x: {
+              beginAtZero: true,
+              grid: {
+                display: false
               },
-              body: `id_trans=${id}`
-            }).then(res => res.json()).then(data => {
-              if (data.success) {
-                const btnEl = document.querySelector(`.printBtn[data-id='${id}']`);
-                if (btnEl) btnEl.innerHTML = `<i class="bi bi-upc-scan"></i> ${data.count}`;
+              ticks: {
+                color: "#555",
+                font: {
+                  size: 13
+                }
               }
-            });
-
-          } catch (err) {
-            console.error('Gagal print via Bluetooth:', err);
-            alert('Tidak dapat terhubung ke printer MT200. Pastikan printer menyala dan Bluetooth aktif.');
-          }
-        });
-      });
-
-    });
-  </script>
-
-  <script>
-    $(function() {
-      // ==============================
-      // Job Order Select2 dengan AJAX Search
-      // ==============================
-      $('#job_order').select2({
-        width: "100%",
-        dropdownParent: $("#tambahTransaksi"),
-        placeholder: "Cari Job Order...",
-        allowClear: true,
-        minimumInputLength: 1,
-        ajax: {
-          url: "./../config/ajax.php",
-          type: "POST",
-          dataType: "json",
-          delay: 250,
-          data: function(params) {
-            return {
-              action: "searchJobOrder",
-              search: params.term
-            };
+            },
+            y: {
+              grid: {
+                display: false
+              },
+              ticks: {
+                color: "#333",
+                font: {
+                  weight: "bold"
+                }
+              }
+            }
           },
-          processResults: function(data) {
-            return {
-              results: data.job_order || []
-            };
+          plugins: {
+            legend: {
+              display: false
+            },
+            tooltip: {
+              backgroundColor: "#fff",
+              titleColor: "#333",
+              bodyColor: "#000",
+              borderColor: "#ddd",
+              borderWidth: 1,
+              callbacks: {
+                label: ctx => `${ctx.parsed.x}`
+              }
+            }
           }
         }
       });
+    }
+  </script>
 
-      // Autofocus search ketika select2 dibuka
-      $(document).on('select2:open', function() {
-        const $search = $('.select2-container--open .select2-search__field');
-        if ($search.length) $search.focus();
-      });
 
-      // ==============================
-      // Autofill fields dari JobOrder
-      // ==============================
-      $('#job_order').on('change select2:select', function() {
-        let jobOrder = $(this).val();
-        if (!jobOrder) return;
+  <script>
+    // --- Data summary dari PHP ---
+    const summaryData = <?= json_encode($summary) ?>;
 
-        $.post("./../config/ajax.php", {
-          action: "getJobOrderDetail",
-          job_order: jobOrder
-        }, function(res) {
-          if (res.success) {
-            $('#bucket').val(res.data.bucket).prop("readonly", true);
-            $('#po_code').val(res.data.po_code).prop("readonly", true);
-            $('#po_item').val(res.data.po_item).prop("readonly", true);
-            $('#model').val(res.data.model).prop("readonly", true);
-            $('#style').val(res.data.style).prop("readonly", true);
-            $('#ncvs').val(res.data.ncvs).prop("readonly", true);
-            // ❌ jangan isi lot, biar manual
-          } else {
-            alert(res.error || "Data Job Order tidak ditemukan");
-          }
-        }, "json");
-      });
-
-      // ==============================
-      // Fungsi bikin Select2 Komponen & Size (AJAX)
-      // ==============================
-      function initKomponenSelect($el) {
-        $el.select2({
-          width: "100%",
-          dropdownParent: $("#tambahTransaksi"),
-          placeholder: "Cari Komponen...",
-          allowClear: true,
-          minimumInputLength: 1,
-          ajax: {
-            url: "./../config/ajax.php",
-            type: "POST",
-            dataType: "json",
-            delay: 250,
-            data: function(params) {
-              return {
-                action: "searchKomponen",
-                model: $("#model").val(),
-                search: params.term
-              };
-            },
-            processResults: function(data) {
-              return {
-                results: data.komponen || []
-              };
-            }
-          }
-        });
-      }
-
-      function initSizeSelect($el) {
-        $el.select2({
-          width: "100%",
-          dropdownParent: $("#tambahTransaksi"),
-          placeholder: "Cari Size...",
-          allowClear: true,
-          minimumInputLength: 1,
-          ajax: {
-            url: "./../config/ajax.php",
-            type: "POST",
-            dataType: "json",
-            delay: 250,
-            data: function(params) {
-              return {
-                action: "searchSize",
-                job_order: $("#job_order").val(),
-                search: params.term
-              };
-            },
-            processResults: function(data) {
-              return {
-                results: data.sizes || []
-              };
-            }
-          }
-        });
-      }
-
-      // ==============================
-      // Add Komponen Row
-      // ==============================
-      $('#addKomponenBtn').on('click', function() {
-        const $row = $(`
-      <div class="row g-3 mb-2 komponen-row">
-        <div class="col-md-4">
-          <select name="komponen[]" class="form-control komponen-select" required></select>
-        </div>
-        <div class="col-md-4">
-          <select name="size[]" class="form-control size-select" required></select>
-        </div>
-        <div class="col-md-3">
-          <input type="number" name="qty[]" class="form-control" placeholder="Input qty" required>
-        </div>
-        <div class="col-md-1 d-flex align-items-end">
-          <button type="button" class="btn btn-danger btn-sm removeKomponenBtn"><i class="bi bi-trash"></i></button>
-        </div>
-      </div>
-    `);
-
-        $('#komponenContainer').append($row);
-
-        // init select2 untuk row baru
-        initKomponenSelect($row.find('.komponen-select'));
-        initSizeSelect($row.find('.size-select'));
-      });
-
-      // Remove row
-      $(document).on('click', '.removeKomponenBtn', function() {
-        $(this).closest('.komponen-row').remove();
-      });
-
-      // ==============================
-      // Init row pertama (yang sudah ada di HTML)
-      // ==============================
-      initKomponenSelect($('.komponen-select'));
-      initSizeSelect($('.size-select'));
-    });
+    // --- Panggil chart biar langsung tampil ---
+    loadSummaryChart(summaryData);
   </script>
 
   <script>
-    // ===============================
-    // Fungsi parsing lot
-    // ===============================
-    function parseLotInput(input) {
-      let lots = [];
-      let parts = input.split(",");
-      parts.forEach(part => {
-        part = part.trim();
-        if (part.includes("-")) {
-          let [start, end] = part.split("-").map(Number);
-          for (let i = start; i <= end; i++) {
-            lots.push(i);
-          }
-        } else if (part) {
-          lots.push(Number(part));
-        }
+    function renderPivotTable(pivotData) {
+      if (!pivotData || pivotData.length === 0) return;
+
+      const sizes = [...new Set(pivotData.flatMap(row => Object.keys(row.sizes)))];
+      let headerHtml = `<tr><th>LOT</th>${sizes.map(size => `<th>${size}</th>`).join("")}</tr>`;
+      let bodyHtml = "";
+
+      pivotData.forEach(row => {
+        let rowHtml = `<tr><td>${row.lot}</td>`;
+        sizes.forEach(size => {
+          const val = row.sizes[size] ? `${row.sizes[size].scan_in} | ${row.sizes[size].scan_out}` : "-";
+          rowHtml += `<td>${val}</td>`;
+        });
+        rowHtml += "</tr>";
+        bodyHtml += rowHtml;
       });
-      return [...new Set(lots)].sort((a, b) => a - b);
+
+      document.getElementById("pivotHeader").innerHTML = headerHtml;
+      document.getElementById("pivotBody").innerHTML = bodyHtml;
     }
-
-    // Contoh validasi sebelum submit
-    $("#formTransaksi").on("submit", function(e) {
-      let lotInput = $("#lot").val();
-      let lots = parseLotInput(lotInput);
-
-      if (lots.length === 0) {
-        e.preventDefault();
-        alert("Lot tidak boleh kosong atau salah format!");
-        return;
-      }
-
-      console.log("Lot final:", lots);
-      // boleh lanjut submit
-    });
   </script>
 
+  <script>
+    function renderKekuranganTable(data) {
+      let html = "";
+      data.forEach(row => {
+        let badgeClass = "";
+        let badgeText = row.status;
+
+        if (row.status === "pending") {
+          badgeClass = "bg-warning text-dark"; // kuning
+        } else if (row.status === "confirmed" || row.status === "DONE") {
+          badgeClass = "bg-success"; // hijau
+        } else {
+          badgeClass = "bg-secondary"; // fallback
+        }
+
+        html += `
+        <tr>
+          <td>${row.lot}</td>
+          <td>${row.size}</td>
+          <td>${row.total_kekurangan}</td>
+          <td><span class="badge rounded-pill ${badgeClass}">${badgeText}</span></td>
+        </tr>`;
+      });
+
+      document.getElementById("kekuranganBody").innerHTML = html;
+    }
+  </script>
+
+
+  <script>
+    // --- Pivot Table Data ---
+    const pivotData = <?= json_encode(array_map(function ($lot, $data) {
+                        return [
+                          'lot' => $lot,
+                          'sizes' => $data['sizes']
+                        ];
+                      }, array_keys($pivotData), $pivotData)) ?>;
+
+    // Panggil fungsi renderPivotTable
+    renderPivotTable(pivotData);
+
+    // --- Kekurangan Data ---
+    const kekuranganData = <?= json_encode($kekurangan->fetch_all(MYSQLI_ASSOC)) ?>;
+
+    // Panggil fungsi renderKekuranganTable
+    renderKekuranganTable(kekuranganData);
+  </script>
 </body>
 
 </html>
