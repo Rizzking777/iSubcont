@@ -220,6 +220,7 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
                     <th class="text-center">Scan In</th>
                     <th class="text-center">Balance In</th>
                     <th class="text-center">Scan Out</th>
+                    <th class="text-center">Kekurangan</th>
                     <th class="text-center">Balance Out</th>
                   </tr>
                 </thead>
@@ -357,43 +358,22 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
               d.job_order = $("#job_order").val();
             }
           },
-          columns: [{
-              data: "job_order"
-            },
-            {
-              data: "ncvs"
-            },
-            {
-              data: "bucket"
-            },
-            {
-              data: "po_code"
-            },
-            {
-              data: "po_item"
-            },
-            {
-              data: "model"
-            },
-            {
-              data: "style"
-            },
-            {
-              data: "total_order"
-            },
-            {
-              data: "scan_in"
-            },
-            {
-              data: "balance_in"
-            },
-            {
-              data: "scan_out"
-            },
-            {
-              data: "balance_out"
-            }
-          ]
+                  columns: [
+          { data: "job_order" },
+          { data: "ncvs" },
+          { data: "bucket" },
+          { data: "po_code" },
+          { data: "po_item" },
+          { data: "model" },
+          { data: "style" },
+          { data: "total_order" },
+          { data: "scan_in" },
+          { data: "balance_in" },
+          { data: "scan_out" },
+          { data: "kekurangan" }, // 👈 baru
+          { data: "balance_out" }
+        ]
+
         });
 
         // Awal tabel kosong

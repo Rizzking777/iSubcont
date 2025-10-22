@@ -16,7 +16,6 @@ $ncvs      = $_POST['ncvs'] ?? '';
 $po_code   = $_POST['po_code'] ?? '';
 $job_order = $_POST['job_order'] ?? '';
 
-// Kalau semua filter kosong, langsung return kosong
 if (empty($bucket) && empty($ncvs) && empty($po_code) && empty($job_order)) {
   echo json_encode([
     "draw" => intval($draw),
@@ -28,7 +27,7 @@ if (empty($bucket) && empty($ncvs) && empty($po_code) && empty($job_order)) {
 }
 
 // ===============================
-// Base query (ambil dari master yang punya transaksi)
+// Base query (ambil dari master)
 // ===============================
 $sql = "
 FROM tbl_master_data m
@@ -42,7 +41,6 @@ $where = [];
 $params = [];
 $types = "";
 
-// Filter dinamis
 if (!empty($bucket)) {
   $where[] = "m.bucket = ?";
   $params[] = $bucket;
@@ -68,9 +66,7 @@ if (!empty($where)) {
   $sql .= " AND " . implode(" AND ", $where);
 }
 
-// ===============================
-// Hitung total unik job_order
-// ===============================
+// Hitung total job_order
 $totalQuery = "SELECT COUNT(DISTINCT m.job_order) as cnt " . $sql;
 $stmt = $conn->prepare($totalQuery);
 if ($types) $stmt->bind_param($types, ...$params);
@@ -78,9 +74,7 @@ $stmt->execute();
 $totalResult = $stmt->get_result()->fetch_assoc();
 $recordsTotal = $totalResult['cnt'] ?? 0;
 
-// ===============================
-// Ambil data utama + total order
-// ===============================
+// Ambil data utama
 $dataQuery = "
 SELECT 
   m.job_order,
@@ -109,12 +103,12 @@ $dataResult = $stmt2->get_result();
 $data = [];
 
 // ===============================
-// Loop setiap job_order dan ambil Scan In / Out dari tlog_transaksi
+// Loop setiap job_order dan ambil Scan In / Out + Kekurangan
 // ===============================
 while ($row = $dataResult->fetch_assoc()) {
   $job_order = $row['job_order'];
 
-  // Ambil semua log berdasarkan job_order
+  // --- Ambil SCAN IN / OUT dari tlog_transaksi ---
   $queryLog = "
     SELECT action_type, new_data
     FROM tlog_transaksi
@@ -133,37 +127,48 @@ while ($row = $dataResult->fetch_assoc()) {
     $action_type = $log['action_type'];
     $new_data    = json_decode($log['new_data'], true);
 
-    // ✅ Decode double JSON komponen_qty
-    $komponen_qty = $new_data['komponen_qty'] ?? [];
-    if (is_string($komponen_qty)) {
-      $komponen_qty = json_decode($komponen_qty, true);
-    }
-
-    if (!empty($komponen_qty) && is_array($komponen_qty)) {
-      foreach ($komponen_qty as $item) {
-        $qty = isset($item['qty']) ? floatval($item['qty']) : 0;
-
-        if ($action_type === 'SCAN_IN_WAREHOUSE') {
-          $scan_in_total += $qty;
-        } elseif ($action_type === 'SCAN_OUT_TO_PRODUCTION') {
-          $scan_out_total += $qty;
+    if (!empty($new_data['komponen_qty'])) {
+      $komponenData = json_decode($new_data['komponen_qty'], true);
+      if (is_array($komponenData)) {
+        foreach ($komponenData as $item) {
+          $qty = isset($item['qty']) ? floatval($item['qty']) : 0;
+          if ($action_type === 'SCAN_IN_WAREHOUSE') {
+            $scan_in_total += $qty;
+          } elseif ($action_type === 'SCAN_OUT_TO_PRODUCTION') {
+            $scan_out_total += $qty;
+          }
         }
       }
     }
   }
 
+  // --- Ambil total kekurangan dari tbl_transaksi_kekurangan ---
+  $queryKurang = "
+    SELECT COALESCE(SUM(total_kekurangan), 0) AS total_kurang
+    FROM tbl_transaksi_kekurangan
+    WHERE job_order = ? AND status = 'PENDING'
+  ";
+  $stmtKurang = $conn->prepare($queryKurang);
+  $stmtKurang->bind_param("s", $job_order);
+  $stmtKurang->execute();
+  $kurangResult = $stmtKurang->get_result()->fetch_assoc();
+  $total_kurang = floatval($kurangResult['total_kurang'] ?? 0);
+  $stmtKurang->close();
+
+  // --- Hitung Balance ---
   $total_order = floatval($row['total_order']);
   $balance_in  = $scan_in_total - $total_order;
-  $balance_out = $scan_out_total - $total_order;
+  $balance_out = ($scan_out_total + $total_kurang) - $total_order;
 
-  // Format link job_order
+  // --- Link Job Order ke detail ---
   $row['job_order'] = '<a href="reports-general-status-detail.php?job_order=' . urlencode($job_order) . '" 
     class="btn btn-sm btn-outline-primary" target="_blank">'
     . htmlspecialchars($job_order) . '</a>';
 
-  // Tambahkan ke data output
+  // --- Tambahkan kolom tambahan ---
   $row['scan_in']     = $scan_in_total;
   $row['scan_out']    = $scan_out_total;
+  $row['kekurangan']  = $total_kurang;
   $row['balance_in']  = $balance_in;
   $row['balance_out'] = $balance_out;
 
@@ -171,12 +176,14 @@ while ($row = $dataResult->fetch_assoc()) {
 }
 
 // ===============================
-// Response ke DataTables
+// Final Output (JSON VALID)
 // ===============================
-echo json_encode([
+$response = [
   "draw" => intval($draw),
-  "recordsTotal" => $recordsTotal,
-  "recordsFiltered" => $recordsTotal,
+  "recordsTotal" => intval($recordsTotal),
+  "recordsFiltered" => intval($recordsTotal),
   "data" => $data
-]);
-?>
+];
+
+echo json_encode($response, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+exit;
