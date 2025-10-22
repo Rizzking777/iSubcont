@@ -23,6 +23,50 @@ $stmt->bind_param("s", $search_date);
 $stmt->execute();
 $result_transaksi = $stmt->get_result();
 
+// --- Ambil vendor berdasarkan komponen di transaksi ---
+$vendor_cache = [];
+$vendors_all = [];
+
+while ($row = $result_transaksi->fetch_assoc()) {
+  $job_order = $row['job_order'];
+  $komp_data = json_decode($row['komponen_qty'], true);
+
+  if (!is_array($komp_data)) continue;
+
+  foreach ($komp_data as $item) {
+    $komp_id = (int)($item['komponen'] ?? 0);
+    if (!$komp_id) continue;
+
+    // caching supaya gak query berulang untuk komponen yang sama
+    if (!isset($vendor_cache[$komp_id])) {
+      $stmt_v = $conn->prepare("
+        SELECT GROUP_CONCAT(DISTINCT v.name_vendor SEPARATOR ', ') AS vendors
+        FROM tbl_komponen k
+        LEFT JOIN tbl_komponen_proses p 
+              ON p.id_input = k.id_komponen OR p.id_output = k.id_komponen
+        LEFT JOIN tbl_vendor_proses vp ON vp.id_proses = p.id_proses
+        LEFT JOIN tbl_vendor v ON v.id_vendor = vp.id_vendor
+        WHERE k.id_komponen = ?
+        GROUP BY k.id_komponen
+      ");
+      $stmt_v->bind_param("i", $komp_id);
+      $stmt_v->execute();
+      $res_v = $stmt_v->get_result();
+      $vendor_name = $res_v->fetch_assoc()['vendors'] ?? '-';
+      $vendor_cache[$komp_id] = $vendor_name;
+      $stmt_v->close();
+    }
+
+    // kumpulkan semua vendor valid
+    if (!empty($vendor_cache[$komp_id]) && $vendor_cache[$komp_id] !== '-') {
+      $vendors_all[] = $vendor_cache[$komp_id];
+    }
+  }
+}
+
+// --- Bersihkan duplikat dan format akhir ---
+$vendors_all = array_unique(explode(', ', implode(', ', $vendors_all)));
+$vendors_per_model = !empty($vendors_all) ? implode(', ', $vendors_all) : '-';
 ?>
 
 <style>
@@ -635,62 +679,63 @@ $result_transaksi = $stmt->get_result();
                       <!-- Options -->
                       <td>
                         <?php
-                          // Ambil komponen sebelum proses
-                          $komponen_qty = json_decode($row["komponen_qty"], true);
-                          $ids = array_column($komponen_qty, 'komponen');
-                          $id_list = implode(",", array_map('intval', $ids));
-                          $mapKomponen = [];
-                          if (!empty($id_list)) {
-                              $res_komp = $conn->query("SELECT id_komponen,nama_komponen FROM tbl_komponen WHERE id_komponen IN ($id_list)");
-                              while ($k = $res_komp->fetch_assoc()) {
-                                  $mapKomponen[$k['id_komponen']] = $k['nama_komponen'];
-                              }
+                        // Ambil komponen sebelum proses
+                        $komponen_qty = json_decode($row["komponen_qty"], true);
+                        $ids = array_column($komponen_qty, 'komponen');
+                        $id_list = implode(",", array_map('intval', $ids));
+                        $mapKomponen = [];
+                        if (!empty($id_list)) {
+                          $res_komp = $conn->query("SELECT id_komponen,nama_komponen FROM tbl_komponen WHERE id_komponen IN ($id_list)");
+                          while ($k = $res_komp->fetch_assoc()) {
+                            $mapKomponen[$k['id_komponen']] = $k['nama_komponen'];
                           }
+                        }
 
-                          // Grouping komponen
-                          $grouped = [];
-                          foreach ($komponen_qty as $kq) {
-                              $id_komp = (int)$kq['komponen'];
-                              $nama = $mapKomponen[$id_komp] ?? "Unknown";
-                              $size = $kq['size'] ?? '-';
-                              $qty  = $kq['qty'] ?? 0;
-                              $grouped[$nama][] = "{$size} ({$qty})";
-                          }
+                        // Grouping komponen
+                        $grouped = [];
+                        foreach ($komponen_qty as $kq) {
+                          $id_komp = (int)$kq['komponen'];
+                          $nama = $mapKomponen[$id_komp] ?? "Unknown";
+                          $size = $kq['size'] ?? '-';
+                          $qty  = $kq['qty'] ?? 0;
+                          $grouped[$nama][] = "{$size} ({$qty})";
+                        }
 
-                          // Komponen sesudah proses
-                          $namaOutputArr = [];
-                          if (!empty($ids)) {
-                              $sql_out = "
+                        // Komponen sesudah proses
+                        $namaOutputArr = [];
+                        if (!empty($ids)) {
+                          $sql_out = "
                                   SELECT DISTINCT k2.nama_komponen 
                                   FROM tbl_komponen_proses p
                                   JOIN tbl_komponen k1 ON k1.id_komponen = p.id_input
                                   JOIN tbl_komponen k2 ON k2.id_komponen = p.id_output
                                   WHERE p.id_input IN ($id_list) AND k2.is_deleted = 0
                               ";
-                              $res_out = $conn->query($sql_out);
-                              if ($res_out && $res_out->num_rows > 0) {
-                                  while ($o = $res_out->fetch_assoc()) {
-                                      $namaOutputArr[] = $o['nama_komponen'];
-                                  }
-                              }
+                          $res_out = $conn->query($sql_out);
+                          if ($res_out && $res_out->num_rows > 0) {
+                            while ($o = $res_out->fetch_assoc()) {
+                              $namaOutputArr[] = $o['nama_komponen'];
+                            }
                           }
-                          ?>
+                        }
+                        ?>
 
-                          <button class="btn btn-sm btn-success btnPrintRow"
-                              data-id="<?= $row['id_trans']; ?>"
-                              data-joborder="<?= htmlspecialchars($row['job_order']); ?>"
-                              data-bucket="<?= htmlspecialchars($row['bucket']); ?>"
-                              data-po="<?= htmlspecialchars($row['po_code']); ?>"
-                              data-poitem="<?= htmlspecialchars($row['po_item']); ?>"
-                              data-model="<?= htmlspecialchars($row['model']); ?>"
-                              data-style="<?= htmlspecialchars($row['style']); ?>"
-                              data-ncvs="<?= htmlspecialchars($row['ncvs']); ?>"
-                              data-lot='<?= json_encode(is_array(json_decode($row['lot'], true)) ? json_decode($row['lot'], true) : [$row['lot']]); ?>'
-                              data-komponen='<?= json_encode($grouped); ?>'
-                              data-nama_komponen='<?= json_encode($namaOutputArr); ?>'
-                              data-barcode="<?= htmlspecialchars($row['barcode']); ?>">
-                              Print
-                          </button>
+                        <button class="btn btn-sm btn-success btnPrintRow"
+                          data-id="<?= $row['id_trans']; ?>"
+                          data-joborder="<?= htmlspecialchars($row['job_order']); ?>"
+                          data-bucket="<?= htmlspecialchars($row['bucket']); ?>"
+                          data-po="<?= htmlspecialchars($row['po_code']); ?>"
+                          data-poitem="<?= htmlspecialchars($row['po_item']); ?>"
+                          data-model="<?= htmlspecialchars($row['model']); ?>"
+                          data-style="<?= htmlspecialchars($row['style']); ?>"
+                          data-ncvs="<?= htmlspecialchars($row['ncvs']); ?>"
+                          data-lot='<?= json_encode(is_array(json_decode($row['lot'], true)) ? json_decode($row['lot'], true) : [$row['lot']]); ?>'
+                          data-komponen='<?= json_encode($grouped); ?>'
+                          data-nama_komponen='<?= json_encode($namaOutputArr); ?>'
+                          data-barcode="<?= $row['barcode']; ?>"
+                          data-vendor="<?= htmlspecialchars($vendors_per_model, ENT_QUOTES); ?>">
+                          Print
+                        </button>
 
                       </td>
 
@@ -767,7 +812,7 @@ $result_transaksi = $stmt->get_result();
   <!-- Generate QR-Code -->
   <!-- <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script> -->
   <!-- <script src="https://cdn.jsdelivr.net/npm/pica/dist/pica.min.js"></script> -->
-   <script src="https://cdn.jsdelivr.net/npm/bwip-js@3.0.9/dist/bwip-js-min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bwip-js@3.0.9/dist/bwip-js-min.js"></script>
 
 
   <script>
@@ -813,362 +858,399 @@ $result_transaksi = $stmt->get_result();
     });
   </script>
 
-<script>
-let bluetoothDevice = null;
-let printerCharacteristic = null;
+  <script>
+    let bluetoothDevice = null;
+    let printerCharacteristic = null;
 
-const SERVICE_UUID = 0x18F0;
-const CHARACTERISTIC_UUID = 0x2AF1;
-// const SERVICE_UUID = '000018f0-0000-1000-8000-00805f9b34fb';
-// const CHARACTERISTIC_UUID = '00002af1-0000-1000-8000-00805f9b34fb';
-
-
-async function connectPrinterBluetooth() {
-  try {
-    bluetoothDevice = await navigator.bluetooth.requestDevice({
-      acceptAllDevices: true,
-      optionalServices: [SERVICE_UUID]
-    });
-    const server = await bluetoothDevice.gatt.connect();
-    const service = await server.getPrimaryService(SERVICE_UUID);
-    printerCharacteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
-    console.log("✅ Printer Bluetooth terhubung");
-    return true;
-  } catch (err) {
-    console.error("❌ Gagal konek printer:", err);
-    alert("Gagal konek ke printer. Pastikan printer aktif & dekat.");
-    return false;
-  }
-}
-
-async function sendToPrinter(data) {
-  if (!printerCharacteristic) {
-    const ok = await connectPrinterBluetooth();
-    if (!ok) return false;
-  }
-
-  try {
-    const chunkSize = 256; // aman untuk BLE
-    for (let i = 0; i < data.length; i += chunkSize) {
-      const chunk = data.slice(i, i + chunkSize);
-      await printerCharacteristic.writeValue(chunk);
-      await new Promise(r => setTimeout(r, 30)); // delay antar-chunk
-    }
-    return true;
-  } catch (err) {
-    console.error("❌ Gagal kirim ke printer:", err);
-    return false;
-  }
-}
-
-async function printText(text, align = 'left') {
-  const alignCode = align === 'center' ? 0x01 : align === 'right' ? 0x02 : 0x00;
-  await sendToPrinter(new Uint8Array([0x1B, 0x61, alignCode]));
-  const encoder = new TextEncoder('utf-8');
-  const data = encoder.encode(text + "\n");
-  return sendToPrinter(data);
-}
+    const SERVICE_UUID = 0x18F0;
+    const CHARACTERISTIC_UUID = 0x2AF1;
+    // const SERVICE_UUID = '000018f0-0000-1000-8000-00805f9b34fb';
+    // const CHARACTERISTIC_UUID = '00002af1-0000-1000-8000-00805f9b34fb';
 
 
-/* ✅ Fungsi cetak barcode bitmap untuk Kassen MT200 */
-async function printBarcodeAsImage(barcode) {
-  if (!printerCharacteristic) {
-    const ok = await connectPrinterBluetooth();
-    if (!ok) return false;
-  }
-
-  try {
-    const cleanBarcode = String(barcode).trim();
-
-    // 1️⃣ generate barcode ke canvas
-    const canvas = document.createElement('canvas');
-    bwipjs.toCanvas(canvas, {
-      bcid: 'code128',       // format barcode
-      text: cleanBarcode,
-      scale: 6,              // lebar batang (sesuaikan: makin besar makin tebal)
-      height: 18,            // tinggi batang (sedikit lebih tinggi biar tajam)
-      includetext: false,    // teks ditulis manual nanti
-      paddingwidth: 6,       // sedikit jarak kiri kanan
-      paddingheight: 0       // 0 = rapet atas bawah
-    });
-
-    // 2️⃣ resize ke lebar printer 58mm (384px)
-    const targetWidth = 384;
-    const scale = targetWidth / canvas.width;
-    const targetHeight = Math.floor(canvas.height * scale);
-
-    const resized = document.createElement('canvas');
-    resized.width = targetWidth;
-    resized.height = targetHeight;
-    const ctx = resized.getContext('2d');
-    ctx.fillStyle = 'white';
-    ctx.fillRect(0, 0, targetWidth, targetHeight);
-    ctx.drawImage(canvas, 0, 0, targetWidth, targetHeight);
-
-    const imageData = ctx.getImageData(0, 0, targetWidth, targetHeight);
-    const bytes = convertImageToRaster(imageData);
-
-    // 3️⃣ kirim ke printer
-    await sendToPrinter(new Uint8Array([0x1B, 0x61, 0x01])); // center align
-    await sendToPrinter(bytes);
-
-    // ❗kurangi feed agar rapet (dulu 0x0A, sekarang ganti jadi 0x0D = sedikit)
-    await sendToPrinter(new Uint8Array([0x0D])); // feed pendek
-
-    // 4️⃣ tampilkan kode barcode di bawah (font kecil + tengah)
-    await sendToPrinter(new Uint8Array([0x1B, 0x4D, 0x01])); // font kecil (B)
-    await printText(barcode, 'center');
-    await sendToPrinter(new Uint8Array([0x1B, 0x4D, 0x00])); // kembalikan ke font normal
-
-    return true;
-  } catch (err) {
-    console.error("❌ Gagal cetak barcode:", err);
-    return false;
-  }
-}
-
-function convertImageToRaster(imageData) {
-  const { width, height, data } = imageData;
-  const bytesPerRow = Math.ceil(width / 8);
-  const imageBytes = [];
-
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < bytesPerRow; x++) {
-      let byte = 0;
-      for (let bit = 0; bit < 8; bit++) {
-        const px = x * 8 + bit;
-        if (px >= width) continue;
-        const i = (y * width + px) * 4;
-        const gray = (data[i] + data[i + 1] + data[i + 2]) / 3;
-        if (gray < 128) byte |= (0x80 >> bit);
+    async function connectPrinterBluetooth() {
+      try {
+        bluetoothDevice = await navigator.bluetooth.requestDevice({
+          acceptAllDevices: true,
+          optionalServices: [SERVICE_UUID]
+        });
+        const server = await bluetoothDevice.gatt.connect();
+        const service = await server.getPrimaryService(SERVICE_UUID);
+        printerCharacteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
+        console.log("✅ Printer Bluetooth terhubung");
+        return true;
+      } catch (err) {
+        console.error("❌ Gagal konek printer:", err);
+        alert("Gagal konek ke printer. Pastikan printer aktif & dekat.");
+        return false;
       }
-      imageBytes.push(byte);
     }
-  }
 
-  const pL = bytesPerRow & 0xff;
-  const pH = (bytesPerRow >> 8) & 0xff;
-  const yL = height & 0xff;
-  const yH = (height >> 8) & 0xff;
-  const header = [0x1D, 0x76, 0x30, 0x00, pL, pH, yL, yH];
-  return new Uint8Array([...header, ...imageBytes]);
-}
-
-/* 🔽 Event print utama — alur tetap sama */
-document.addEventListener('DOMContentLoaded', ()=>{
-  document.querySelectorAll('.btnPrintRow').forEach(btn=>{
-    btn.addEventListener('click', async ()=>{
-      const id       = btn.dataset.id;
-      const jobOrder = btn.dataset.joborder;
-      const bucket   = btn.dataset.bucket;
-      const po       = btn.dataset.po;
-      const poItem   = btn.dataset.poitem;
-      const model    = btn.dataset.model;
-      const style    = btn.dataset.style;
-      const ncvs     = btn.dataset.ncvs;
-      const lot      = JSON.parse(btn.dataset.lot || '[]');
-      const komponen = JSON.parse(btn.dataset.komponen || '{}');
-      const namaOutputArr = JSON.parse(btn.dataset.nama_komponen || '[]');
-      const barcode  = btn.dataset.barcode;
-
-      if(!barcode) return alert('❌ Barcode kosong');
-
-      // susun teks
-      let printInfo = `${jobOrder} - ${po}-${poItem}\n`;
-      printInfo += `NCVS   : ${ncvs}\n`;
-      printInfo += `Bucket : ${bucket}\n`;
-      printInfo += `Model  : ${model}\n`;
-      printInfo += `Style  : ${style}\n`;
-      printInfo += `Lot    : ${Array.isArray(lot)?lot.join(', '):lot}\n`;
-      printInfo += `-----------------------------\nKomponen & Qty:\n`;
-      for(const [nama,arr] of Object.entries(komponen)){
-        printInfo += `${nama} : ${arr.join(', ')}\n`;
+    async function sendToPrinter(data) {
+      if (!printerCharacteristic) {
+        const ok = await connectPrinterBluetooth();
+        if (!ok) return false;
       }
-      printInfo += `Output : ${namaOutputArr.length ? namaOutputArr.join(', '):'-'}\n`;
-      printInfo += `-----------------------------\n`;
 
-      // 1️⃣ Print teks
-      const okText = await printText(printInfo);
-      if(!okText) return alert('❌ Gagal print teks');
-
-      // 2️⃣ Cetak barcode
-      const okBarcode = await printBarcodeAsImage(barcode);
-      if(!okBarcode) return alert('❌ Gagal print barcode');
-
-      // 3️⃣ Feed kosong
-      await printText('\n\n\n');
-
-      // 4️⃣ Update counter (tidak diubah)
-      fetch('./../config/update_count_barcode.php', {
-        method:'POST',
-        headers:{'Content-Type':'application/x-www-form-urlencoded'},
-        body:`id_trans=${id}`
-      })
-      .then(res=>res.json())
-      .then(data=>{
-        if(data.success){
-          const btnEl = document.querySelector(`.btnPrintRow[data-id='${id}']`);
-          if(btnEl) btnEl.innerHTML = `<i class="bi bi-upc-scan"></i> ${data.count}`;
+      try {
+        const chunkSize = 256; // aman untuk BLE
+        for (let i = 0; i < data.length; i += chunkSize) {
+          const chunk = data.slice(i, i + chunkSize);
+          await printerCharacteristic.writeValue(chunk);
+          await new Promise(r => setTimeout(r, 30)); // delay antar-chunk
         }
-      }).catch(err=>console.error('❌ Gagal update count:',err));
-
-      alert('✅ Print selesai!');
-    });
-  });
-});
-</script>
-
-
-<script>
-  // Diagnostic printing: try several tiny patterns (8x8, stripe, checker)
-// Call runPrintDiagnostics() from console (e.g. after connect).
-async function runPrintDiagnostics() {
-  if (!printerCharacteristic) {
-    console.log('printer not connected - trying to connect...');
-    const okc = await connectPrinterBluetooth();
-    if (!okc) return console.log('connect failed');
-  }
-  console.log('Running diagnostics: trying 3 patterns in multiple formats...');
-
-  // small black rectangle 384x32
-  const w = 384, h = 32;
-  const canvas = document.createElement('canvas');
-  canvas.width = w; canvas.height = h;
-  const ctx = canvas.getContext('2d');
-
-  // Pattern A: full black stripe
-  ctx.fillStyle = 'white'; ctx.fillRect(0,0,w,h);
-  ctx.fillStyle = 'black'; ctx.fillRect(0,4,w-1,24);
-  const imgA = ctx.getImageData(0,0,w,h);
-
-  // Pattern B: checker 8x8
-  ctx.fillStyle = 'white'; ctx.fillRect(0,0,w,h);
-  for (let y=0;y<h;y+=8){
-    for (let x=0;x<w;x+=8){
-      if (((x/8) + (y/8)) % 2 === 0) ctx.fillStyle='black'; else ctx.fillStyle='white';
-      ctx.fillRect(x,y,8,8);
-    }
-  }
-  const imgB = ctx.getImageData(0,0,w,h);
-
-  // Pattern C: text big (draw text into canvas)
-  ctx.fillStyle = 'white'; ctx.fillRect(0,0,w,h);
-  ctx.fillStyle = 'black'; ctx.font = '20px monospace';
-  ctx.fillText('TEST IMG', 50, 22);
-  const imgC = ctx.getImageData(0,0,w,h);
-
-  const tests = [
-    {name:'stripe', img: imgA},
-    {name:'checker', img: imgB},
-    {name:'text', img: imgC},
-  ];
-
-  // helper: convert to GS v0 m=0
-  function toGSv0(img, m=0){
-    const {width, height, data} = img;
-    const bytesPerRow = Math.ceil(width/8);
-    const header = [0x1D,0x76,0x30,m, bytesPerRow & 0xFF, (bytesPerRow>>8)&0xFF, height & 0xFF, (height>>8)&0xFF];
-    const body = [];
-    for (let y=0;y<height;y++){
-      for (let xb=0; xb<bytesPerRow; xb++){
-        let b=0;
-        for (let bit=0; bit<8; bit++){
-          const px = xb*8 + bit;
-          if (px >= width) continue;
-          const i = (y*width + px)*4;
-          const gray = (data[i]+data[i+1]+data[i+2])/3;
-          if (gray < 128) b |= (0x80>>bit);
-        }
-        body.push(b);
+        return true;
+      } catch (err) {
+        console.error("❌ Gagal kirim ke printer:", err);
+        return false;
       }
     }
-    return new Uint8Array([...header, ...body]);
-  }
 
-  // helper: ESC* 24-dot
-  function toESCstar(img){
-    const {width, height, data} = img;
-    const bytesPerRow = Math.ceil(width/8);
-    const out = [];
-    for (let y=0; y<height; y+=24){
-      const nL = bytesPerRow & 0xff, nH = (bytesPerRow>>8)&0xff;
-      out.push(0x1B,0x2A,0x21,nL,nH);
-      for (let xByte=0; xByte<bytesPerRow; xByte++){
-        for (let k=0;k<3;k++){
-          let byte=0;
-          for (let bit=0; bit<8; bit++){
-            const yy = y + k*8 + bit;
-            const px = xByte*8 + bit;
-            let bitVal = 0;
-            if (yy < height && px < width){
-              const i = (yy*width + px)*4;
-              const gray = (data[i]+data[i+1]+data[i+2])/3;
-              if (gray < 128) bitVal = 1;
-            }
-            byte |= (bitVal << (7-bit));
+    async function printText(text, align = 'left') {
+      const alignCode = align === 'center' ? 0x01 : align === 'right' ? 0x02 : 0x00;
+      await sendToPrinter(new Uint8Array([0x1B, 0x61, alignCode]));
+      const encoder = new TextEncoder('utf-8');
+      const data = encoder.encode(text + "\n");
+      return sendToPrinter(data);
+    }
+
+
+    /* ✅ Fungsi cetak barcode bitmap untuk Kassen MT200 */
+    async function printBarcodeAsImage(barcode) {
+      if (!printerCharacteristic) {
+        const ok = await connectPrinterBluetooth();
+        if (!ok) return false;
+      }
+
+      try {
+        const cleanBarcode = String(barcode).trim();
+
+        // 1️⃣ generate barcode ke canvas
+        const canvas = document.createElement('canvas');
+        bwipjs.toCanvas(canvas, {
+          bcid: 'code128', // format barcode
+          text: cleanBarcode,
+          scale: 6, // lebar batang (sesuaikan: makin besar makin tebal)
+          height: 18, // tinggi batang (sedikit lebih tinggi biar tajam)
+          includetext: false, // teks ditulis manual nanti
+          paddingwidth: 6, // sedikit jarak kiri kanan
+          paddingheight: 0 // 0 = rapet atas bawah
+        });
+
+        // 2️⃣ resize ke lebar printer 58mm (384px)
+        const targetWidth = 384;
+        const scale = targetWidth / canvas.width;
+        const targetHeight = Math.floor(canvas.height * scale);
+
+        const resized = document.createElement('canvas');
+        resized.width = targetWidth;
+        resized.height = targetHeight;
+        const ctx = resized.getContext('2d');
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, targetWidth, targetHeight);
+        ctx.drawImage(canvas, 0, 0, targetWidth, targetHeight);
+
+        const imageData = ctx.getImageData(0, 0, targetWidth, targetHeight);
+        const bytes = convertImageToRaster(imageData);
+
+        // 3️⃣ kirim ke printer
+        await sendToPrinter(new Uint8Array([0x1B, 0x61, 0x01])); // center align
+        await sendToPrinter(bytes);
+
+        // ❗kurangi feed agar rapet (dulu 0x0A, sekarang ganti jadi 0x0D = sedikit)
+        await sendToPrinter(new Uint8Array([0x0D])); // feed pendek
+
+        // 4️⃣ tampilkan kode barcode di bawah (font kecil + tengah)
+        await sendToPrinter(new Uint8Array([0x1B, 0x4D, 0x01])); // font kecil (B)
+        await printText(barcode, 'center');
+        await sendToPrinter(new Uint8Array([0x1B, 0x4D, 0x00])); // kembalikan ke font normal
+
+        return true;
+      } catch (err) {
+        console.error("❌ Gagal cetak barcode:", err);
+        return false;
+      }
+    }
+
+    function convertImageToRaster(imageData) {
+      const {
+        width,
+        height,
+        data
+      } = imageData;
+      const bytesPerRow = Math.ceil(width / 8);
+      const imageBytes = [];
+
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < bytesPerRow; x++) {
+          let byte = 0;
+          for (let bit = 0; bit < 8; bit++) {
+            const px = x * 8 + bit;
+            if (px >= width) continue;
+            const i = (y * width + px) * 4;
+            const gray = (data[i] + data[i + 1] + data[i + 2]) / 3;
+            if (gray < 128) byte |= (0x80 >> bit);
           }
-          out.push(byte);
+          imageBytes.push(byte);
         }
       }
-      out.push(0x0A);
-    }
-    return new Uint8Array(out);
-  }
 
-  // helper: Feie-like 0xA2 (msb-first)
-  function toFeieA2(img, flip=false){
-    const {width, height, data} = img;
-    const bytesPerRow = Math.ceil(width/8);
-    const body = [];
-    for (let y=0;y<height;y++){
-      for (let xb=0; xb<bytesPerRow; xb++){
-        let b = 0;
-        for (let bit=0; bit<8; bit++){
-          const px = xb*8 + bit;
-          if (px >= width) continue;
-          const i = (y*width + px)*4;
-          const gray = (data[i]+data[i+1]+data[i+2])/3;
-          const p = (gray<128)?1:0;
-          if (flip) b |= (p<<bit); else b |= (p << (7-bit));
-        }
-        body.push(b & 0xFF);
+      const pL = bytesPerRow & 0xff;
+      const pH = (bytesPerRow >> 8) & 0xff;
+      const yL = height & 0xff;
+      const yH = (height >> 8) & 0xff;
+      const header = [0x1D, 0x76, 0x30, 0x00, pL, pH, yL, yH];
+      return new Uint8Array([...header, ...imageBytes]);
+    }
+
+    /* 🔽 Event print utama — alur tetap sama */
+    document.addEventListener('DOMContentLoaded', () => {
+      document.querySelectorAll('.btnPrintRow').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const id = btn.dataset.id;
+          const jobOrder = btn.dataset.joborder;
+          const bucket = btn.dataset.bucket;
+          const po = btn.dataset.po;
+          const poItem = btn.dataset.poitem;
+          const model = btn.dataset.model;
+          const style = btn.dataset.style;
+          const ncvs = btn.dataset.ncvs;
+          const lot = JSON.parse(btn.dataset.lot || '[]');
+          const komponen = JSON.parse(btn.dataset.komponen || '{}');
+          const namaOutputArr = JSON.parse(btn.dataset.nama_komponen || '[]');
+          const barcode = btn.dataset.barcode;
+
+          if (!barcode) return alert('❌ Barcode kosong');
+
+          // susun teks
+          let printInfo = `${jobOrder} - ${po}-${poItem}\n`;
+          printInfo += `NCVS   : ${ncvs}\n`;
+          printInfo += `Bucket : ${bucket}\n`;
+          printInfo += `Model  : ${model}\n`;
+          printInfo += `Style  : ${style}\n`;
+          printInfo += `Lot    : ${Array.isArray(lot)?lot.join(', '):lot}\n`;
+
+          // 🟢 Tambahkan vendor di bawah Lot
+          const vendor = btn.dataset.vendor || "-";
+          if (vendor && vendor !== "-") {
+            printInfo += `Vendor : ${vendor}\n`;
+          }
+
+          printInfo += `-----------------------------\nKomponen & Qty:\n`;
+
+          for (const [nama, arr] of Object.entries(komponen)) {
+            printInfo += `${nama} : ${arr.join(', ')}\n`;
+          }
+          printInfo += `Output : ${namaOutputArr.length ? namaOutputArr.join(', '):'-'}\n`;
+          printInfo += `-----------------------------\n`;
+
+          // 1️⃣ Print teks
+          const okText = await printText(printInfo);
+          if (!okText) return alert('❌ Gagal print teks');
+
+          // 2️⃣ Cetak barcode
+          const okBarcode = await printBarcodeAsImage(barcode);
+          if (!okBarcode) return alert('❌ Gagal print barcode');
+
+          // 3️⃣ Feed kosong
+          await printText('\n\n\n');
+
+          // 4️⃣ Update counter (tidak diubah)
+          fetch('./../config/update_count_barcode.php', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/x-www-form-urlencoded'
+              },
+              body: `id_trans=${id}`
+            })
+            .then(res => res.json())
+            .then(data => {
+              if (data.success) {
+                const btnEl = document.querySelector(`.btnPrintRow[data-id='${id}']`);
+                if (btnEl) btnEl.innerHTML = `<i class="bi bi-upc-scan"></i> ${data.count}`;
+              }
+            }).catch(err => console.error('❌ Gagal update count:', err));
+
+          alert('✅ Print selesai!');
+        });
+      });
+    });
+  </script>
+
+  <script>
+    // Diagnostic printing: try several tiny patterns (8x8, stripe, checker)
+    // Call runPrintDiagnostics() from console (e.g. after connect).
+    async function runPrintDiagnostics() {
+      if (!printerCharacteristic) {
+        console.log('printer not connected - trying to connect...');
+        const okc = await connectPrinterBluetooth();
+        if (!okc) return console.log('connect failed');
       }
+      console.log('Running diagnostics: trying 3 patterns in multiple formats...');
+
+      // small black rectangle 384x32
+      const w = 384,
+        h = 32;
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+
+      // Pattern A: full black stripe
+      ctx.fillStyle = 'white';
+      ctx.fillRect(0, 0, w, h);
+      ctx.fillStyle = 'black';
+      ctx.fillRect(0, 4, w - 1, 24);
+      const imgA = ctx.getImageData(0, 0, w, h);
+
+      // Pattern B: checker 8x8
+      ctx.fillStyle = 'white';
+      ctx.fillRect(0, 0, w, h);
+      for (let y = 0; y < h; y += 8) {
+        for (let x = 0; x < w; x += 8) {
+          if (((x / 8) + (y / 8)) % 2 === 0) ctx.fillStyle = 'black';
+          else ctx.fillStyle = 'white';
+          ctx.fillRect(x, y, 8, 8);
+        }
+      }
+      const imgB = ctx.getImageData(0, 0, w, h);
+
+      // Pattern C: text big (draw text into canvas)
+      ctx.fillStyle = 'white';
+      ctx.fillRect(0, 0, w, h);
+      ctx.fillStyle = 'black';
+      ctx.font = '20px monospace';
+      ctx.fillText('TEST IMG', 50, 22);
+      const imgC = ctx.getImageData(0, 0, w, h);
+
+      const tests = [{
+          name: 'stripe',
+          img: imgA
+        },
+        {
+          name: 'checker',
+          img: imgB
+        },
+        {
+          name: 'text',
+          img: imgC
+        },
+      ];
+
+      // helper: convert to GS v0 m=0
+      function toGSv0(img, m = 0) {
+        const {
+          width,
+          height,
+          data
+        } = img;
+        const bytesPerRow = Math.ceil(width / 8);
+        const header = [0x1D, 0x76, 0x30, m, bytesPerRow & 0xFF, (bytesPerRow >> 8) & 0xFF, height & 0xFF, (height >> 8) & 0xFF];
+        const body = [];
+        for (let y = 0; y < height; y++) {
+          for (let xb = 0; xb < bytesPerRow; xb++) {
+            let b = 0;
+            for (let bit = 0; bit < 8; bit++) {
+              const px = xb * 8 + bit;
+              if (px >= width) continue;
+              const i = (y * width + px) * 4;
+              const gray = (data[i] + data[i + 1] + data[i + 2]) / 3;
+              if (gray < 128) b |= (0x80 >> bit);
+            }
+            body.push(b);
+          }
+        }
+        return new Uint8Array([...header, ...body]);
+      }
+
+      // helper: ESC* 24-dot
+      function toESCstar(img) {
+        const {
+          width,
+          height,
+          data
+        } = img;
+        const bytesPerRow = Math.ceil(width / 8);
+        const out = [];
+        for (let y = 0; y < height; y += 24) {
+          const nL = bytesPerRow & 0xff,
+            nH = (bytesPerRow >> 8) & 0xff;
+          out.push(0x1B, 0x2A, 0x21, nL, nH);
+          for (let xByte = 0; xByte < bytesPerRow; xByte++) {
+            for (let k = 0; k < 3; k++) {
+              let byte = 0;
+              for (let bit = 0; bit < 8; bit++) {
+                const yy = y + k * 8 + bit;
+                const px = xByte * 8 + bit;
+                let bitVal = 0;
+                if (yy < height && px < width) {
+                  const i = (yy * width + px) * 4;
+                  const gray = (data[i] + data[i + 1] + data[i + 2]) / 3;
+                  if (gray < 128) bitVal = 1;
+                }
+                byte |= (bitVal << (7 - bit));
+              }
+              out.push(byte);
+            }
+          }
+          out.push(0x0A);
+        }
+        return new Uint8Array(out);
+      }
+
+      // helper: Feie-like 0xA2 (msb-first)
+      function toFeieA2(img, flip = false) {
+        const {
+          width,
+          height,
+          data
+        } = img;
+        const bytesPerRow = Math.ceil(width / 8);
+        const body = [];
+        for (let y = 0; y < height; y++) {
+          for (let xb = 0; xb < bytesPerRow; xb++) {
+            let b = 0;
+            for (let bit = 0; bit < 8; bit++) {
+              const px = xb * 8 + bit;
+              if (px >= width) continue;
+              const i = (y * width + px) * 4;
+              const gray = (data[i] + data[i + 1] + data[i + 2]) / 3;
+              const p = (gray < 128) ? 1 : 0;
+              if (flip) b |= (p << bit);
+              else b |= (p << (7 - bit));
+            }
+            body.push(b & 0xFF);
+          }
+        }
+        const header = [0xA2, bytesPerRow & 0xFF, (bytesPerRow >> 8) & 0xFF, height & 0xFF, (height >> 8) & 0xFF];
+        return new Uint8Array([...header, ...body]);
+      }
+
+      // perform test: send each test as GSv0, ESC*, FeieA2
+      for (const t of tests) {
+        console.log('Testing pattern:', t.name);
+        const p1 = toGSv0(t.img, 0);
+        const p2 = toGSv0(t.img, 1);
+        const p3 = toESCstar(t.img);
+        const p4 = toFeieA2(t.img, false);
+        const p5 = toFeieA2(t.img, true);
+
+        const arr = [p1, p2, p3, p4, p5];
+        for (let i = 0; i < arr.length; i++) {
+          console.log(' sending format', i + 1, 'len', arr[i].length);
+          await sendToPrinter(new Uint8Array([0x1B, 0x61, 0x01])); // center
+          await sendToPrinter(arr[i]);
+          await sendToPrinter(new Uint8Array([0x0A]));
+          await new Promise(r => setTimeout(r, 300));
+        }
+
+        // wait a bit between patterns
+        await new Promise(r => setTimeout(r, 600));
+      }
+
+      console.log('Diagnostics done. Check printed patterns on paper.');
     }
-    const header = [0xA2, bytesPerRow & 0xFF, (bytesPerRow>>8)&0xFF, height & 0xFF, (height>>8)&0xFF];
-    return new Uint8Array([...header, ...body]);
-  }
-
-  // perform test: send each test as GSv0, ESC*, FeieA2
-  for (const t of tests) {
-    console.log('Testing pattern:', t.name);
-    const p1 = toGSv0(t.img, 0);
-    const p2 = toGSv0(t.img, 1);
-    const p3 = toESCstar(t.img);
-    const p4 = toFeieA2(t.img, false);
-    const p5 = toFeieA2(t.img, true);
-
-    const arr = [p1,p2,p3,p4,p5];
-    for (let i=0;i<arr.length;i++){
-      console.log(' sending format', i+1, 'len', arr[i].length);
-      await sendToPrinter(new Uint8Array([0x1B,0x61,0x01])); // center
-      await sendToPrinter(arr[i]);
-      await sendToPrinter(new Uint8Array([0x0A]));
-      await new Promise(r=>setTimeout(r, 300));
-    }
-
-    // wait a bit between patterns
-    await new Promise(r=>setTimeout(r, 600));
-  }
-
-  console.log('Diagnostics done. Check printed patterns on paper.');
-}
-
-</script>
-
-
-
-
-
+  </script>
 
   <script>
     $(function() {

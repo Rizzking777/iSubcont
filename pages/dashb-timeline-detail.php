@@ -485,8 +485,8 @@ $resultKekurangan = mysqli_query($conn, $queryKekurangan);
               $stages = [
                 'SCAN_IN_WAREHOUSE' => 'In Warehouse',
                 'SCAN_OUT_TO_VENDOR' => 'Out WH to Vendor',
-                'SCAN_IN_VENDOR' => 'In Vendor',
-                'SCAN_OUT_VENDOR' => 'Out Vendor',
+                // 'SCAN_IN_VENDOR' => 'In Vendor',
+                // 'SCAN_OUT_VENDOR' => 'Out Vendor',
                 'SCAN_IN_INCOMING' => 'Incoming WH',
                 'SCAN_CHECK_QC' => 'Check QC',
                 'SCAN_OUT_TO_PRODUCTION' => 'Out to Production'
@@ -571,6 +571,44 @@ $resultKekurangan = mysqli_query($conn, $queryKekurangan);
                 $etaDays = max(1, $remainingStages * 1);
               }
 
+              // === Hitung jumlah qty per stage berdasarkan komponen_qty ===
+              $stageCounts = array_fill_keys(array_keys($stages), 0);
+
+              mysqli_data_seek($resultLog, 0);
+              while ($log = mysqli_fetch_assoc($resultLog)) {
+                // Filter id_trans sesuai filter
+                if (!empty($idTransArray) && !in_array(intval($log['id_trans']), $idTransArray)) continue;
+
+                $newData = json_decode($log['new_data'], true);
+                if (empty($newData)) continue;
+
+                $typeScan = strtoupper(trim($newData['type_scan'] ?? $log['type_scan'] ?? $log['action_type'] ?? ''));
+                if (empty($typeScan) || !isset($stageCounts[$typeScan])) continue;
+
+                // Ambil komponen_qty
+                if (!empty($newData['komponen_qty'])) {
+                  $komponenList = json_decode($newData['komponen_qty'], true);
+                  if (is_array($komponenList)) {
+                    foreach ($komponenList as $komp) {
+                      $qty = intval($komp['qty'] ?? 0);
+                      $stageCounts[$typeScan] += $qty;
+                    }
+                  }
+                }
+              }
+
+              // Hitung total order dari tbl_master_data berdasarkan job_order
+              $stmt = $conn->prepare("SELECT SUM(qty) AS total_order FROM tbl_master_data WHERE job_order = ?");
+              $stmt->bind_param("s", $job_order);
+              $stmt->execute();
+              $resultTotal = $stmt->get_result();
+              $totalOrder = $resultTotal->fetch_assoc()['total_order'] ?? 0;
+
+              // Hitung persentase tiap stage
+              $stagePercents = [];
+              foreach ($stageCounts as $stageKey => $count) {
+                $stagePercents[$stageKey] = $totalOrder > 0 ? round(($count / $totalOrder) * 100, 2) : 0;
+              }
               ?>
 
               <!-- Bagian Header -->
@@ -595,57 +633,43 @@ $resultKekurangan = mysqli_query($conn, $queryKekurangan);
                   </div>
                 </div>
 
-                <div class="col-md-4 text-md-end">
-                  <?php if ($completedCount == 0): ?>
-                    <div class="text-muted">Belum mulai proses</div>
-
-                  <?php elseif ($hasPendingKekurangan): ?>
-                    <div><strong><?= $progressPercent ?>%</strong> to Complete</div>
-                    <div class="text-warning">
-                      ⚠️ Ada kekurangan yang belum dikonfirmasi.
-                    </div>
-
-                  <?php elseif ($completedCount >= $totalStages): ?>
-                    <div><strong>100%</strong> to Complete</div>
-                    <div class="text-success">All Stages Complete.</div>
-
-                  <?php else: ?>
-                    <div><strong><?= $progressPercent ?>%</strong> to Complete</div>
-                    <?php if (!empty($nextStage)): ?>
-                      <div class="text-muted">
-                        ETA: <?= $etaDays ?> Days to <?= htmlspecialchars($nextStage) ?>
-                      </div>
-                    <?php else: ?>
-                      <div class="text-muted">Menunggu proses berikutnya.</div>
-                    <?php endif; ?>
-                  <?php endif; ?>
-                </div>
               </div>
 
               <!-- Timeline -->
               <div class="timeline-container">
                 <?php foreach ($stages as $key => $label):
+                  $percent = $stagePercents[$key] ?? 0;
                   $class = '';
-                  $icon = '<i class="bi bi-circle text-secondary"></i>';
+                  $icon = '<i class="bi bi-circle text-secondary"></i>'; // default abu-abu
 
-                  if (in_array($key, $completedStages)) {
+                  if ($percent >= 100) {
+                    // ✅ Stage selesai
                     $class = 'completed';
                     $icon = '<i class="bi bi-check-circle-fill text-success"></i>';
-                  }
-
-                  if (isset($stageKeys[$completedCount]) && $key === $stageKeys[$completedCount]) {
-                    $class = 'active';
-                    $icon = '<i class="bi bi-hourglass-split text-primary"></i>';
-                  }
-
-                  if (in_array($key, $pendingGates)) {
+                  } elseif ($percent > 0 && $percent < 100) {
+                    // ⚠️ Stage belum lengkap (progress tapi belum 100%)
                     $class = 'warning';
                     $icon = '<i class="bi bi-exclamation-triangle-fill text-warning"></i>';
+                  } elseif ($percent == 0 && isset($stageKeys[$completedCount]) && $key === $stageKeys[$completedCount]) {
+                    // ⏳ Stage aktif saat ini
+                    $class = 'active';
+                    $icon = '<i class="bi bi-hourglass-split text-primary"></i>';
                   }
                 ?>
                   <div class="timeline-step <?= $class ?>">
                     <div class="timeline-circle"><?= $icon ?></div>
-                    <div class="timeline-label"><?= htmlspecialchars($label) ?></div>
+                    <div class="timeline-label text-center">
+  <div class="fw-bold" style="font-size: 1rem;">
+    <?= htmlspecialchars($label) ?>
+  </div>
+  <div class="fw-bold 
+      <?= $percent >= 100 ? 'text-success' : 
+         ($percent > 0 ? 'text-warning' : 'text-muted') ?>"
+       style="font-size: 1.1rem;">
+    <?= $percent ?>%
+  </div>
+</div>
+
                   </div>
                 <?php endforeach; ?>
               </div>
@@ -850,306 +874,6 @@ $resultKekurangan = mysqli_query($conn, $queryKekurangan);
         });
         toast.show();
       }
-    });
-  </script>
-
-
-  <script>
-    document.addEventListener('DOMContentLoaded', function() {
-
-      <?php foreach ($result_transaksi as $row): ?>
-        const modal<?= $row['id_trans']; ?> = document.getElementById('barcodeModal<?= $row['id_trans']; ?>');
-        let qrGenerated<?= $row['id_trans']; ?> = false;
-
-        modal<?= $row['id_trans']; ?>.addEventListener('shown.bs.modal', function() {
-          if (!qrGenerated<?= $row['id_trans']; ?>) {
-            new QRCode(document.getElementById('qrcode<?= $row['id_trans']; ?>'), {
-              text: "<?= $row['barcode']; ?>",
-              width: 60,
-              height: 60
-            });
-            qrGenerated<?= $row['id_trans']; ?> = true;
-          }
-        });
-      <?php endforeach; ?>
-
-      // Print via Web Bluetooth MT200
-      document.querySelectorAll('.printNow').forEach(btn => {
-        btn.addEventListener('click', async function() {
-          const id = this.dataset.id;
-          const barcode = this.dataset.barcode;
-
-          try {
-            // 1. Pilih printer MT200
-            const device = await navigator.bluetooth.requestDevice({
-              filters: [{
-                namePrefix: 'MT200'
-              }],
-              optionalServices: [0xFFE0]
-            });
-
-            const server = await device.gatt.connect();
-            const service = await server.getPrimaryService(0xFFE0);
-            const characteristic = await service.getCharacteristic(0xFFE1);
-
-            // 2. Ambil data dari modal
-            const modalBody = document.getElementById('barcodeModal' + id).querySelector('.modal-body');
-
-            // Ambil teks info
-            let lines = [];
-            const infoDivs = modalBody.querySelectorAll('div > div, div'); // ambil semua info
-            infoDivs.forEach(d => {
-              const text = d.innerText.trim();
-              if (text) lines.push(text);
-            });
-            const infoText = lines.join('\n') + '\n\n';
-
-            // 3. Generate QR code canvas
-            const qrCanvas = modalBody.querySelector('canvas, img'); // QR code di modal
-            let qrData = null;
-
-            if (qrCanvas) {
-              const canvas = qrCanvas.tagName === 'CANVAS' ? qrCanvas : qrCanvas;
-              qrData = canvas.toDataURL('image/png'); // base64
-            }
-
-            // 4. Encode ESC/POS
-            function encodeText(str) {
-              return new TextEncoder().encode(str);
-            }
-
-            // Kirim info text
-            await characteristic.writeValue(encodeText(infoText));
-
-            // Kirim QR image jika printer support (MT200 ESC/POS)
-            if (qrData) {
-              const res = await fetch(qrData);
-              const blob = await res.blob();
-              const arrayBuffer = await blob.arrayBuffer();
-              await characteristic.writeValue(new Uint8Array(arrayBuffer));
-            }
-
-            alert('Print berhasil!');
-
-            // 5. Update count_barcode via AJAX
-            fetch('./../config/update_count_barcode.php', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/x-www-form-urlencoded'
-              },
-              body: `id_trans=${id}`
-            }).then(res => res.json()).then(data => {
-              if (data.success) {
-                const btnEl = document.querySelector(`.printBtn[data-id='${id}']`);
-                if (btnEl) btnEl.innerHTML = `<i class="bi bi-upc-scan"></i> ${data.count}`;
-              }
-            });
-
-          } catch (err) {
-            console.error('Gagal print via Bluetooth:', err);
-            alert('Tidak dapat terhubung ke printer MT200. Pastikan printer menyala dan Bluetooth aktif.');
-          }
-        });
-      });
-
-    });
-  </script>
-
-  <script>
-    $(function() {
-      // ==============================
-      // Job Order Select2 dengan AJAX Search
-      // ==============================
-      $('#job_order').select2({
-        width: "100%",
-        dropdownParent: $("#tambahTransaksi"),
-        placeholder: "Cari Job Order...",
-        allowClear: true,
-        minimumInputLength: 1,
-        ajax: {
-          url: "./../config/ajax.php",
-          type: "POST",
-          dataType: "json",
-          delay: 250,
-          data: function(params) {
-            return {
-              action: "searchJobOrder",
-              search: params.term
-            };
-          },
-          processResults: function(data) {
-            return {
-              results: data.job_order || []
-            };
-          }
-        }
-      });
-
-      // Autofocus search ketika select2 dibuka
-      $(document).on('select2:open', function() {
-        const $search = $('.select2-container--open .select2-search__field');
-        if ($search.length) $search.focus();
-      });
-
-      // ==============================
-      // Autofill fields dari JobOrder
-      // ==============================
-      $('#job_order').on('change select2:select', function() {
-        let jobOrder = $(this).val();
-        if (!jobOrder) return;
-
-        $.post("./../config/ajax.php", {
-          action: "getJobOrderDetail",
-          job_order: jobOrder
-        }, function(res) {
-          if (res.success) {
-            $('#bucket').val(res.data.bucket).prop("readonly", true);
-            $('#po_code').val(res.data.po_code).prop("readonly", true);
-            $('#po_item').val(res.data.po_item).prop("readonly", true);
-            $('#model').val(res.data.model).prop("readonly", true);
-            $('#style').val(res.data.style).prop("readonly", true);
-            $('#ncvs').val(res.data.ncvs).prop("readonly", true);
-            // ❌ jangan isi lot, biar manual
-          } else {
-            alert(res.error || "Data Job Order tidak ditemukan");
-          }
-        }, "json");
-      });
-
-      // ==============================
-      // Fungsi bikin Select2 Komponen & Size (AJAX)
-      // ==============================
-      function initKomponenSelect($el) {
-        $el.select2({
-          width: "100%",
-          dropdownParent: $("#tambahTransaksi"),
-          placeholder: "Cari Komponen...",
-          allowClear: true,
-          minimumInputLength: 1,
-          ajax: {
-            url: "./../config/ajax.php",
-            type: "POST",
-            dataType: "json",
-            delay: 250,
-            data: function(params) {
-              return {
-                action: "searchKomponen",
-                model: $("#model").val(),
-                search: params.term
-              };
-            },
-            processResults: function(data) {
-              return {
-                results: data.komponen || []
-              };
-            }
-          }
-        });
-      }
-
-      function initSizeSelect($el) {
-        $el.select2({
-          width: "100%",
-          dropdownParent: $("#tambahTransaksi"),
-          placeholder: "Cari Size...",
-          allowClear: true,
-          minimumInputLength: 1,
-          ajax: {
-            url: "./../config/ajax.php",
-            type: "POST",
-            dataType: "json",
-            delay: 250,
-            data: function(params) {
-              return {
-                action: "searchSize",
-                job_order: $("#job_order").val(),
-                search: params.term
-              };
-            },
-            processResults: function(data) {
-              return {
-                results: data.sizes || []
-              };
-            }
-          }
-        });
-      }
-
-      // ==============================
-      // Add Komponen Row
-      // ==============================
-      $('#addKomponenBtn').on('click', function() {
-        const $row = $(`
-      <div class="row g-3 mb-2 komponen-row">
-        <div class="col-md-4">
-          <select name="komponen[]" class="form-control komponen-select" required></select>
-        </div>
-        <div class="col-md-4">
-          <select name="size[]" class="form-control size-select" required></select>
-        </div>
-        <div class="col-md-3">
-          <input type="number" name="qty[]" class="form-control" placeholder="Input qty" required>
-        </div>
-        <div class="col-md-1 d-flex align-items-end">
-          <button type="button" class="btn btn-danger btn-sm removeKomponenBtn"><i class="bi bi-trash"></i></button>
-        </div>
-      </div>
-    `);
-
-        $('#komponenContainer').append($row);
-
-        // init select2 untuk row baru
-        initKomponenSelect($row.find('.komponen-select'));
-        initSizeSelect($row.find('.size-select'));
-      });
-
-      // Remove row
-      $(document).on('click', '.removeKomponenBtn', function() {
-        $(this).closest('.komponen-row').remove();
-      });
-
-      // ==============================
-      // Init row pertama (yang sudah ada di HTML)
-      // ==============================
-      initKomponenSelect($('.komponen-select'));
-      initSizeSelect($('.size-select'));
-    });
-  </script>
-
-  <script>
-    // ===============================
-    // Fungsi parsing lot
-    // ===============================
-    function parseLotInput(input) {
-      let lots = [];
-      let parts = input.split(",");
-      parts.forEach(part => {
-        part = part.trim();
-        if (part.includes("-")) {
-          let [start, end] = part.split("-").map(Number);
-          for (let i = start; i <= end; i++) {
-            lots.push(i);
-          }
-        } else if (part) {
-          lots.push(Number(part));
-        }
-      });
-      return [...new Set(lots)].sort((a, b) => a - b);
-    }
-
-    // Contoh validasi sebelum submit
-    $("#formTransaksi").on("submit", function(e) {
-      let lotInput = $("#lot").val();
-      let lots = parseLotInput(lotInput);
-
-      if (lots.length === 0) {
-        e.preventDefault();
-        alert("Lot tidak boleh kosong atau salah format!");
-        return;
-      }
-
-      console.log("Lot final:", lots);
-      // boleh lanjut submit
     });
   </script>
 
