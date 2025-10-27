@@ -22,7 +22,44 @@ $job_order = mysqli_real_escape_string($conn, $job_order);
 // ===== Lot =====
 $lotArray = [];
 if (!empty($lotParam)) {
-  $lotArray = array_filter(array_map('trim', explode(',', $lotParam)), fn($v) => $v !== '');
+  $parts = array_map('trim', explode(',', $lotParam)); // masih support koma juga
+  foreach ($parts as $p) {
+    if (str_contains($p, '-')) {
+      [$start, $end] = array_map('intval', explode('-', $p));
+      if ($start <= $end) {
+        $lotArray = array_merge($lotArray, range($start, $end));
+      }
+    } else {
+      $lotArray[] = intval($p);
+    }
+  }
+  $lotArray = array_unique($lotArray); // hapus duplikat
+}
+
+function lotArrayToRanges(array $arr): string
+{
+  if (empty($arr)) return '';
+
+  sort($arr, SORT_NUMERIC); // Urutkan angka
+  $ranges = [];
+  $start = $prev = $arr[0];
+
+  for ($i = 1; $i < count($arr); $i++) {
+    $num = $arr[$i];
+    if ($num == $prev + 1) {
+      // Masih berurutan
+      $prev = $num;
+    } else {
+      // Range selesai
+      $ranges[] = ($start == $prev) ? $start : "$start-$prev";
+      $start = $prev = $num;
+    }
+  }
+
+  // Tambahkan range terakhir
+  $ranges[] = ($start == $prev) ? $start : "$start-$prev";
+
+  return implode(',', $ranges);
 }
 
 // ===== ID Trans =====
@@ -552,7 +589,10 @@ $resultKekurangan = mysqli_query($conn, $queryKekurangan);
 
               $progressPercent = $totalStages > 0 ? round(($completedCount / $totalStages) * 100) : 0;
               if ($progressPercent > 100) $progressPercent = 100;
-              if ($hasPendingKekurangan && $progressPercent >= 100) $progressPercent = 90;
+              if ($hasPendingKekurangan && $completedCount >= $totalStages) {
+                // Batasi hanya kalau benar-benar ada stage lengkap tapi pending
+                $progressPercent = 90;
+              }
 
               // 🔹 Tentukan next stage & ETA
               $nextStage = null;
@@ -571,44 +611,97 @@ $resultKekurangan = mysqli_query($conn, $queryKekurangan);
                 $etaDays = max(1, $remainingStages * 1);
               }
 
-              // === Hitung jumlah qty per stage berdasarkan komponen_qty ===
+              // 🔹 Hitung jumlah qty per stage berdasarkan komponen_qty
               $stageCounts = array_fill_keys(array_keys($stages), 0);
 
-              mysqli_data_seek($resultLog, 0);
-              while ($log = mysqli_fetch_assoc($resultLog)) {
-                // Filter id_trans sesuai filter
-                if (!empty($idTransArray) && !in_array(intval($log['id_trans']), $idTransArray)) continue;
-
-                $newData = json_decode($log['new_data'], true);
-                if (empty($newData)) continue;
-
-                $typeScan = strtoupper(trim($newData['type_scan'] ?? $log['type_scan'] ?? $log['action_type'] ?? ''));
-                if (empty($typeScan) || !isset($stageCounts[$typeScan])) continue;
-
-                // Ambil komponen_qty
-                if (!empty($newData['komponen_qty'])) {
-                  $komponenList = json_decode($newData['komponen_qty'], true);
-                  if (is_array($komponenList)) {
-                    foreach ($komponenList as $komp) {
-                      $qty = intval($komp['qty'] ?? 0);
-                      $stageCounts[$typeScan] += $qty;
-                    }
-                  }
-                }
-              }
-
-              // Hitung total order dari tbl_master_data berdasarkan job_order
+              // Ambil total order
               $stmt = $conn->prepare("SELECT SUM(qty) AS total_order FROM tbl_master_data WHERE job_order = ?");
               $stmt->bind_param("s", $job_order);
               $stmt->execute();
               $resultTotal = $stmt->get_result();
               $totalOrder = $resultTotal->fetch_assoc()['total_order'] ?? 0;
 
-              // Hitung persentase tiap stage
-              $stagePercents = [];
-              foreach ($stageCounts as $stageKey => $count) {
-                $stagePercents[$stageKey] = $totalOrder > 0 ? round(($count / $totalOrder) * 100, 2) : 0;
+              // Loop log sekali saja untuk menghitung qty tiap stage
+              mysqli_data_seek($resultLog, 0);
+              while ($log = mysqli_fetch_assoc($resultLog)) {
+                if (!empty($idTransArray) && !in_array(intval($log['id_trans']), $idTransArray)) continue;
+
+                $newData = json_decode($log['new_data'], true);
+                $typeScan = strtoupper(trim($newData['type_scan'] ?? $log['type_scan'] ?? $log['action_type'] ?? ''));
+                if (empty($typeScan) || !isset($stageCounts[$typeScan])) continue;
+
+                $qty = 0;
+
+                // Ambil qty dari komponen_qty
+                if (!empty($newData['komponen_qty'])) {
+                  $komponenList = json_decode($newData['komponen_qty'], true);
+                  if (is_array($komponenList)) {
+                    foreach ($komponenList as $komp) {
+                      $qty += intval($komp['qty'] ?? 0);
+                    }
+                  }
+                }
+
+                // Tambahkan qty dari kekurangan yang sudah confirmed
+                if (!empty($resultKekurangan)) {
+                  mysqli_data_seek($resultKekurangan, 0);
+                  while ($kr = mysqli_fetch_assoc($resultKekurangan)) {
+                    if (strtoupper(trim($kr['tk_status'])) === 'CONFIRMED' && strtoupper(trim($kr['last_gate'])) === $typeScan) {
+                      $qty += intval($kr['total_kekurangan'] ?? 0);
+                    }
+                  }
+                  mysqli_data_seek($resultKekurangan, 0);
+                }
+
+                $stageCounts[$typeScan] += $qty;
               }
+
+              // 🔹 Hitung persentase tiap stage (maks 100%) dengan aturan khusus
+              $stagePercents = [];
+              foreach ($stages as $stageKey => $label) {
+                if (in_array($stageKey, $completedStages)) {
+                  // Stage sudah dilewati log → 100% jika tidak ada kekurangan
+                  if (!empty($resultKekurangan)) {
+                    mysqli_data_seek($resultKekurangan, 0);
+                    $hasPendingForStage = false;
+                    while ($kr = mysqli_fetch_assoc($resultKekurangan)) {
+                      if (strtoupper(trim($kr['last_gate'])) === $stageKey && strtoupper(trim($kr['tk_status'])) !== 'CONFIRMED') {
+                        $hasPendingForStage = true;
+                        break;
+                      }
+                    }
+                    mysqli_data_seek($resultKekurangan, 0);
+                  } else {
+                    $hasPendingForStage = false;
+                  }
+
+                  if ($hasPendingForStage) {
+                    $percent = isset($stageCounts[$stageKey]) && $totalOrder > 0 ? round(($stageCounts[$stageKey] / $totalOrder) * 100, 2) : 0;
+                  } else {
+                    $percent = 100;
+                  }
+                } else {
+                  // Stage belum dilewati → hitung proporsi berdasarkan qty
+                  $percent = isset($stageCounts[$stageKey]) && $totalOrder > 0 ? round(($stageCounts[$stageKey] / $totalOrder) * 100, 2) : 0;
+                }
+
+                $stagePercents[$stageKey] = min(100, $percent);
+              }
+
+              // 🔹 Hitung persentase cumulative khusus untuk stage terakhir (Out to Production)
+              $lastStageKey = array_key_last($stages);
+              if ($lastStageKey === 'SCAN_OUT_TO_PRODUCTION') {
+                $cumulative = 1;
+                foreach ($stagePercents as $key => $percent) {
+                  if ($key === $lastStageKey) break; // stop sebelum out to production
+                  $cumulative *= ($percent / 100);
+                }
+
+                // Hasil perkalian semua stage sebelumnya → jadi faktor pembatas stage terakhir
+                $stagePercents[$lastStageKey] = round($cumulative * 100, 2);
+              }
+
+
               ?>
 
               <!-- Bagian Header -->
@@ -622,7 +715,7 @@ $resultKekurangan = mysqli_query($conn, $queryKekurangan);
 
                   <div><strong>Lot:</strong>
                     <?= !empty($lotArray)
-                      ? htmlspecialchars(implode(', ', $lotArray))
+                      ? htmlspecialchars(lotArrayToRanges($lotArray))
                       : '<span class="text-muted">-</span>' ?>
                   </div>
 
@@ -659,16 +752,15 @@ $resultKekurangan = mysqli_query($conn, $queryKekurangan);
                   <div class="timeline-step <?= $class ?>">
                     <div class="timeline-circle"><?= $icon ?></div>
                     <div class="timeline-label text-center">
-  <div class="fw-bold" style="font-size: 1rem;">
-    <?= htmlspecialchars($label) ?>
-  </div>
-  <div class="fw-bold 
-      <?= $percent >= 100 ? 'text-success' : 
-         ($percent > 0 ? 'text-warning' : 'text-muted') ?>"
-       style="font-size: 1.1rem;">
-    <?= $percent ?>%
-  </div>
-</div>
+                      <div class="fw-bold" style="font-size: 1rem;">
+                        <?= htmlspecialchars($label) ?>
+                      </div>
+                      <div class="fw-bold 
+                          <?= $percent >= 100 ? 'text-success' : ($percent > 0 ? 'text-warning' : 'text-muted') ?>"
+                        style="font-size: 1.1rem;">
+                        <?= $percent ?>%
+                      </div>
+                    </div>
 
                   </div>
                 <?php endforeach; ?>

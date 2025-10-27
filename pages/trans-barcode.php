@@ -160,6 +160,86 @@ $vendors_per_model = !empty($vendors_all) ? implode(', ', $vendors_all) : '-';
       top: 0;
     }
   }
+
+  .komponen-block {
+    text-align: center;
+    /* Biar semua isi di dalam card center */
+  }
+
+  .komponen-block .d-flex {
+    justify-content: center;
+    /* Posisikan semua size box ke tengah */
+  }
+
+  .size-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    /* Tengah vertikal */
+    min-width: 50px;
+  }
+
+  .size-box .fw-semibold {
+    font-size: 0.8rem;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+
+  .qty-input {
+    width: auto;
+    min-width: 50px;
+    max-width: 70px;
+    padding: 3px 5px;
+    font-size: 0.8rem;
+    text-align: center;
+  }
+
+  .fade-in {
+    animation: fadeIn 0.3s ease-in-out;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(-4px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .truncate-text {
+    display: inline-block;
+    max-width: 350px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+    color: #0d6efd;
+    position: relative;
+  }
+
+  .truncate-text:hover {
+    text-decoration: underline;
+  }
+
+  .full-popup {
+    position: absolute;
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    padding: 8px 10px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    z-index: 99999;
+    width: 320px;
+    font-size: 0.9rem;
+    color: #212529;
+    display: none;
+    word-wrap: break-word;
+  }
 </style>
 
 <!DOCTYPE html>
@@ -257,7 +337,7 @@ $vendors_per_model = !empty($vendors_all) ? implode(', ', $vendors_all) : '-';
                   <select id="job_order" name="job_order" class="form-control select2" required></select>
                 </div>
                 <div class="col-md-6">
-                  <label for="bucket" class="form-label">Bucket<span class="text-danger">*</span></label>
+                  <label for="bucket" class="form-label">Bucket</label>
                   <input type="text" id="bucket" name="bucket" class="form-control" readonly>
                 </div>
               </div>
@@ -265,11 +345,11 @@ $vendors_per_model = !empty($vendors_all) ? implode(', ', $vendors_all) : '-';
               <!-- Section 2: PO Info -->
               <div class="row g-3 mb-3">
                 <div class="col-md-6">
-                  <label for="po_code" class="form-label">PO Code<span class="text-danger">*</span></label>
+                  <label for="po_code" class="form-label">PO Code</label>
                   <input type="text" id="po_code" name="po_code" class="form-control" readonly>
                 </div>
                 <div class="col-md-6">
-                  <label for="po_item" class="form-label">PO Item<span class="text-danger">*</span></label>
+                  <label for="po_item" class="form-label">PO Item</label>
                   <input type="text" id="po_item" name="po_item" class="form-control" readonly>
                 </div>
               </div>
@@ -277,62 +357,37 @@ $vendors_per_model = !empty($vendors_all) ? implode(', ', $vendors_all) : '-';
               <!-- Section 3: Product Info -->
               <div class="row g-3 mb-3">
                 <div class="col-md-6">
-                  <label for="model" class="form-label">Model<span class="text-danger">*</span></label>
+                  <label for="model" class="form-label">Model</label>
                   <input type="text" id="model" name="model" class="form-control" readonly>
                 </div>
                 <div class="col-md-6">
-                  <label for="style" class="form-label">Style<span class="text-danger">*</span></label>
+                  <label for="style" class="form-label">Style</label>
                   <input type="text" id="style" name="style" class="form-control" readonly>
                 </div>
               </div>
 
               <div class="row g-3 mb-3">
                 <div class="col-md-6">
-                  <label for="ncvs" class="form-label">NCVS<span class="text-danger">*</span></label>
+                  <label for="ncvs" class="form-label">NCVS</label>
                   <input type="text" id="ncvs" name="ncvs" class="form-control" readonly>
                 </div>
                 <div class="col-md-6">
                   <label for="lot" class="form-label">Lot<span class="text-danger">*</span></label>
-                  <input id="lot" name="lot" type="text" class="form-control" placeholder="contoh: 1-8,10,12">
+                  <input id="lot" name="lot" type="text" class="form-control" placeholder="contoh: 1-8,10,12. Pastikan lot sesuai.">
                 </div>
               </div>
 
               <!-- Section 5: Komponen + Size + Qty -->
               <div class="mb-3">
-                <button type="button" id="addKomponenBtn" class="btn btn-secondary d-flex align-items-center mb-2">
-                  <i class="bi bi-plus-circle me-1"></i> <span>Komponen</span>
-                </button>
+                <label class="form-label fw-semibold">Komponen, Size & Quantity</label>
+                <p class="text-muted mb-2" style="font-size: 0.85rem;">
+                  Data komponen dan size akan muncul otomatis berdasarkan <strong>Job Order</strong>.
+                  Silakan sesuaikan nilai <strong>Qty</strong> dengan barang / komponen yang diterima.
+                </p>
 
-                <div id="komponenContainer">
-                  <div class="row g-3 mb-2 komponen-row">
-                    <!-- Komponen -->
-                    <div class="col-md-4">
-                      <label class="form-label">Komponen<span class="text-danger">*</span></label>
-                      <select name="komponen[]" class="form-control select2 komponen-select" required>
-                        <option value="">Pilih Komponen</option>
-                      </select>
-                    </div>
-
-                    <!-- Size -->
-                    <div class="col-md-4">
-                      <label class="form-label">Size<span class="text-danger">*</span></label>
-                      <select name="size[]" class="form-control select2 size-select" required>
-                        <option value="">Pilih Size</option>
-                      </select>
-                    </div>
-
-                    <!-- Qty -->
-                    <div class="col-md-3">
-                      <label class="form-label">Quantity<span class="text-danger">*</span></label>
-                      <input type="number" name="qty[]" class="form-control" placeholder="Input qty" required>
-                    </div>
-
-                    <!-- Remove -->
-                    <div class="col-md-1 d-flex align-items-end">
-                      <button type="button" class="btn btn-danger btn-sm removeKomponenBtn">
-                        <i class="bi bi-trash"></i>
-                      </button>
-                    </div>
+                <div id="komponenContainer" class="border rounded p-3 bg-light" style="max-height: 400px; overflow-y: auto;">
+                  <div class="text-center text-muted">
+                    <em>Silakan pilih Job Order terlebih dahulu...</em>
                   </div>
                 </div>
               </div>
@@ -344,9 +399,10 @@ $vendors_per_model = !empty($vendors_all) ? implode(', ', $vendors_all) : '-';
               <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
                 <i class="bi bi-x-circle me-1"></i> Batal
               </button>
-              <button type="submit" class="btn btn-success" name="submit-transaksi">
+              <button type="submit" id="btnSimpan" class="btn btn-success" name="submit-transaksi" disabled>
                 <i class="bi bi-check-circle me-1"></i> Simpan
               </button>
+
             </div>
           </form>
         </div>
@@ -427,7 +483,34 @@ $vendors_per_model = !empty($vendors_all) ? implode(', ', $vendors_all) : '-';
                       <td>
                         <?php
                         $lots = json_decode($row["lot"], true);
-                        echo is_array($lots) ? implode(", ", $lots) : htmlspecialchars($row["lot"]);
+
+                        if (is_array($lots) && !empty($lots)) {
+                          // pastikan array berisi angka & urut
+                          $lots = array_map('intval', $lots);
+                          sort($lots);
+
+                          $ranges = [];
+                          $start = $lots[0];
+                          $prev = $lots[0];
+
+                          for ($i = 1; $i < count($lots); $i++) {
+                            $curr = $lots[$i];
+                            // kalau jeda (tidak berurutan), tutup range
+                            if ($curr != $prev + 1) {
+                              $ranges[] = ($start == $prev) ? "$start" : "$start-$prev";
+                              $start = $curr;
+                            }
+                            $prev = $curr;
+                          }
+
+                          // tambahkan range terakhir
+                          $ranges[] = ($start == $prev) ? "$start" : "$start-$prev";
+
+                          // tampilkan hasilnya
+                          echo htmlspecialchars(implode(", ", $ranges));
+                        } else {
+                          echo htmlspecialchars($row["lot"]);
+                        }
                         ?>
                       </td>
 
@@ -438,9 +521,8 @@ $vendors_per_model = !empty($vendors_all) ? implode(', ', $vendors_all) : '-';
 
                         if ($komponen_qty && is_array($komponen_qty)) {
                           // ambil daftar ID komponen unik
-                          $ids = array_values(array_unique(array_map(function ($i) {
-                            return (int)$i['komponen'];
-                          }, $komponen_qty)));
+                          $ids = array_values(array_unique(array_map(fn($i) => (int)$i['komponen'], $komponen_qty)));
+
                           $mapKomponen = [];
                           if (!empty($ids)) {
                             $id_list = implode(",", $ids);
@@ -451,11 +533,11 @@ $vendors_per_model = !empty($vendors_all) ? implode(', ', $vendors_all) : '-';
                             }
                           }
 
-                          // group per komponen -> array of [size, qty]
+                          // group per komponen
                           $grouped = [];
                           foreach ($komponen_qty as $kq) {
                             $id_komp = (int)($kq['komponen'] ?? 0);
-                            $size = isset($kq['size']) ? (string)$kq['size'] : '-';
+                            $size = $kq['size'] ?? '-';
                             $qty = (int)($kq['qty'] ?? 0);
                             $grouped[$id_komp][] = ['size' => $size, 'qty' => $qty];
                           }
@@ -463,11 +545,19 @@ $vendors_per_model = !empty($vendors_all) ? implode(', ', $vendors_all) : '-';
                           echo "<ul class='list-unstyled m-0'>";
                           foreach ($grouped as $id => $items) {
                             $nama = htmlspecialchars($mapKomponen[$id] ?? "Unknown");
-                            $parts = [];
-                            foreach ($items as $it) {
-                              $parts[] = htmlspecialchars($it['size']) . " (" . intval($it['qty']) . ")";
-                            }
-                            echo "<li><strong>{$nama} :</strong> " . implode(", ", $parts) . "</li>";
+
+                            // gabung semua size + qty
+                            $parts = array_map(fn($it) => htmlspecialchars($it['size']) . " (" . intval($it['qty']) . ")", $items);
+                            $full_text = implode(", ", $parts);
+
+                            // tampilkan versi pendek (misal cuma 5 item pertama)
+                            $preview = array_slice($parts, 0, 5);
+                            $preview_text = implode(", ", $preview);
+                            if (count($parts) > 5) $preview_text .= " ...";
+
+                            echo "<li><strong>{$nama} :</strong> ";
+                            echo "<span class='truncate-text' onclick='toggleFullText(this)' data-full=\"" . htmlspecialchars($full_text) . "\">{$preview_text}</span>";
+                            echo "</li>";
                           }
                           echo "</ul>";
                         } else {
@@ -640,13 +730,21 @@ $vendors_per_model = !empty($vendors_all) ? implode(', ', $vendors_all) : '-';
                               $used_for_size = $used_per_size[$sz] ?? 0;
                               $defect_for_size = $defect_per_size[$sz] ?? 0;
 
-                              // 💡 Rumus yang benar:
-                              // remaining = total_order - used + defect
+                              // 💡 Rumus tetap sama:
                               $remaining = max(0, ($total_for_size - $used_for_size) + $defect_for_size);
-
-                              $parts[] = htmlspecialchars($sz) . ": " . intval($remaining);
+                              $parts[] = htmlspecialchars($sz) . " (" . intval($remaining) . ")";
                             }
-                            echo "<li><strong>{$nama} :</strong> " . implode(", ", $parts) . "</li>";
+
+                            // gabung semua jadi string
+                            $fullText = implode(", ", $parts);
+                            $shortText = implode(", ", array_slice($parts, 0, 4)); // tampil 4 item pertama aja
+
+                            if (count($parts) > 4) {
+                              $shortText .= " ...";
+                              echo "<li><strong>{$nama} :</strong> <span class='truncate-text' data-full='" . htmlspecialchars($fullText, ENT_QUOTES) . "' onclick='toggleFullText(this)'>{$shortText}</span></li>";
+                            } else {
+                              echo "<li><strong>{$nama} :</strong> {$fullText}</li>";
+                            }
                           }
                           echo "</ul>";
                         } else {
@@ -654,7 +752,6 @@ $vendors_per_model = !empty($vendors_all) ? implode(', ', $vendors_all) : '-';
                         }
                         ?>
                       </td>
-
 
                       <!-- Status -->
                       <td>
@@ -1005,6 +1102,30 @@ $vendors_per_model = !empty($vendors_all) ? implode(', ', $vendors_all) : '-';
 
     /* 🔽 Event print utama — alur tetap sama */
     document.addEventListener('DOMContentLoaded', () => {
+
+      // 🧩 Fungsi untuk ubah array lot jadi format range (1-3, 5-6, 9)
+      function formatLotRange(arr) {
+        if (!Array.isArray(arr) || arr.length === 0) return '-';
+        arr = arr.map(Number).sort((a, b) => a - b);
+
+        const ranges = [];
+        let start = arr[0];
+        let prev = arr[0];
+
+        for (let i = 1; i < arr.length; i++) {
+          const curr = arr[i];
+          if (curr !== prev + 1) {
+            ranges.push(start === prev ? `${start}` : `${start}-${prev}`);
+            start = curr;
+          }
+          prev = curr;
+        }
+
+        ranges.push(start === prev ? `${start}` : `${start}-${prev}`);
+        return ranges.join(', ');
+      }
+
+      // 🖨️ Event untuk tombol print
       document.querySelectorAll('.btnPrintRow').forEach(btn => {
         btn.addEventListener('click', async () => {
           const id = btn.dataset.id;
@@ -1022,15 +1143,15 @@ $vendors_per_model = !empty($vendors_all) ? implode(', ', $vendors_all) : '-';
 
           if (!barcode) return alert('❌ Barcode kosong');
 
-          // susun teks
+          // 🧾 Susun teks print
           let printInfo = `${jobOrder} - ${po}-${poItem}\n`;
           printInfo += `NCVS   : ${ncvs}\n`;
           printInfo += `Bucket : ${bucket}\n`;
           printInfo += `Model  : ${model}\n`;
           printInfo += `Style  : ${style}\n`;
-          printInfo += `Lot    : ${Array.isArray(lot)?lot.join(', '):lot}\n`;
+          printInfo += `Lot    : ${formatLotRange(lot)}\n`; // ✅ gunakan fungsi range
 
-          // 🟢 Tambahkan vendor di bawah Lot
+          // 🟢 Tambahkan vendor di bawah Lot (jika ada)
           const vendor = btn.dataset.vendor || "-";
           if (vendor && vendor !== "-") {
             printInfo += `Vendor : ${vendor}\n`;
@@ -1038,10 +1159,12 @@ $vendors_per_model = !empty($vendors_all) ? implode(', ', $vendors_all) : '-';
 
           printInfo += `-----------------------------\nKomponen & Qty:\n`;
 
+          // 🧩 Tampilkan komponen dan qty
           for (const [nama, arr] of Object.entries(komponen)) {
             printInfo += `${nama} : ${arr.join(', ')}\n`;
           }
-          printInfo += `Output : ${namaOutputArr.length ? namaOutputArr.join(', '):'-'}\n`;
+
+          printInfo += `Output : ${namaOutputArr.length ? namaOutputArr.join(', ') : '-'}\n`;
           printInfo += `-----------------------------\n`;
 
           // 1️⃣ Print teks
@@ -1055,7 +1178,7 @@ $vendors_per_model = !empty($vendors_all) ? implode(', ', $vendors_all) : '-';
           // 3️⃣ Feed kosong
           await printText('\n\n\n');
 
-          // 4️⃣ Update counter (tidak diubah)
+          // 4️⃣ Update counter
           fetch('./../config/update_count_barcode.php', {
               method: 'POST',
               headers: {
@@ -1069,7 +1192,8 @@ $vendors_per_model = !empty($vendors_all) ? implode(', ', $vendors_all) : '-';
                 const btnEl = document.querySelector(`.btnPrintRow[data-id='${id}']`);
                 if (btnEl) btnEl.innerHTML = `<i class="bi bi-upc-scan"></i> ${data.count}`;
               }
-            }).catch(err => console.error('❌ Gagal update count:', err));
+            })
+            .catch(err => console.error('❌ Gagal update count:', err));
 
           alert('✅ Print selesai!');
         });
@@ -1282,19 +1406,49 @@ $vendors_per_model = !empty($vendors_all) ? implode(', ', $vendors_all) : '-';
         }
       });
 
-      // Autofocus search ketika select2 dibuka
+      // Autofocus pada kolom search ketika Select2 dibuka
       $(document).on('select2:open', function() {
         const $search = $('.select2-container--open .select2-search__field');
         if ($search.length) $search.focus();
       });
 
       // ==============================
-      // Autofill fields dari JobOrder
+      // Ketika Job Order dipilih
       // ==============================
       $('#job_order').on('change select2:select', function() {
         let jobOrder = $(this).val();
-        if (!jobOrder) return;
+        if (!jobOrder) {
+          $('#komponenContainer').html(`
+        <div class="text-center text-muted">
+          <em>Silakan pilih Job Order terlebih dahulu...</em>
+        </div>
+      `);
+          checkFormReady();
+          return;
+        }
 
+        $('#komponenContainer').html('<div class="text-muted small text-center">⏳ Memuat data komponen...</div>');
+        checkFormReady();
+
+        // === Ambil Lot Range otomatis ===
+        $.post("./../config/ajax.php", {
+          action: "getLotRangeByJobOrder",
+          job_order: jobOrder
+        }, function(res) {
+          console.log("Lot range dari server:", res);
+          if (res.success && res.lot_range) {
+            $('#lot')
+              .val(res.lot_range)
+              .attr('placeholder', 'Format: 1-3,5,7-9')
+              .data('lot-range', res.lot_range)
+              .prop('readonly', false);
+          } else {
+            $('#lot').val('').attr('placeholder', 'Lot tidak ditemukan');
+          }
+          checkFormReady();
+        }, 'json');
+
+        // === Autofill Job Order Detail ===
         $.post("./../config/ajax.php", {
           action: "getJobOrderDetail",
           job_order: jobOrder
@@ -1306,110 +1460,220 @@ $vendors_per_model = !empty($vendors_all) ? implode(', ', $vendors_all) : '-';
             $('#model').val(res.data.model).prop("readonly", true);
             $('#style').val(res.data.style).prop("readonly", true);
             $('#ncvs').val(res.data.ncvs).prop("readonly", true);
-            // ❌ jangan isi lot, biar manual
           } else {
-            alert(res.error || "Data Job Order tidak ditemukan");
+            alert(res.error || "Data Job Order tidak ditemukan.");
           }
         }, "json");
+
+        // === Ambil Komponen, Size, dan Qty ===
+        $.post("./../config/ajax.php", {
+          action: "getKomponenSizeQtyByJobOrder",
+          job_order: jobOrder
+        }, function(res) {
+          $('#komponenContainer').empty();
+
+          if (res.success && res.data && res.data.length > 0) {
+            let data = res.data;
+            let lotInfo = res.lot_range || '';
+
+            data.forEach(k => {
+              let komponenId = k.id;
+              let komponenNama = k.nama;
+              let items = k.items;
+
+              let html = `
+            <div class="komponen-block mb-3">
+              <div class="fw-bold mb-1 border-bottom pb-1 d-flex justify-content-between align-items-center">
+                <span>${komponenNama}</span>
+                ${lotInfo ? `<small class="text-muted">Lot: ${lotInfo}</small>` : ''}
+              </div>
+              <div class="d-flex flex-wrap align-items-start gap-2">
+          `;
+
+              items.forEach(it => {
+                html += `
+              <div class="text-center size-box">
+                <div class="fw-semibold">${it.size}</div>
+                <input type="number" 
+                       name="qty[${komponenId}][${it.size}]"
+                       class="form-control form-control-sm text-center qty-input"
+                       value="${it.qty}"
+                       min="0"
+                       max="${it.qty}"
+                       data-max="${it.qty}"
+                       title="Maksimal ${it.qty}">
+              </div>`;
+              });
+
+              html += `</div></div>`;
+              $('#komponenContainer').append(html);
+            });
+
+            // 🧠 Validasi input qty
+            $('.qty-input').on('input', function() {
+              const max = parseInt($(this).data('max'));
+              const val = parseInt($(this).val());
+
+              if (val > max) {
+                $(this).val(max);
+                const tooltip = $('<div class="qty-tooltip">⚠️ Qty melebihi total order (' + max + ')</div>');
+                $('body').append(tooltip);
+                const offset = $(this).offset();
+                tooltip.css({
+                  top: offset.top - $(this).outerHeight() - 10,
+                  left: offset.left,
+                  position: 'absolute',
+                  background: '#ffc107',
+                  color: '#000',
+                  padding: '4px 8px',
+                  borderRadius: '4px',
+                  fontSize: '0.8rem',
+                  zIndex: 9999,
+                  boxShadow: '0 2px 5px rgba(0,0,0,0.2)'
+                });
+                tooltip.fadeIn(150).delay(1200).fadeOut(400, function() {
+                  $(this).remove();
+                });
+              }
+              checkFormReady();
+            });
+
+          } else {
+            $('#komponenContainer').html(`
+          <div class="alert alert-warning text-center fade-in m-0" role="alert">
+            ⚠️ <strong>Tidak ada data komponen</strong> yang sesuai dengan Job Order ini.<br>
+            <small class="text-muted">Silakan periksa kembali Job Order yang dipilih atau hubungi admin.</small>
+          </div>
+        `);
+          }
+
+          checkFormReady();
+        }, "json").fail(function() {
+          $('#komponenContainer').html(`
+        <div class="alert alert-danger text-center fade-in m-0" role="alert">
+          ❌ <strong>Gagal mengambil data komponen dari server.</strong><br>
+          <small>Periksa koneksi atau coba beberapa saat lagi.</small>
+        </div>
+      `);
+          checkFormReady();
+        });
       });
 
       // ==============================
-      // Fungsi bikin Select2 Komponen & Size (AJAX)
+      // Ketika LOT diubah oleh user
       // ==============================
-      function initKomponenSelect($el) {
-        $el.select2({
-          width: "100%",
-          dropdownParent: $("#tambahTransaksi"),
-          placeholder: "Cari Komponen...",
-          allowClear: true,
-          minimumInputLength: 1,
-          ajax: {
-            url: "./../config/ajax.php",
-            type: "POST",
-            dataType: "json",
-            delay: 250,
-            data: function(params) {
-              return {
-                action: "searchKomponen",
-                model: $("#model").val(),
-                search: params.term
-              };
-            },
-            processResults: function(data) {
-              return {
-                results: data.komponen || []
-              };
-            }
+      $(document).on('input', '#lot', function() {
+        const $lot = $(this);
+        const val = $lot.val().trim();
+        const jobOrder = $('#job_order').val();
+        const lotRange = $lot.data('lot-range');
+        const $btnSimpan = $('#btnSimpan');
+
+        if (!jobOrder) {
+          showSmallTooltip($lot, '⚠️ Pilih Job Order terlebih dahulu.');
+          $btnSimpan.prop('disabled', true);
+          return;
+        }
+
+        if (!val) {
+          $('.qty-input').val('');
+          $btnSimpan.prop('disabled', true);
+          return;
+        }
+
+        const validFormat = /^(\d+(-\d+)?)(,\d+(-\d+)?)*$/;
+        if (!validFormat.test(val)) {
+          showSmallTooltip($lot, '⚠️ Format salah. Contoh: 1-3,5,7-9');
+          $btnSimpan.prop('disabled', true);
+          return;
+        }
+
+        if (lotRange) {
+          let [minLot, maxLot] = lotRange.split('-').map(Number);
+          if (isNaN(maxLot)) maxLot = minLot; // fallback kalau cuma "1"
+          const lots = parseLotInput(val);
+          const invalid = lots.some(l => l < minLot || l > maxLot);
+          if (invalid) {
+            showSmallTooltip($lot, `⚠️ Lot di luar range (${lotRange})`);
+            $btnSimpan.prop('disabled', true);
+            return;
           }
+        }
+
+        // ✅ Jika valid, update qty dari server
+        $.post('./../config/ajax.php', {
+          action: 'getKomponenSizeQtyByJobOrder',
+          job_order: jobOrder,
+          lot_input: val
+        }, function(res) {
+          if (res.success && res.data && res.data.length > 0) {
+            res.data.forEach(k => {
+              k.items.forEach(it => {
+                const input = $(`input[name="qty[${k.id}][${it.size}]"]`);
+                if (input.length) {
+                  input.val(it.qty);
+                  input.attr('max', it.qty);
+                  input.data('max', it.qty);
+                }
+              });
+            });
+            $btnSimpan.prop('disabled', false);
+          } else {
+            showSmallTooltip($lot, '⚠️ Tidak ada data sesuai Lot.');
+            $('.qty-input').val('');
+            $btnSimpan.prop('disabled', true);
+          }
+        }, 'json').fail(() => {
+          showSmallTooltip($lot, '❌ Gagal mengambil data dari server.');
+          $btnSimpan.prop('disabled', true);
+        });
+      });
+
+      // ==============================
+      // Helper Functions
+      // ==============================
+      function parseLotInput(input) {
+        const lots = [];
+        input.split(',').forEach(part => {
+          if (part.includes('-')) {
+            const [start, end] = part.split('-').map(Number);
+            for (let i = start; i <= end; i++) lots.push(i);
+          } else {
+            lots.push(Number(part));
+          }
+        });
+        return lots;
+      }
+
+      function showSmallTooltip($el, text) {
+        const tooltip = $('<div class="lot-tooltip small bg-warning text-dark px-2 py-1 rounded shadow-sm">' + text + '</div>');
+        $('body').append(tooltip);
+        const offset = $el.offset();
+        tooltip.css({
+          top: offset.top - $el.outerHeight() - 10,
+          left: offset.left,
+          position: 'absolute',
+          fontSize: '0.8rem',
+          zIndex: 9999
+        });
+        tooltip.fadeIn(150).delay(1200).fadeOut(400, function() {
+          $(this).remove();
         });
       }
 
-      function initSizeSelect($el) {
-        $el.select2({
-          width: "100%",
-          dropdownParent: $("#tambahTransaksi"),
-          placeholder: "Cari Size...",
-          allowClear: true,
-          minimumInputLength: 1,
-          ajax: {
-            url: "./../config/ajax.php",
-            type: "POST",
-            dataType: "json",
-            delay: 250,
-            data: function(params) {
-              return {
-                action: "searchSize",
-                job_order: $("#job_order").val(),
-                search: params.term
-              };
-            },
-            processResults: function(data) {
-              return {
-                results: data.sizes || []
-              };
-            }
-          }
+      function checkFormReady() {
+        const jobOrder = $('#job_order').val();
+        const lot = $('#lot').val()?.trim();
+        const hasQty = $('.qty-input').length > 0;
+        const allQtyValid = $('.qty-input').toArray().every(inp => {
+          const val = parseInt($(inp).val()) || 0;
+          const max = parseInt($(inp).data('max')) || 0;
+          return val >= 0 && val <= max;
         });
+
+        const formValid = jobOrder && lot && hasQty && allQtyValid;
+        $('#btnSimpan').prop('disabled', !formValid);
       }
-
-      // ==============================
-      // Add Komponen Row
-      // ==============================
-      $('#addKomponenBtn').on('click', function() {
-        const $row = $(`
-      <div class="row g-3 mb-2 komponen-row">
-        <div class="col-md-4">
-          <select name="komponen[]" class="form-control komponen-select" required></select>
-        </div>
-        <div class="col-md-4">
-          <select name="size[]" class="form-control size-select" required></select>
-        </div>
-        <div class="col-md-3">
-          <input type="number" name="qty[]" class="form-control" placeholder="Input qty" required>
-        </div>
-        <div class="col-md-1 d-flex align-items-end">
-          <button type="button" class="btn btn-danger btn-sm removeKomponenBtn"><i class="bi bi-trash"></i></button>
-        </div>
-      </div>
-    `);
-
-        $('#komponenContainer').append($row);
-
-        // init select2 untuk row baru
-        initKomponenSelect($row.find('.komponen-select'));
-        initSizeSelect($row.find('.size-select'));
-      });
-
-      // Remove row
-      $(document).on('click', '.removeKomponenBtn', function() {
-        $(this).closest('.komponen-row').remove();
-      });
-
-      // ==============================
-      // Init row pertama (yang sudah ada di HTML)
-      // ==============================
-      initKomponenSelect($('.komponen-select'));
-      initSizeSelect($('.size-select'));
     });
   </script>
 
@@ -1448,6 +1712,39 @@ $vendors_per_model = !empty($vendors_all) ? implode(', ', $vendors_all) : '-';
       console.log("Lot final:", lots);
       // boleh lanjut submit
     });
+  </script>
+
+  <script>
+    function toggleFullText(el) {
+      // Hapus popup lain kalau ada
+      const existing = document.querySelector(".full-popup");
+      if (existing) existing.remove();
+
+      const text = el.dataset.full;
+      const popup = document.createElement("div");
+      popup.className = "full-popup";
+      popup.textContent = text;
+      document.body.appendChild(popup); // ⬅️ langsung ke body biar bebas posisi
+
+      // Hitung posisi elemen
+      const rect = el.getBoundingClientRect();
+      const top = rect.bottom + window.scrollY + 5;
+      const left = rect.left + window.scrollX;
+
+      popup.style.top = top + "px";
+      popup.style.left = left + "px";
+      popup.style.display = "block";
+
+      // Klik di luar popup -> tutup
+      document.addEventListener("click", function handler(e) {
+        if (!popup.contains(e.target) && e.target !== el) {
+          popup.remove();
+          document.removeEventListener("click", handler);
+        }
+      }, {
+        once: true
+      });
+    }
   </script>
 
 </body>

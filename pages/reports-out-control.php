@@ -100,6 +100,37 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
       top: 0;
     }
   }
+
+  .truncate-text {
+    display: inline-block;
+    color: #007bff;
+    cursor: pointer;
+    text-decoration: underline;
+    max-width: 180px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .tooltip-box {
+    position: absolute;
+    background: rgba(0, 0, 0, 0.85);
+    color: white;
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    max-width: 250px;
+    z-index: 9999;
+    opacity: 0;
+    transform: translateY(-4px);
+    transition: all 0.15s ease-in-out;
+    pointer-events: none;
+  }
+
+  .tooltip-box.show {
+    opacity: 1;
+    transform: translateY(0);
+  }
 </style>
 
 <!DOCTYPE html>
@@ -291,6 +322,40 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
   </script>
 
   <script>
+    function toggleTooltip(el, event) {
+      // Hapus tooltip lain dulu
+      document.querySelectorAll('.tooltip-box').forEach(t => t.remove());
+
+      const fullText = el.getAttribute('data-full');
+      if (!fullText) return;
+
+      // Buat tooltip
+      const tooltip = document.createElement('div');
+      tooltip.className = 'tooltip-box';
+      tooltip.textContent = fullText;
+      document.body.appendChild(tooltip);
+
+      // Posisi tooltip dekat kursor
+      const x = event.pageX;
+      const y = event.pageY;
+      tooltip.style.left = `${x + 10}px`;
+      tooltip.style.top = `${y + 10}px`;
+
+      // Tampilkan tooltip dengan animasi
+      requestAnimationFrame(() => tooltip.classList.add('show'));
+
+      // Klik di luar = hapus tooltip
+      const removeTooltip = (e) => {
+        if (!tooltip.contains(e.target) && e.target !== el) {
+          tooltip.remove();
+          document.removeEventListener('click', removeTooltip);
+        }
+      };
+      document.addEventListener('click', removeTooltip);
+    }
+  </script>
+
+  <script>
     $(document).ready(function() {
       // ================================
       // Select2 dengan AJAX (untuk filter)
@@ -340,6 +405,8 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
           serverSide: true,
           searching: false,
           deferLoading: 0,
+          scrollX: true,
+          destroy: true, // biar gak error reinit
           ajax: {
             url: "./../config/get_data.php",
             type: "POST",
@@ -350,16 +417,36 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
               d.job_order = $("#job_order").val();
             }
           },
-          columns: [
-            { data: "job_order" },
-            { data: "ncvs" },
-            { data: "bucket" },
-            { data: "po_code" },
-            { data: "po_item" },
-            { data: "lot" },
-            { data: "size" },
-            { data: "model" },
-            { data: "style" }
+          columns: [{
+              data: "job_order"
+            },
+            {
+              data: "ncvs"
+            },
+            {
+              data: "bucket"
+            },
+            {
+              data: "po_code"
+            },
+            {
+              data: "po_item"
+            },
+            {
+              data: "lot_display"
+            },
+            {
+              data: "size",
+              render: function(data, type, row) {
+                return data; // tampilkan apa adanya (HTML aktif)
+              }
+            },
+            {
+              data: "model"
+            },
+            {
+              data: "style"
+            }
           ]
         });
 
