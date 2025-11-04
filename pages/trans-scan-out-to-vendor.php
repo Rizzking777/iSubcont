@@ -157,102 +157,167 @@ $result_transaksi = $stmt->get_result();
     <section class="section">
       <div class="row">
         <div class="col-lg-12">
-          <div class="card">
-            <div class="card-body" style="margin-top: 10px;">
+
+          <!-- ========== SCAN QR CODE CARD ========== -->
+          <div class="card border-0 shadow-sm mb-4">
+            <div class="card-body text-center py-5">
+              <div class="mb-3 text-primary">
+                <i class="bi bi-upc-scan" style="font-size: 3rem;"></i>
+              </div>
+              <h5 class="fw-semibold mb-4 text-primary"></h5>
               <form action="./../config/function.php" method="post" id="scanForm">
                 <input type="hidden" name="scan-out-to-vendor"> <!-- penting -->
-                <div class="row mb-3">
-                  <label for="barcode" class="col-sm-2 col-form-label">Scan QR Code</label>
-                  <div class="col-sm-10">
-                    <input type="text" name="barcode" id="barcode"
-                      class="form-control" placeholder="Scan QR Code here..." autofocus>
-                  </div>
+                <div class="col-md-8 mx-auto">
+                  <input type="text" name="barcode" id="barcode"
+                    class="form-control form-control-lg text-center"
+                    placeholder="Scan barcode here..." autofocus>
                 </div>
               </form>
-
-              <!-- Detail hasil scan -->
-              <?php if (isset($_GET['success'])): ?>
-                <?php
-                $barcode_success = $_GET['success'];
-                $stmt = $conn->prepare("SELECT * FROM tbl_transaksi WHERE barcode=?");
-                $stmt->bind_param("s", $barcode_success);
-                $stmt->execute();
-                $result = $stmt->get_result();
-                $row = $result->fetch_assoc();
-                ?>
-                <?php if ($row): ?>
-                  <div class="alert alert-info mt-3">
-                    <h6>Detail Transaksi Scan Out to Vendor:</h6>
-                    <ul class="mb-0">
-                      <li><strong>Job Order:</strong> <?= htmlspecialchars($row['job_order']); ?></li>
-                      <li><strong>PO Code:</strong> <?= htmlspecialchars($row['po_code']); ?></li>
-                      <li><strong>PO Item:</strong> <?= htmlspecialchars($row['po_item']); ?></li>
-                      <li><strong>Model:</strong> <?= htmlspecialchars($row['model']); ?></li>
-                      <li><strong>Style:</strong> <?= htmlspecialchars($row['style']); ?></li>
-                      <li><strong>NCVS:</strong> <?= htmlspecialchars($row['ncvs']); ?></li>
-                      <li><strong>Lot:</strong>
-                        <?php
-                        $lots = json_decode($row['lot'], true);
-                        echo is_array($lots) ? implode(", ", $lots) : htmlspecialchars($row['lot']);
-                        ?>
-                      </li>
-
-                      <li><strong>Komponen Sebelum Proses, Size & Qty:</strong></li>
-                      <ul>
-                        <?php
-                        $qty_data = json_decode($row['komponen_qty'], true);
-                        if (is_array($qty_data)) {
-                          // Grouping by komponen
-                          $grouped = [];
-                          foreach ($qty_data as $item) {
-                            $id_komponen = $item['komponen'];
-                            $size_val    = $item['size'];
-                            $qty_val     = $item['qty'];
-
-                            if (!isset($grouped[$id_komponen])) {
-                              $grouped[$id_komponen] = [];
-                            }
-                            $grouped[$id_komponen][] = [
-                              'size' => $size_val,
-                              'qty'  => $qty_val
-                            ];
-                          }
-
-                          foreach ($grouped as $id_komponen => $details) {
-                            // ambil nama komponen dari tbl_komponen
-                            $stmt_kmp = $conn->prepare("SELECT nama_komponen FROM tbl_komponen WHERE id_komponen=?");
-                            $stmt_kmp->bind_param("i", $id_komponen);
-                            $stmt_kmp->execute();
-                            $res_kmp = $stmt_kmp->get_result();
-                            $komponen_row = $res_kmp->fetch_assoc();
-                            $nama_komponen = $komponen_row['nama_komponen'] ?? "Komponen #$id_komponen";
-
-                            echo "<li class='mb-2'>";
-                            echo "<label><strong>" . htmlspecialchars($nama_komponen) . "</strong></label><br>";
-
-                            // Tampilkan size dan qty: "006 (6), 007 (6)"
-                            $parts = [];
-                            foreach ($details as $d) {
-                              $parts[] = htmlspecialchars($d['size']) . " (" . htmlspecialchars($d['qty']) . ")";
-                            }
-                            echo implode(", ", $parts);
-
-                            echo "</li>";
-                          }
-                        }
-                        ?>
-                      </ul>
-
-                      <li><strong>Type Scan:</strong> <?= htmlspecialchars($row['type_scan']); ?></li>
-                      <li><strong>Scan At:</strong> <?= htmlspecialchars($row['scan_at']); ?></li>
-                      <li><strong>Scan With:</strong> <?= htmlspecialchars($row['scan_with']); ?></li>
-                      <li><strong>Hour:</strong> <?= htmlspecialchars($row['hour']); ?></li>
-                    </ul>
-                  </div>
-                <?php endif; ?>
-              <?php endif; ?>
             </div>
           </div>
+
+          <!-- ========== HASIL SCAN CARD ========== -->
+          <?php if (isset($_GET['success'])): ?>
+            <?php
+            $barcode_success = $_GET['success'];
+            $stmt = $conn->prepare("SELECT * FROM tbl_transaksi WHERE barcode=?");
+            $stmt->bind_param("s", $barcode_success);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $row = $result->fetch_assoc();
+            ?>
+            <?php if ($row): ?>
+              <div class="card border-0 shadow-sm fade-in">
+                <div class="card-body p-4">
+
+                  <div class="d-flex align-items-center mb-4">
+                    <div class="bg-primary bg-opacity-10 p-3 rounded-circle me-3">
+                      <i class="bi bi-info-circle text-primary" style="font-size: 1.5rem;"></i>
+                    </div>
+                    <h5 class="mb-0 text-primary fw-semibold">Detail Transaksi Scan Out to Vendor</h5>
+                  </div>
+
+                  <!-- GRID INFO -->
+                  <div class="row g-4 mb-4">
+                    <div class="col-md-6">
+                      <div class="info-box p-3 rounded-3 bg-light border-start border-4 border-primary shadow-sm-sm">
+                        <p class="mb-1"><strong>Job Order:</strong> <?= htmlspecialchars($row['job_order']); ?></p>
+                        <p class="mb-1"><strong>PO Code:</strong> <?= htmlspecialchars($row['po_code']); ?></p>
+                        <p class="mb-1"><strong>PO Item:</strong> <?= htmlspecialchars($row['po_item']); ?></p>
+                        <p class="mb-0"><strong>Model:</strong> <?= htmlspecialchars($row['model']); ?></p>
+                      </div>
+                    </div>
+                    <div class="col-md-6">
+                      <div class="info-box p-3 rounded-3 bg-light border-start border-4 border-success shadow-sm-sm">
+                        <p class="mb-1"><strong>Style:</strong> <?= htmlspecialchars($row['style']); ?></p>
+                        <p class="mb-1"><strong>NCVS:</strong> <?= htmlspecialchars($row['ncvs']); ?></p>
+                        <p class="mb-1"><strong>Lot:</strong>
+                          <?php
+                          $lots = json_decode($row['lot'], true);
+                          echo is_array($lots) ? implode(", ", $lots) : htmlspecialchars($row['lot']);
+                          ?>
+                        </p>
+                        <p class="mb-0"><strong>Type Scan:</strong> <?= htmlspecialchars($row['type_scan']); ?></p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- TABEL KOMPONEN -->
+                  <div class="mb-4">
+                    <h6 class="fw-semibold text-dark mb-3"><i class="bi bi-gear-wide-connected me-2 text-secondary"></i>Komponen Sebelum Proses, Size & Qty:</h6>
+                    <div class="table-responsive">
+                      <table class="table table-sm table-bordered align-middle shadow-sm">
+                        <thead class="table-primary text-center">
+                          <tr>
+                            <th width="35%">Komponen</th>
+                            <th>Size & Qty</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <?php
+                          $qty_data = json_decode($row['komponen_qty'], true);
+                          if (is_array($qty_data)) {
+                            $grouped = [];
+                            foreach ($qty_data as $item) {
+                              $id_komponen = $item['komponen'];
+                              $size_val    = $item['size'];
+                              $qty_val     = $item['qty'];
+                              if (!isset($grouped[$id_komponen])) {
+                                $grouped[$id_komponen] = [];
+                              }
+                              $grouped[$id_komponen][] = [
+                                'size' => $size_val,
+                                'qty'  => $qty_val
+                              ];
+                            }
+
+                            foreach ($grouped as $id_komponen => $details) {
+                              $stmt_kmp = $conn->prepare("SELECT nama_komponen FROM tbl_komponen WHERE id_komponen=?");
+                              $stmt_kmp->bind_param("i", $id_komponen);
+                              $stmt_kmp->execute();
+                              $res_kmp = $stmt_kmp->get_result();
+                              $komponen_row = $res_kmp->fetch_assoc();
+                              $nama_komponen = $komponen_row['nama_komponen'] ?? "Komponen #$id_komponen";
+
+                              echo "<tr>";
+                              echo "<td class='fw-semibold'>" . htmlspecialchars($nama_komponen) . "</td>";
+                              $parts = [];
+                              foreach ($details as $d) {
+                                $parts[] = htmlspecialchars($d['size']) . " (" . htmlspecialchars($d['qty']) . ")";
+                              }
+                              echo "<td>" . implode(', ', $parts) . "</td>";
+                              echo "</tr>";
+                            }
+                          }
+                          ?>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  <!-- INFO TAMBAHAN (1 baris) -->
+                  <div class="border-top pt-3 text-muted small d-flex flex-wrap justify-content-between align-items-center gap-3">
+                    <div>
+                      <strong>Scan At:</strong> <?= htmlspecialchars($row['scan_at']); ?> |
+                      <strong>Scan With:</strong> <?= htmlspecialchars($row['scan_with']); ?> |
+                      <strong>Hour:</strong> <?= htmlspecialchars($row['hour']); ?>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+
+              <!-- STYLE KHUSUS UNTUK EFEK VISUAL -->
+              <style>
+                .fade-in {
+                  animation: fadeIn 0.6s ease-in-out;
+                }
+
+                @keyframes fadeIn {
+                  from {
+                    opacity: 0;
+                    transform: translateY(10px);
+                  }
+
+                  to {
+                    opacity: 1;
+                    transform: translateY(0);
+                  }
+                }
+
+                .info-box {
+                  transition: all 0.3s ease;
+                }
+
+                .info-box:hover {
+                  background-color: #f8f9fa;
+                  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.05);
+                  transform: translateY(-2px);
+                }
+              </style>
+            <?php endif; ?>
+          <?php endif; ?>
+
         </div>
       </div>
     </section>

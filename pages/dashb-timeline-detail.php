@@ -7,68 +7,55 @@ checkAuth('timeline_transaction'); // cek apakah sudah login dan punya akses ke 
 $nik = $_SESSION['nik_user'];
 $username = $_SESSION['username']; // Query ringkasan per job_order
 
-// ===== Ambil parameter =====
+// ======================= PARAMETER =======================
 $job_order   = $_GET['job_order'] ?? '';
-$lotParam    = $_GET['lot'] ?? '';     // contoh: "1,2"
-$idTransParam = $_GET['id_trans'] ?? ''; // contoh: "123,124"
+$lotParam    = $_GET['lot'] ?? '';
+$idTransParam = $_GET['id_trans'] ?? '';
 
-if ($job_order == '') {
-  die('Job Order tidak ditemukan.');
+if (empty($job_order)) {
+  die('❌ Job Order tidak ditemukan.');
 }
 
-// Escape
 $job_order = mysqli_real_escape_string($conn, $job_order);
 
-// ===== Lot =====
+// ======================= LOT HANDLER =======================
 $lotArray = [];
 if (!empty($lotParam)) {
-  $parts = array_map('trim', explode(',', $lotParam)); // masih support koma juga
+  $parts = array_map('trim', explode(',', $lotParam));
   foreach ($parts as $p) {
     if (str_contains($p, '-')) {
       [$start, $end] = array_map('intval', explode('-', $p));
-      if ($start <= $end) {
-        $lotArray = array_merge($lotArray, range($start, $end));
-      }
-    } else {
-      $lotArray[] = intval($p);
-    }
+      if ($start <= $end) $lotArray = array_merge($lotArray, range($start, $end));
+    } else $lotArray[] = intval($p);
   }
-  $lotArray = array_unique($lotArray); // hapus duplikat
+  $lotArray = array_unique($lotArray);
 }
 
 function lotArrayToRanges(array $arr): string
 {
   if (empty($arr)) return '';
-
-  sort($arr, SORT_NUMERIC); // Urutkan angka
+  sort($arr);
   $ranges = [];
   $start = $prev = $arr[0];
-
   for ($i = 1; $i < count($arr); $i++) {
     $num = $arr[$i];
-    if ($num == $prev + 1) {
-      // Masih berurutan
-      $prev = $num;
-    } else {
-      // Range selesai
+    if ($num == $prev + 1) $prev = $num;
+    else {
       $ranges[] = ($start == $prev) ? $start : "$start-$prev";
       $start = $prev = $num;
     }
   }
-
-  // Tambahkan range terakhir
   $ranges[] = ($start == $prev) ? $start : "$start-$prev";
-
   return implode(',', $ranges);
 }
 
-// ===== ID Trans =====
+// ======================= ID TRANS =======================
 $idTransArray = [];
 if (!empty($idTransParam)) {
   $idTransArray = array_filter(array_map('intval', explode(',', $idTransParam)));
 }
 
-// ===== Ambil data transaksi utama =====
+// ======================= AMBIL TRANSAKSI =======================
 $lotWhere = '';
 if (!empty($lotArray)) {
   $lotConds = [];
@@ -80,133 +67,123 @@ if (!empty($lotArray)) {
 }
 
 $queryTrans = "
-    SELECT *
-    FROM tbl_transaksi
-    WHERE job_order = '$job_order'
-    $lotWhere
-    LIMIT 1
+  SELECT * FROM tbl_transaksi 
+  WHERE job_order = '$job_order' $lotWhere
+  LIMIT 1
 ";
-
 $resultTrans = mysqli_query($conn, $queryTrans);
-$trans = $resultTrans && mysqli_num_rows($resultTrans) > 0
+$trans = ($resultTrans && mysqli_num_rows($resultTrans) > 0)
   ? mysqli_fetch_assoc($resultTrans)
   : null;
 
 if (!$trans) {
-  echo "<div class='text-danger'>
-        ⚠️ Tidak ditemukan data transaksi untuk Job Order: <b>" . htmlspecialchars($job_order) . "</b>" .
-    (!empty($lotParam) ? " dan Lot: <b>" . htmlspecialchars($lotParam) . "</b>" : "") .
-    (!empty($idTransParam) ? " dan ID Trans: <b>" . htmlspecialchars($idTransParam) . "</b>" : "") .
-    "</div>";
+  echo "<div class='text-danger'>⚠️ Tidak ada data transaksi untuk Job Order <b>$job_order</b></div>";
+  exit;
 }
 
-// ===== Ambil vendor =====
-$vendor = [
-  'name_vendor' => 'Belum Ditentukan',
-  'code_vendor' => '-',
-  'vendor_address' => '-'
-];
+// ======================= VENDOR & KOMPONEN =======================
+$vendor = ['name_vendor' => '-', 'vendors' => '-'];
 
-if ($trans) {
-  $komponenList = json_decode($trans['komponen_qty'], true);
-  $firstKomponenID = $komponenList[0]['komponen'] ?? null;
+$komponenList = json_decode($trans['komponen_qty'], true);
+$firstKomponenID = $komponenList[0]['komponen'] ?? null;
 
-  if ($firstKomponenID) {
-    $sqlKomponen = "SELECT nama_komponen, model FROM tbl_komponen WHERE id_komponen = '$firstKomponenID' LIMIT 1";
-    $resultKomponen = mysqli_query($conn, $sqlKomponen);
-    $dataKomponen = mysqli_fetch_assoc($resultKomponen);
-
-    if ($dataKomponen) {
-      $namaKomponen = mysqli_real_escape_string($conn, $dataKomponen['nama_komponen']);
-      $model = mysqli_real_escape_string($conn, $dataKomponen['model']);
-
-      $sqlVendor = "
-                SELECT v.id_vendor, v.name_vendor, v.code_vendor, v.alamat AS vendor_address
-                FROM tbl_komponen k
-                JOIN tbl_komponen_proses kp ON kp.id_input = k.id_komponen
-                JOIN tbl_vendor_proses vp ON vp.id_proses = kp.id_proses
-                JOIN tbl_vendor v ON v.id_vendor = vp.id_vendor
-                WHERE k.nama_komponen = '$namaKomponen'
-                  AND k.model = '$model'
-                LIMIT 1
-            ";
-      $resultVendor = mysqli_query($conn, $sqlVendor);
-      if ($resultVendor && mysqli_num_rows($resultVendor) > 0) {
-        $vendor = mysqli_fetch_assoc($resultVendor);
-      }
-    }
-  }
+if ($firstKomponenID) {
+  $sqlKomponenVendor = $conn->prepare("
+    SELECT k.nama_komponen,
+           GROUP_CONCAT(DISTINCT v.name_vendor SEPARATOR ', ') AS vendors
+    FROM tbl_komponen k
+    LEFT JOIN tbl_komponen_proses p 
+      ON p.id_input = k.id_komponen OR p.id_output = k.id_komponen
+    LEFT JOIN tbl_vendor_proses vp 
+      ON vp.id_proses = p.id_proses
+    LEFT JOIN tbl_vendor v 
+      ON v.id_vendor = vp.id_vendor
+    WHERE k.id_komponen = ?
+    GROUP BY k.id_komponen
+  ");
+  $sqlKomponenVendor->bind_param('i', $firstKomponenID);
+  $sqlKomponenVendor->execute();
+  $vendor = $sqlKomponenVendor->get_result()->fetch_assoc() ?: $vendor;
 }
 
-// ===== Ambil semua id_trans untuk job_order + lot (kecuali jika id_trans sudah dikirim) =====
+// ======================= ID TRANS FILTER =======================
 $idTransList = [];
 if (!empty($lotArray)) {
   $idTransQueryParts = [];
   foreach ($lotArray as $lotVal) {
     $lotVal = mysqli_real_escape_string($conn, $lotVal);
-    $idTransQueryParts[] = "JSON_SEARCH(lot, 'one', '$lotVal') IS NOT NULL OR JSON_UNQUOTE(lot) LIKE '%\"$lotVal\"%' OR lot LIKE '%$lotVal%'";
+    $idTransQueryParts[] = "JSON_SEARCH(lot, 'one', '$lotVal') IS NOT NULL";
   }
   $idTransQuery = implode(' OR ', $idTransQueryParts);
 
   $qIdTrans = mysqli_query($conn, "
-        SELECT id_trans 
-        FROM tbl_transaksi
-        WHERE job_order = '$job_order'
-          AND ($idTransQuery)
-    ");
-
-  if ($qIdTrans) {
-    while ($r = mysqli_fetch_assoc($qIdTrans)) {
-      $idTransList[] = $r['id_trans'];
-    }
-  }
+    SELECT id_trans FROM tbl_transaksi
+    WHERE job_order = '$job_order' AND ($idTransQuery)
+  ");
+  while ($r = mysqli_fetch_assoc($qIdTrans)) $idTransList[] = $r['id_trans'];
 }
 
-// ===== Tentukan id_trans filter =====
-if (!empty($idTransArray)) {
-  $idTransFilter = implode(',', $idTransArray);
-} else {
-  $idTransFilter = !empty($idTransList)
-    ? implode(',', array_map('intval', $idTransList))
-    : '0';
-}
+$idTransFilter = !empty($idTransArray)
+  ? implode(',', $idTransArray)
+  : (!empty($idTransList) ? implode(',', $idTransList) : '0');
 
-// ===== Ambil log =====
+// ======================= LOG =======================
 $logWhere = "WHERE JSON_UNQUOTE(JSON_EXTRACT(new_data, '$.job_order')) = '$job_order'";
-
-if (!empty($lotArray)) {
-  $lotConditions = [];
-  foreach ($lotArray as $lotVal) {
-    $lotVal = mysqli_real_escape_string($conn, $lotVal);
-    $lotConditions[] = "JSON_SEARCH(new_data, 'one', '$lotVal', NULL, '$.lot') IS NOT NULL
-                            OR JSON_UNQUOTE(JSON_EXTRACT(new_data, '$.lot')) LIKE '%$lotVal%'";
-  }
-  $logWhere .= " AND (" . implode(" OR ", $lotConditions) . ")";
-}
-
-if (!empty($idTransFilter) && $idTransFilter !== '0') {
-  $logWhere .= " AND id_trans IN ($idTransFilter)";
-}
+if (!empty($idTransFilter) && $idTransFilter !== '0') $logWhere .= " AND id_trans IN ($idTransFilter)";
 
 $queryLog = "
-    SELECT id_log_trans, id_trans, action_type, created_at, new_data,
-           JSON_UNQUOTE(JSON_EXTRACT(new_data, '$.lot')) AS lot_json
-    FROM tlog_transaksi
-    $logWhere
-    ORDER BY created_at ASC
+  SELECT id_log_trans, id_trans, action_type, created_at, new_data,
+         qty_real, qty_kekurangan, status_kekurangan
+  FROM tlog_transaksi
+  $logWhere
+  ORDER BY created_at ASC
 ";
 $resultLog = mysqli_query($conn, $queryLog);
 
-// ===== Ambil kekurangan =====
-$queryKekurangan = "
-    SELECT tk.id_kekurangan, tk.id_trans_asal, tk.job_order, tk.komponen_qty AS tk_komponen_qty,
-           tk.total_kekurangan, tk.status AS tk_status, tk.last_gate, tk.created_at
-    FROM tbl_transaksi_kekurangan tk
-    WHERE tk.job_order = '$job_order'
-      AND tk.id_trans_asal IN ($idTransFilter)
-    ORDER BY tk.created_at ASC
-";
-$resultKekurangan = mysqli_query($conn, $queryKekurangan);
+// ======================= TOTAL ORDER (PLAN) =======================
+$stmt = $conn->prepare("SELECT SUM(qty) AS total_order FROM tbl_master_data WHERE job_order = ?");
+$stmt->bind_param("s", $job_order);
+$stmt->execute();
+$resultTotal = $stmt->get_result();
+$totalOrder = $resultTotal->fetch_assoc()['total_order'] ?? 0;
+
+// ======================= STAGES =======================
+$stages = [
+  'SCAN_IN_WAREHOUSE'    => 'In Warehouse',
+  'SCAN_OUT_TO_VENDOR'   => 'Out WH to Vendor',
+  'SCAN_IN_INCOMING'     => 'Incoming WH',
+  'SCAN_OUT_TO_PRODUCTION' => 'Out to Production'
+];
+
+$stageCounts = array_fill_keys(array_keys($stages), 0);
+
+if ($resultLog) {
+  while ($log = mysqli_fetch_assoc($resultLog)) {
+    $newData = json_decode($log['new_data'], true);
+    $typeScan = strtoupper(trim($newData['type_scan'] ?? $log['action_type'] ?? ''));
+    if (empty($typeScan) || !isset($stageCounts[$typeScan])) continue;
+
+    $qty_real = intval($log['qty_real'] ?? 0);
+    $qty_kekurangan = intval($log['qty_kekurangan'] ?? 0);
+    $status_kekurangan = strtolower(trim($log['status_kekurangan'] ?? ''));
+
+    // Hitung efektif
+    $effective_qty = ($status_kekurangan === 'pending')
+      ? max(0, $qty_real - $qty_kekurangan)
+      : $qty_real;
+
+    $stageCounts[$typeScan] += $effective_qty;
+  }
+}
+
+// ======================= PERSENTASE =======================
+$stagePercents = [];
+foreach ($stages as $key => $label) {
+  $percent = ($totalOrder > 0)
+    ? round(($stageCounts[$key] / $totalOrder) * 100, 2)
+    : 0;
+  $stagePercents[$key] = min(100, $percent);
+}
 
 ?>
 
@@ -497,7 +474,6 @@ $resultKekurangan = mysqli_query($conn, $queryKekurangan);
             <div class="card-body" style="margin-top: 10px;">
 
               <?php
-
               // 🔹 Inisialisasi array id_trans
               $idTransArray = !empty($idTransFilter) ? array_map('intval', explode(',', $idTransFilter)) : [];
 
@@ -505,27 +481,24 @@ $resultKekurangan = mysqli_query($conn, $queryKekurangan);
               $pendingGates = [];
 
               if ($resultKekurangan && mysqli_num_rows($resultKekurangan) > 0) {
-                mysqli_data_seek($resultKekurangan, 0);
-                while ($kr = mysqli_fetch_assoc($resultKekurangan)) {
-                  // Filter per id_trans
+                $allKekurangan = mysqli_fetch_all($resultKekurangan, MYSQLI_ASSOC);
+                foreach ($allKekurangan as $kr) {
                   if (!empty($idTransArray) && !in_array(intval($kr['id_trans_asal']), $idTransArray)) continue;
-
                   if (strtoupper(trim($kr['tk_status'])) !== 'CONFIRMED') {
                     $hasPendingKekurangan = true;
-                    $pendingGates[] = $kr['last_gate'];
+                    $pendingGates[] = strtoupper(trim($kr['last_gate']));
                   }
                 }
-                mysqli_data_seek($resultKekurangan, 0);
+              } else {
+                $allKekurangan = [];
               }
 
               // 🔹 Mapping stages & labels
               $stages = [
                 'SCAN_IN_WAREHOUSE' => 'In Warehouse',
                 'SCAN_OUT_TO_VENDOR' => 'Out WH to Vendor',
-                // 'SCAN_IN_VENDOR' => 'In Vendor',
-                // 'SCAN_OUT_VENDOR' => 'Out Vendor',
                 'SCAN_IN_INCOMING' => 'Incoming WH',
-                'SCAN_CHECK_QC' => 'Check QC',
+                // 'SCAN_CHECK_QC' => 'Check QC',
                 'SCAN_OUT_TO_PRODUCTION' => 'Out to Production'
               ];
 
@@ -542,24 +515,15 @@ $resultKekurangan = mysqli_query($conn, $queryKekurangan);
 
               $gateLabels = $typeScanLabels;
 
+              // 🔹 Proses log
               mysqli_data_seek($resultLog, 0);
               $logs = [];
 
               while ($log = mysqli_fetch_assoc($resultLog)) {
-                // Filter per id_trans
                 if (!empty($idTransArray) && !in_array(intval($log['id_trans']), $idTransArray)) continue;
 
                 $newData = json_decode($log['new_data'], true);
-
-                $typeScan = $newData['type_scan'] ?? '';
-                if (empty($typeScan)) {
-                  if (!empty($log['action_type'])) {
-                    $typeScan = $log['action_type'];
-                  } else {
-                    $typeScan = 'CREATE_BARCODE';
-                  }
-                }
-
+                $typeScan = strtoupper(trim($newData['type_scan'] ?? $log['action_type'] ?? 'CREATE_BARCODE'));
                 $createdBy = $newData['created_by'] ?? $log['updated_by'] ?? 'Unknown';
 
                 $logs[] = [
@@ -589,119 +553,96 @@ $resultKekurangan = mysqli_query($conn, $queryKekurangan);
 
               $progressPercent = $totalStages > 0 ? round(($completedCount / $totalStages) * 100) : 0;
               if ($progressPercent > 100) $progressPercent = 100;
-              if ($hasPendingKekurangan && $completedCount >= $totalStages) {
-                // Batasi hanya kalau benar-benar ada stage lengkap tapi pending
-                $progressPercent = 90;
-              }
+              if ($hasPendingKekurangan && $completedCount >= $totalStages) $progressPercent = 90;
 
-              // 🔹 Tentukan next stage & ETA
+              // 🔹 Next stage & ETA
               $nextStage = null;
-              $etaDays = 0;
-
               if (!empty($lastStage)) {
                 $lastIndex = array_search($lastStage, $stageKeys, true);
                 if ($lastIndex !== false && isset($stageKeys[$lastIndex + 1])) {
-                  $nextStageKey = $stageKeys[$lastIndex + 1];
-                  $nextStage = $stages[$nextStageKey];
+                  $nextStage = $stages[$stageKeys[$lastIndex + 1]];
                 }
               }
 
-              if (!empty($nextStage)) {
-                $remainingStages = $totalStages - $completedCount;
-                $etaDays = max(1, $remainingStages * 1);
-              }
-
-              // 🔹 Hitung jumlah qty per stage berdasarkan komponen_qty
-              $stageCounts = array_fill_keys(array_keys($stages), 0);
-
-              // Ambil total order
+              // 🔹 Ambil total order
               $stmt = $conn->prepare("SELECT SUM(qty) AS total_order FROM tbl_master_data WHERE job_order = ?");
               $stmt->bind_param("s", $job_order);
               $stmt->execute();
               $resultTotal = $stmt->get_result();
               $totalOrder = $resultTotal->fetch_assoc()['total_order'] ?? 0;
 
-              // Loop log sekali saja untuk menghitung qty tiap stage
+              // 🔹 Hitung qty per stage
+              $stageCounts = array_fill_keys(array_keys($stages), 0);
               mysqli_data_seek($resultLog, 0);
+
               while ($log = mysqli_fetch_assoc($resultLog)) {
                 if (!empty($idTransArray) && !in_array(intval($log['id_trans']), $idTransArray)) continue;
 
-                $newData = json_decode($log['new_data'], true);
+                $newData = is_array($log['new_data']) ? $log['new_data'] : json_decode($log['new_data'], true);
                 $typeScan = strtoupper(trim($newData['type_scan'] ?? $log['type_scan'] ?? $log['action_type'] ?? ''));
+
                 if (empty($typeScan) || !isset($stageCounts[$typeScan])) continue;
 
                 $qty = 0;
 
                 // Ambil qty dari komponen_qty
                 if (!empty($newData['komponen_qty'])) {
-                  $komponenList = json_decode($newData['komponen_qty'], true);
+                  $komponenList = is_array($newData['komponen_qty'])
+                    ? $newData['komponen_qty']
+                    : json_decode($newData['komponen_qty'], true);
+
                   if (is_array($komponenList)) {
                     foreach ($komponenList as $komp) {
-                      $qty += intval($komp['qty'] ?? 0);
+                      $qty += intval($komp['qty'] ?? $komp['kekurangan'] ?? 0);
                     }
                   }
                 }
 
-                // Tambahkan qty dari kekurangan yang sudah confirmed
-                if (!empty($resultKekurangan)) {
-                  mysqli_data_seek($resultKekurangan, 0);
-                  while ($kr = mysqli_fetch_assoc($resultKekurangan)) {
-                    if (strtoupper(trim($kr['tk_status'])) === 'CONFIRMED' && strtoupper(trim($kr['last_gate'])) === $typeScan) {
-                      $qty += intval($kr['total_kekurangan'] ?? 0);
-                    }
+
+                // Tambahkan kekurangan yang CONFIRMED
+                foreach ($allKekurangan as $kr) {
+                  if (strtoupper(trim($kr['tk_status'])) === 'CONFIRMED' && strtoupper(trim($kr['last_gate'])) === $typeScan) {
+                    $qty += intval($kr['total_kekurangan'] ?? 0);
                   }
-                  mysqli_data_seek($resultKekurangan, 0);
                 }
 
                 $stageCounts[$typeScan] += $qty;
               }
 
-              // 🔹 Hitung persentase tiap stage (maks 100%) dengan aturan khusus
+              // 🔹 Hitung persentase per stage
               $stagePercents = [];
               foreach ($stages as $stageKey => $label) {
-                if (in_array($stageKey, $completedStages)) {
-                  // Stage sudah dilewati log → 100% jika tidak ada kekurangan
-                  if (!empty($resultKekurangan)) {
-                    mysqli_data_seek($resultKekurangan, 0);
-                    $hasPendingForStage = false;
-                    while ($kr = mysqli_fetch_assoc($resultKekurangan)) {
-                      if (strtoupper(trim($kr['last_gate'])) === $stageKey && strtoupper(trim($kr['tk_status'])) !== 'CONFIRMED') {
-                        $hasPendingForStage = true;
-                        break;
-                      }
-                    }
-                    mysqli_data_seek($resultKekurangan, 0);
-                  } else {
-                    $hasPendingForStage = false;
-                  }
+                $percent = 0;
+                $hasPending = false;
 
-                  if ($hasPendingForStage) {
-                    $percent = isset($stageCounts[$stageKey]) && $totalOrder > 0 ? round(($stageCounts[$stageKey] / $totalOrder) * 100, 2) : 0;
-                  } else {
-                    $percent = 100;
+                foreach ($allKekurangan as $kr) {
+                  if (strtoupper(trim($kr['last_gate'])) === $stageKey && strtoupper(trim($kr['tk_status'])) !== 'CONFIRMED') {
+                    $hasPending = true;
+                    break;
                   }
+                }
+
+                if (in_array($stageKey, $completedStages) && !$hasPending) {
+                  $percent = 100;
                 } else {
-                  // Stage belum dilewati → hitung proporsi berdasarkan qty
-                  $percent = isset($stageCounts[$stageKey]) && $totalOrder > 0 ? round(($stageCounts[$stageKey] / $totalOrder) * 100, 2) : 0;
+                  $percent = isset($stageCounts[$stageKey]) && $totalOrder > 0
+                    ? round(($stageCounts[$stageKey] / $totalOrder) * 100, 2)
+                    : 0;
                 }
 
                 $stagePercents[$stageKey] = min(100, $percent);
               }
 
-              // 🔹 Hitung persentase cumulative khusus untuk stage terakhir (Out to Production)
+              // 🔹 Batasi stage terakhir (Out to Production)
               $lastStageKey = array_key_last($stages);
               if ($lastStageKey === 'SCAN_OUT_TO_PRODUCTION') {
                 $cumulative = 1;
                 foreach ($stagePercents as $key => $percent) {
-                  if ($key === $lastStageKey) break; // stop sebelum out to production
+                  if ($key === $lastStageKey) break;
                   $cumulative *= ($percent / 100);
                 }
-
-                // Hasil perkalian semua stage sebelumnya → jadi faktor pembatas stage terakhir
                 $stagePercents[$lastStageKey] = round($cumulative * 100, 2);
               }
-
-
               ?>
 
               <!-- Bagian Header -->

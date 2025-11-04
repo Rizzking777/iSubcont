@@ -157,207 +157,284 @@ $result_transaksi = $stmt->get_result();
     <section class="section">
       <div class="row">
         <div class="col-lg-12">
-          <div class="card">
-            <div class="card-body" style="margin-top: 10px;">
 
-              <!-- Form Scan -->
+          <!-- ========== SCAN QR CODE CARD ========== -->
+          <div class="card border-0 shadow-sm mb-4">
+            <div class="card-body text-center py-5">
+              <div class="mb-3 text-primary">
+                <i class="bi bi-upc-scan" style="font-size: 3rem;"></i>
+              </div>
+              <h5 class="fw-semibold mb-4 text-primary"></h5>
               <form method="post" id="scanForm">
-                <input type="hidden" name="scan-now" value="1"> <!-- biar $_POST['scan-now'] kebaca -->
-                <div class="row mb-3">
-                  <label for="barcode" class="col-sm-2 col-form-label">Scan QR Code</label>
-                  <div class="col-sm-10">
-                    <input type="text" name="barcode" id="barcode"
-                      class="form-control" placeholder="Scan QR Code here..." autofocus>
-                  </div>
+                <input type="hidden" name="scan-now" value="1">
+                <div class="col-md-8 mx-auto">
+                  <input type="text" name="barcode" id="barcode"
+                    class="form-control form-control-lg text-center"
+                    placeholder="Scan barcode here..." autofocus>
                 </div>
               </form>
+            </div>
+          </div>
 
-              <!-- Detail hasil scan -->
-              <?php
-              if (isset($_POST['scan-now'])) {
-                $barcode_scan = $_POST['barcode'] ?? null;
+          <!-- ========== HASIL SCAN CARD ========== -->
+          <?php
+          if (isset($_POST['scan-now'])) {
+            $barcode_scan = $_POST['barcode'] ?? null;
+            if ($barcode_scan) {
+              $stmt = $conn->prepare("SELECT * FROM tbl_transaksi WHERE barcode=?");
+              $stmt->bind_param("s", $barcode_scan);
+              $stmt->execute();
+              $result = $stmt->get_result();
+              $row = $result->fetch_assoc();
 
-                if ($barcode_scan) {
-                  $stmt = $conn->prepare("SELECT * FROM tbl_transaksi WHERE barcode=?");
-                  $stmt->bind_param("s", $barcode_scan);
-                  $stmt->execute();
-                  $result = $stmt->get_result();
-                  $row = $result->fetch_assoc();
+              if ($row):
+          ?>
+                <div class="card border-0 shadow-sm fade-in">
+                  <div class="card-body p-4">
 
-                  if ($row):
-              ?>
-                    <div class="alert alert-info mt-3">
-                      <h6>Detail Transaksi Scan In Incoming:</h6>
-                      <form action="./../config/function.php" method="post" id="confirmForm">
-                        <input type="hidden" name="barcode" value="<?= htmlspecialchars($row['barcode']); ?>">
+                    <div class="d-flex align-items-center mb-4">
+                      <div class="bg-primary bg-opacity-10 p-3 rounded-circle me-3">
+                        <i class="bi bi-info-circle text-primary" style="font-size: 1.5rem;"></i>
+                      </div>
+                      <h5 class="mb-0 text-primary fw-semibold">Detail Transaksi Scan In Incoming</h5>
+                    </div>
 
-                        <ul class="mb-3">
-                          <li><strong>Job Order:</strong> <?= htmlspecialchars($row['job_order']); ?></li>
-                          <li><strong>PO Code:</strong> <?= htmlspecialchars($row['po_code']); ?></li>
-                          <li><strong>PO Item:</strong> <?= htmlspecialchars($row['po_item']); ?></li>
-                          <li><strong>Model:</strong> <?= htmlspecialchars($row['model']); ?></li>
-                          <li><strong>Style:</strong> <?= htmlspecialchars($row['style']); ?></li>
-                          <li><strong>NCVS:</strong> <?= htmlspecialchars($row['ncvs']); ?></li>
-                          <li><strong>Lot:</strong>
+                    <!-- GRID INFO -->
+                    <div class="row g-4 mb-4">
+                      <div class="col-md-6">
+                        <div class="info-box p-3 rounded-3 bg-light border-start border-4 border-primary shadow-sm-sm">
+                          <p class="mb-1"><strong>Job Order:</strong> <?= htmlspecialchars($row['job_order']); ?></p>
+                          <p class="mb-1"><strong>PO Code:</strong> <?= htmlspecialchars($row['po_code']); ?></p>
+                          <p class="mb-1"><strong>PO Item:</strong> <?= htmlspecialchars($row['po_item']); ?></p>
+                          <p class="mb-0"><strong>Model:</strong> <?= htmlspecialchars($row['model']); ?></p>
+                        </div>
+                      </div>
+                      <div class="col-md-6">
+                        <div class="info-box p-3 rounded-3 bg-light border-start border-4 border-success shadow-sm-sm">
+                          <p class="mb-1"><strong>Style:</strong> <?= htmlspecialchars($row['style']); ?></p>
+                          <p class="mb-1"><strong>NCVS:</strong> <?= htmlspecialchars($row['ncvs']); ?></p>
+                          <p class="mb-1"><strong>Lot:</strong>
                             <?php
                             $lots = json_decode($row['lot'], true);
                             echo is_array($lots) ? implode(", ", $lots) : htmlspecialchars($row['lot']);
                             ?>
-                          </li>
+                          </p>
+                          <p class="mb-0"><strong>Type Scan:</strong> <?= htmlspecialchars($row['type_scan']); ?></p>
+                        </div>
+                      </div>
+                    </div>
 
-                          <li><strong>Komponen, Size & Qty:</strong></li>
-                          <ul>
-                            <li>
-                              <!-- Group Input -->
-                              <div class="mb-2">
-                                <label><strong>Komponen Sebelum Proses:</strong></label>
-                                <div class="row">
-                                  <?php
-                                  $id_trans = $row['id_trans'];
+                    <!-- KOMPONEN CARD -->
+                    <div class="mb-4">
+                      <h6 class="fw-semibold text-dark mb-3">
+                        <i class="bi bi-gear-wide-connected me-2 text-secondary"></i>Komponen Sebelum & Sesudah Proses:
+                      </h6>
 
-                                  // === Ambil log terakhir untuk SCAN_OUT_TO_VENDOR ===
-                                  $stmt_log = $conn->prepare("
-                                      SELECT old_data 
-                                      FROM tlog_transaksi 
-                                      WHERE id_trans = ? 
-                                        AND action_type = 'SCAN_OUT_TO_VENDOR'
-                                        AND old_data IS NOT NULL
-                                      ORDER BY created_at DESC 
-                                      LIMIT 1
-                                    ");
-                                  $stmt_log->bind_param("i", $id_trans);
-                                  $stmt_log->execute();
-                                  $res_log = $stmt_log->get_result();
-                                  $komponen_input = [];
+                      <form action="./../config/function.php" method="post" id="confirmForm">
+                        <input type="hidden" name="barcode" value="<?= htmlspecialchars($row['barcode']); ?>">
 
-                                  if ($row_log = $res_log->fetch_assoc()) {
-                                    $old_data = json_decode($row_log['old_data'], true);
-                                    if (!empty($old_data['komponen_qty'])) {
-                                      $komponen_input = json_decode($old_data['komponen_qty'], true);
-                                    }
-                                  }
+                        <div class="p-3 rounded-3 bg-light border shadow-sm-sm mb-4">
+                          <!-- Komponen Sebelum Proses -->
+                          <div class="mb-3">
+                            <label class="fw-semibold text-primary mb-2"><i class="bi bi-box me-1"></i>Komponen Sebelum Proses</label>
+                            <div class="row">
+                              <?php
+                              $id_trans = $row['id_trans'];
 
-                                  // === Ambil data kekurangan (jika ada)
-                                  $stmt_kurang = $conn->prepare("
-                                    SELECT komponen_qty 
-                                    FROM tbl_transaksi_kekurangan 
-                                    WHERE id_trans_asal = ?
-                                  ");
-                                  $stmt_kurang->bind_param("i", $id_trans);
-                                  $stmt_kurang->execute();
-                                  $res_kurang = $stmt_kurang->get_result();
+                              $stmt_log = $conn->prepare("
+                            SELECT old_data 
+                            FROM tlog_transaksi 
+                            WHERE id_trans = ? 
+                              AND action_type = 'SCAN_OUT_TO_VENDOR'
+                              AND old_data IS NOT NULL
+                            ORDER BY created_at DESC 
+                            LIMIT 1
+                          ");
+                              $stmt_log->bind_param("i", $id_trans);
+                              $stmt_log->execute();
+                              $res_log = $stmt_log->get_result();
+                              $komponen_input = [];
 
-                                  $map_kurang = []; // [komponen|size] => qty_kurang
-                                  while ($row_kurang = $res_kurang->fetch_assoc()) {
-                                    $data_kurang = json_decode($row_kurang['komponen_qty'], true);
-                                    if (is_array($data_kurang)) {
-                                      foreach ($data_kurang as $dk) {
-                                        $key = "{$dk['komponen']}|{$dk['size']}";
-                                        $map_kurang[$key] = ($map_kurang[$key] ?? 0) + (int)($dk['kekurangan'] ?? 0);
-                                      }
-                                    }
-                                  }
+                              if ($row_log = $res_log->fetch_assoc()) {
+                                $old_data = json_decode($row_log['old_data'], true);
+                                if (!empty($old_data['komponen_qty'])) {
+                                  $komponen_input = json_decode($old_data['komponen_qty'], true);
+                                }
+                              }
 
-                                  // === Tampilkan komponen input (qty disesuaikan)
-                                  if (!empty($komponen_input)) {
-                                    foreach ($komponen_input as $item) {
-                                      $id_input = (int)$item['komponen'];
-                                      $size_val = $item['size'] ?? "-";
-                                      $qty_val  = (int)$item['qty'];
+                              $stmt_kurang = $conn->prepare("
+                            SELECT komponen_qty 
+                            FROM tbl_transaksi_kekurangan 
+                            WHERE id_trans_asal = ?
+                          ");
+                              $stmt_kurang->bind_param("i", $id_trans);
+                              $stmt_kurang->execute();
+                              $res_kurang = $stmt_kurang->get_result();
 
-                                      $key = "{$id_input}|{$size_val}";
-                                      if (isset($map_kurang[$key])) {
-                                        $qty_val -= $map_kurang[$key]; // kurangi dengan qty kekurangan
-                                        if ($qty_val < 0) $qty_val = 0; // safety
-                                      }
-
-                                      // ambil nama komponen
-                                      $stmt_in = $conn->prepare("SELECT nama_komponen FROM tbl_komponen WHERE id_komponen=?");
-                                      $stmt_in->bind_param("i", $id_input);
-                                      $stmt_in->execute();
-                                      $res_in = $stmt_in->get_result();
-                                      $in_row = $res_in->fetch_assoc();
-                                      $nama_input = $in_row['nama_komponen'] ?? "Komponen #$id_input";
-                                  ?>
-                                      <div class="col-md-6 mb-1">
-                                        <input type="text" class="form-control"
-                                          value="<?= htmlspecialchars($nama_input) ?>: <?= htmlspecialchars($size_val) ?> (<?= $qty_val ?>)" readonly>
-                                      </div>
-                                  <?php
-                                    }
-                                  } else {
-                                    echo "<div class='col-12'><em>Tidak ada data komponen.</em></div>";
-                                  }
-                                  ?>
-                                </div>
-                              </div>
-
-                              <!-- Group Output -->
-                              <div>
-                                <label><strong>Komponen Sesudah Proses:</strong> </label>
-                                <?php
-                                // ambil dari transaksi sekarang
-                                $qty_data = json_decode($row['komponen_qty'], true);
-
-                                if (is_array($qty_data)) {
-                                  foreach ($qty_data as $item) {
-                                    $id_out  = $item['komponen'];
-                                    $qty_val = $item['qty'];
-                                    $size_val = $item['size'] ?? "-";
-
-                                    // ambil nama output
-                                    $stmt_out = $conn->prepare("SELECT nama_komponen FROM tbl_komponen WHERE id_komponen=?");
-                                    $stmt_out->bind_param("i", $id_out);
-                                    $stmt_out->execute();
-                                    $res_out = $stmt_out->get_result();
-                                    $out_row = $res_out->fetch_assoc();
-                                    $nama_output = $out_row['nama_komponen'] ?? "Komponen #$id_out";
-                                ?>
-                                    <div class="input-group mb-2">
-                                      <span class="input-group-text" style="min-width:180px;">
-                                        <?= htmlspecialchars($nama_output) ?>: <?= htmlspecialchars($size_val) ?>
-                                      </span>
-                                      <input type="number"
-                                        name="qty[<?= $id_out ?>][<?= htmlspecialchars($size_val) ?>]"
-                                        class="form-control qty-field"
-                                        value="<?= htmlspecialchars($qty_val) ?>"
-                                        readonly>
-                                      <button type="button" class="btn btn-danger btn-tidak-sesuai">Tidak Sesuai</button>
-                                    </div>
-                                <?php
+                              $map_kurang = [];
+                              while ($row_kurang = $res_kurang->fetch_assoc()) {
+                                $data_kurang = json_decode($row_kurang['komponen_qty'], true);
+                                if (is_array($data_kurang)) {
+                                  foreach ($data_kurang as $dk) {
+                                    $key = "{$dk['komponen']}|{$dk['size']}";
+                                    $map_kurang[$key] = ($map_kurang[$key] ?? 0) + (int)($dk['kekurangan'] ?? 0);
                                   }
                                 }
-                                ?>
-                              </div>
-                            </li>
-                          </ul>
+                              }
 
-                          <!-- Keterangan (hidden dulu) -->
-                          <li id="keterangan-wrap" class="d-none">
-                            <strong>Keterangan:</strong>
-                            <textarea name="keterangan" class="form-control mt-1"
-                              placeholder="Wajib isi keterangan jika qty tidak sesuai"></textarea>
-                          </li>
-                        </ul>
+                              if (!empty($komponen_input)) {
+                                foreach ($komponen_input as $item) {
+                                  $id_input = (int)$item['komponen'];
+                                  $size_val = $item['size'] ?? "-";
+                                  $qty_val  = (int)$item['qty'];
+                                  $key = "{$id_input}|{$size_val}";
+                                  if (isset($map_kurang[$key])) {
+                                    $qty_val -= $map_kurang[$key];
+                                    if ($qty_val < 0) $qty_val = 0;
+                                  }
 
-                        <!-- Tombol aksi -->
-                        <button type="submit" name="confirm-in-incoming" class="btn btn-success">
-                          <i class="bi bi-check-circle"></i> Confirm
-                        </button>
-                        <button type="submit" name="pending-in-incoming" class="btn btn-warning">
-                          <i class="bi bi-check-circle"></i> Confirm (Qty Tidak Sesuai)
-                        </button>
+                                  $stmt_in = $conn->prepare("SELECT nama_komponen FROM tbl_komponen WHERE id_komponen=?");
+                                  $stmt_in->bind_param("i", $id_input);
+                                  $stmt_in->execute();
+                                  $res_in = $stmt_in->get_result();
+                                  $in_row = $res_in->fetch_assoc();
+                                  $nama_input = $in_row['nama_komponen'] ?? "Komponen #$id_input";
+                              ?>
+                                  <div class="col-md-6 mb-2">
+                                    <input type="text" class="form-control"
+                                      value="<?= htmlspecialchars($nama_input) ?>: <?= htmlspecialchars($size_val) ?> (<?= $qty_val ?>)" readonly>
+                                  </div>
+                              <?php
+                                }
+                              } else {
+                                echo "<div class='col-12'><em>Tidak ada data komponen.</em></div>";
+                              }
+                              ?>
+                            </div>
+                          </div>
+
+                          <!-- Komponen Sesudah Proses -->
+                          <div>
+                            <label class="fw-semibold text-success mb-2"><i class="bi bi-box-seam me-1"></i>Komponen Sesudah Proses</label>
+                            <?php
+                            $qty_data = [];
+                            $stmt_log_in = $conn->prepare("
+                          SELECT new_data 
+                          FROM tlog_transaksi 
+                          WHERE id_trans = ? 
+                            AND action_type = 'SCAN_OUT_TO_VENDOR' 
+                          ORDER BY created_at DESC 
+                          LIMIT 1
+                        ");
+                            $stmt_log_in->bind_param("i", $row['id_trans']);
+                            $stmt_log_in->execute();
+                            $res_log_in = $stmt_log_in->get_result();
+                            $log_row = $res_log_in->fetch_assoc();
+                            $stmt_log_in->close();
+
+                            if ($log_row && !empty($log_row['new_data'])) {
+                              $log_data = json_decode($log_row['new_data'], true);
+                              if (!empty($log_data['komponen_qty'])) {
+                                $komponen_qty_raw = $log_data['komponen_qty'];
+                                if (is_string($komponen_qty_raw)) {
+                                  $qty_data = json_decode($komponen_qty_raw, true) ?: [];
+                                } elseif (is_array($komponen_qty_raw)) {
+                                  $qty_data = $komponen_qty_raw;
+                                }
+                              }
+                            }
+
+                            if (is_array($qty_data) && !empty($qty_data)) {
+                              foreach ($qty_data as $item) {
+                                $id_out   = (int)($item['komponen'] ?? 0);
+                                $qty_val  = (int)($item['qty'] ?? 0);
+                                $size_val = $item['size'] ?? "-";
+
+                                $stmt_out = $conn->prepare("SELECT nama_komponen FROM tbl_komponen WHERE id_komponen=?");
+                                $stmt_out->bind_param("i", $id_out);
+                                $stmt_out->execute();
+                                $res_out = $stmt_out->get_result();
+                                $out_row = $res_out->fetch_assoc();
+                                $nama_output = $out_row['nama_komponen'] ?? "Komponen #$id_out";
+                                $stmt_out->close();
+                            ?>
+                                <div class="input-group mb-2">
+                                  <span class="input-group-text" style="min-width:180px;">
+                                    <?= htmlspecialchars($nama_output) ?>: <?= htmlspecialchars($size_val) ?>
+                                  </span>
+                                  <input type="number"
+                                    name="qty[<?= $id_out ?>][<?= htmlspecialchars($size_val) ?>]"
+                                    class="form-control qty-field"
+                                    value="<?= htmlspecialchars($qty_val) ?>"
+                                    readonly>
+                                  <button type="button" class="btn btn-danger btn-tidak-sesuai">Tidak Sesuai</button>
+                                </div>
+                            <?php
+                              }
+                            } else {
+                              echo '<div><em>Tidak ada data komponen output.</em></div>';
+                            }
+                            ?>
+                          </div>
+                        </div>
+
+                        <!-- Keterangan -->
+                        <div id="keterangan-wrap" class="d-none mb-3">
+                          <strong>Keterangan:</strong>
+                          <textarea name="keterangan" class="form-control mt-1"
+                            placeholder="Wajib isi keterangan jika qty tidak sesuai"></textarea>
+                        </div>
+
+                        <!-- Tombol Aksi -->
+                        <div class="d-flex gap-2">
+                          <button type="submit" name="confirm-in-incoming" class="btn btn-success">
+                            <i class="bi bi-check-circle"></i> Confirm
+                          </button>
+                          <button type="submit" name="pending-in-incoming" class="btn btn-warning">
+                            <i class="bi bi-exclamation-circle"></i> Confirm (Qty Tidak Sesuai)
+                          </button>
+                        </div>
                       </form>
                     </div>
-              <?php
-                  else:
-                    echo "<div class='alert alert-danger mt-3'>QR Code tidak ditemukan.</div>";
-                  endif;
-                }
-              }
-              ?>
-            </div>
-          </div>
+                  </div>
+                </div>
+
+                <!-- STYLE -->
+                <style>
+                  .fade-in {
+                    animation: fadeIn 0.6s ease-in-out;
+                  }
+
+                  @keyframes fadeIn {
+                    from {
+                      opacity: 0;
+                      transform: translateY(10px);
+                    }
+
+                    to {
+                      opacity: 1;
+                      transform: translateY(0);
+                    }
+                  }
+
+                  .info-box {
+                    transition: all 0.3s ease;
+                  }
+
+                  .info-box:hover {
+                    background-color: #f8f9fa;
+                    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.05);
+                    transform: translateY(-2px);
+                  }
+                </style>
+          <?php
+              else:
+                echo "<div class='alert alert-danger mt-3'>QR Code tidak ditemukan.</div>";
+              endif;
+            }
+          }
+          ?>
+
         </div>
       </div>
     </section>

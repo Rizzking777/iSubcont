@@ -2,8 +2,8 @@
 require 'function.php';
 
 header('Content-Type: application/json; charset=utf-8');
-error_reporting(0);
-ini_set('display_errors', 0);
+ini_set('display_errors', 1);
+error_reporting(E_ALL);
 
 // Ambil request DataTables
 $draw   = $_POST['draw'] ?? 1;
@@ -11,10 +11,10 @@ $start  = $_POST['start'] ?? 0;
 $length = $_POST['length'] ?? 10;
 
 // Filter
-$bucket    = $_POST['bucket'] ?? '';
-$ncvs      = $_POST['ncvs'] ?? '';
-$po_code   = $_POST['po_code'] ?? '';
-$job_order = $_POST['job_order'] ?? '';
+$bucket    = $_POST['bucket'] ?? $_GET['bucket'] ?? '';
+$ncvs      = $_POST['ncvs'] ?? $_GET['ncvs'] ?? '';
+$po_code   = $_POST['po_code'] ?? $_GET['po_code'] ?? '';
+$job_order = $_POST['job_order'] ?? $_GET['job_order'] ?? '';
 
 if (empty($bucket) && empty($ncvs) && empty($po_code) && empty($job_order)) {
   echo json_encode([
@@ -26,14 +26,21 @@ if (empty($bucket) && empty($ncvs) && empty($po_code) && empty($job_order)) {
   exit;
 }
 
-// ===============================
-// Base query (ambil dari master)
-// ===============================
-$sql = "
+// -----------------------
+// Ambil daftar job_order
+// -----------------------
+$baseSql = "
 FROM tbl_master_data m
 INNER JOIN (
-  SELECT DISTINCT job_order FROM tbl_transaksi
+    SELECT DISTINCT job_order, po_code, po_item, bucket, style, model, ncvs
+    FROM tbl_transaksi
 ) t ON m.job_order = t.job_order
+   AND m.po_code = t.po_code
+   AND m.po_item = t.po_item
+   AND m.bucket = t.bucket
+   AND m.style = t.style
+   AND m.model = t.model
+   AND m.ncvs = t.ncvs
 WHERE 1=1
 ";
 
@@ -44,145 +51,277 @@ $types = "";
 if (!empty($bucket)) {
   $where[] = "m.bucket = ?";
   $params[] = $bucket;
-  $types   .= "s";
+  $types .= "s";
 }
 if (!empty($ncvs)) {
   $where[] = "m.ncvs = ?";
   $params[] = $ncvs;
-  $types   .= "s";
+  $types .= "s";
 }
 if (!empty($po_code)) {
   $where[] = "m.po_code = ?";
   $params[] = $po_code;
-  $types   .= "s";
+  $types .= "s";
 }
 if (!empty($job_order)) {
   $where[] = "m.job_order = ?";
   $params[] = $job_order;
-  $types   .= "s";
+  $types .= "s";
 }
+if (!empty($where)) $baseSql .= " AND " . implode(" AND ", $where);
 
-if (!empty($where)) {
-  $sql .= " AND " . implode(" AND ", $where);
-}
+// Ambil data job_order
+$dataJobsQuery = "
+SELECT 
+    m.job_order,
+    MAX(m.ncvs) AS ncvs,
+    MAX(m.bucket) AS bucket,
+    MAX(m.po_code) AS po_code,
+    MAX(m.po_item) AS po_item,
+    MAX(m.style) AS style,
+    MAX(m.model) AS model,
+    SUM(m.qty) AS total_order
+" . $baseSql . "
+GROUP BY m.job_order
+ORDER BY m.job_order ASC
+LIMIT ?, ?
+";
+
+$paramsJobs = $params;
+$typesJobs  = $types . "ii";
+$paramsJobs[] = intval($start);
+$paramsJobs[] = intval($length);
+
+$stmtJobs = $conn->prepare($dataJobsQuery);
+if ($typesJobs) $stmtJobs->bind_param($typesJobs, ...$paramsJobs);
+$stmtJobs->execute();
+$jobsResult = $stmtJobs->get_result();
 
 // Hitung total job_order
-$totalQuery = "SELECT COUNT(DISTINCT m.job_order) as cnt " . $sql;
-$stmt = $conn->prepare($totalQuery);
-if ($types) $stmt->bind_param($types, ...$params);
-$stmt->execute();
-$totalResult = $stmt->get_result()->fetch_assoc();
-$recordsTotal = $totalResult['cnt'] ?? 0;
+$countQuery = "SELECT COUNT(DISTINCT m.job_order) AS cnt " . $baseSql;
+$stmtCount = $conn->prepare($countQuery);
+if ($types) $stmtCount->bind_param($types, ...$params);
+$stmtCount->execute();
+$recordsTotal = intval($stmtCount->get_result()->fetch_assoc()['cnt'] ?? 0);
+$stmtCount->close();
 
-// Ambil data utama
-$dataQuery = "
-SELECT 
-  m.job_order,
-  MAX(m.ncvs) AS ncvs,
-  MAX(m.bucket) AS bucket,
-  MAX(m.po_code) AS po_code,
-  MAX(m.po_item) AS po_item,
-  MAX(m.style) AS style,
-  MAX(m.model) AS model,
-  SUM(m.qty) AS total_order
-" . $sql . "
-GROUP BY m.job_order
-ORDER BY m.job_order ASC, m.ncvs ASC
-LIMIT ?, ?";
+$finalData = [];
+$vendor_cache = [];
 
-$params2 = $params;
-$types2  = $types . "ii";
-$params2[] = intval($start);
-$params2[] = intval($length);
+// -----------------------
+// Loop job_order
+// -----------------------
+while ($jobRow = $jobsResult->fetch_assoc()) {
+  $job = $jobRow['job_order'];
+  $total_order_job = floatval($jobRow['total_order']);
 
-$stmt2 = $conn->prepare($dataQuery);
-$stmt2->bind_param($types2, ...$params2);
-$stmt2->execute();
-$dataResult = $stmt2->get_result();
+  // Ambil semua komponen unik
+  $stmtKomp = $conn->prepare("SELECT komponen_qty FROM tbl_transaksi WHERE job_order = ?");
+  $stmtKomp->bind_param("s", $job);
+  $stmtKomp->execute();
+  $resKomp = $stmtKomp->get_result();
 
-$data = [];
-
-// ===============================
-// Loop setiap job_order dan ambil Scan In / Out + Kekurangan
-// ===============================
-while ($row = $dataResult->fetch_assoc()) {
-  $job_order = $row['job_order'];
-
-  // --- Ambil SCAN IN / OUT dari tlog_transaksi ---
-  $queryLog = "
-    SELECT action_type, new_data
-    FROM tlog_transaksi
-    WHERE JSON_UNQUOTE(JSON_EXTRACT(new_data, '$.job_order')) = ?
-      AND action_type IN ('SCAN_IN_WAREHOUSE', 'SCAN_OUT_TO_PRODUCTION')
-  ";
-  $stmtLog = $conn->prepare($queryLog);
-  $stmtLog->bind_param("s", $job_order);
-  $stmtLog->execute();
-  $resultLog = $stmtLog->get_result();
-
-  $scan_in_total  = 0;
-  $scan_out_total = 0;
-
-  while ($log = $resultLog->fetch_assoc()) {
-    $action_type = $log['action_type'];
-    $new_data    = json_decode($log['new_data'], true);
-
-    if (!empty($new_data['komponen_qty'])) {
-      $komponenData = json_decode($new_data['komponen_qty'], true);
-      if (is_array($komponenData)) {
-        foreach ($komponenData as $item) {
-          $qty = isset($item['qty']) ? floatval($item['qty']) : 0;
-          if ($action_type === 'SCAN_IN_WAREHOUSE') {
-            $scan_in_total += $qty;
-          } elseif ($action_type === 'SCAN_OUT_TO_PRODUCTION') {
-            $scan_out_total += $qty;
-          }
-        }
+  $komponen_set = [];
+  while ($r = $resKomp->fetch_assoc()) {
+    $kj = json_decode($r['komponen_qty'] ?? '[]', true);
+    if (is_array($kj)) {
+      foreach ($kj as $it) {
+        $kid = (string)($it['komponen'] ?? '');
+        if ($kid === '') continue;
+        $komponen_set[$kid] = true;
       }
     }
   }
+  $stmtKomp->close();
+  if (empty($komponen_set)) $komponen_set = ['-1' => true];
 
-  // --- Ambil total kekurangan dari tbl_transaksi_kekurangan ---
-  $queryKurang = "
-    SELECT COALESCE(SUM(total_kekurangan), 0) AS total_kurang
-    FROM tbl_transaksi_kekurangan
-    WHERE job_order = ? AND status = 'PENDING'
-  ";
-  $stmtKurang = $conn->prepare($queryKurang);
-  $stmtKurang->bind_param("s", $job_order);
-  $stmtKurang->execute();
-  $kurangResult = $stmtKurang->get_result()->fetch_assoc();
-  $total_kurang = floatval($kurangResult['total_kurang'] ?? 0);
-  $stmtKurang->close();
+  foreach (array_keys($komponen_set) as $komp_id) {
+    // Ambil vendor & nama komponen
+    if ($komp_id !== '-1') {
+      if (!isset($vendor_cache[$komp_id])) {
+        $stmt_k = $conn->prepare("
+                    SELECT k.nama_komponen, GROUP_CONCAT(DISTINCT v.name_vendor SEPARATOR ', ') AS vendors
+                    FROM tbl_komponen k
+                    LEFT JOIN tbl_komponen_proses p ON p.id_input = k.id_komponen OR p.id_output = k.id_komponen
+                    LEFT JOIN tbl_vendor_proses vp ON vp.id_proses = p.id_proses
+                    LEFT JOIN tbl_vendor v ON v.id_vendor = vp.id_vendor
+                    WHERE k.id_komponen = ?
+                    GROUP BY k.id_komponen
+                ");
+        $stmt_k->bind_param("s", $komp_id);
+        $stmt_k->execute();
+        $vendor_cache[$komp_id] = $stmt_k->get_result()->fetch_assoc() ?: [];
+        $stmt_k->close();
+      }
+      $nama_komponen = $vendor_cache[$komp_id]['nama_komponen'] ?? $komp_id;
+      $vendor_names = $vendor_cache[$komp_id]['vendors'] ?? '-';
+    } else {
+      $nama_komponen = '-';
+      $vendor_names = '-';
+    }
 
-  // --- Hitung Balance ---
-  $total_order = floatval($row['total_order']);
-  $balance_in  = $scan_in_total - $total_order;
-  $balance_out = ($scan_out_total + $total_kurang) - $total_order;
+    // Ambil log transaksi job_order
+    $stmtLog = $conn->prepare("
+    SELECT action_type, qty_real, qty_kekurangan, status_kekurangan
+    FROM tlog_transaksi
+    WHERE JSON_UNQUOTE(JSON_EXTRACT(new_data, '$.job_order')) = ?
+    ORDER BY created_at ASC, id_log_trans ASC
+");
+    $stmtLog->bind_param("s", $job);
+    $stmtLog->execute();
+    $resLog = $stmtLog->get_result();
 
-  // --- Link Job Order ke detail ---
-  $row['job_order'] = '<a href="reports-general-status-detail.php?job_order=' . urlencode($job_order) . '" 
-    class="btn btn-sm btn-outline-primary" target="_blank">'
-    . htmlspecialchars($job_order) . '</a>';
+    // Init counters
+    $in_wh = $out_vendor = $in_incoming = $out_prod = 0;
+    $scan_qc_found = false;
+    $scan_qc_logs = [];
+    $scan_out_logs = [];
 
-  // --- Tambahkan kolom tambahan ---
-  $row['scan_in']     = $scan_in_total;
-  $row['scan_out']    = $scan_out_total;
-  $row['kekurangan']  = $total_kurang;
-  $row['balance_in']  = $balance_in;
-  $row['balance_out'] = $balance_out;
+    while ($log = $resLog->fetch_assoc()) {
+      $action = $log['action_type'];
+      $qty_real_list = json_decode($log['qty_real'] ?? '[]', true);
+      if (!is_array($qty_real_list)) $qty_real_list = [];
 
-  $data[] = $row;
+      // Ambil kekurangan jika status pending
+      $qty_kekurangan_list = [];
+      if (strtolower(trim($log['status_kekurangan'] ?? '')) === 'pending' && !empty($log['qty_kekurangan'])) {
+        $tmp = json_decode($log['qty_kekurangan'], true);
+        if (is_array($tmp)) $qty_kekurangan_list = $tmp;
+      }
+
+      // Simpan log SCAN khusus
+      if ($action === 'SCAN_CHECK_QC') {
+        $scan_qc_logs[] = $log;
+        $scan_qc_found = true;
+        continue;
+      } elseif ($action === 'SCAN_OUT_TO_PRODUCTION') {
+        $scan_out_logs[] = $log;
+        continue;
+      }
+
+      foreach ($qty_real_list as $qr_item) {
+        if ((string)($qr_item['komponen'] ?? '') !== (string)$komp_id) continue;
+        $size = $qr_item['size'] ?? '';
+        $qty = floatval($qr_item['qty'] ?? 0);
+
+        // Pengurangan tergantung action
+        foreach ($qty_kekurangan_list as $qk) {
+          if (
+            (string)($qk['komponen'] ?? '') === (string)$komp_id &&
+            (string)($qk['size'] ?? '') === (string)$size
+          ) {
+
+            if ($action === 'SCAN_IN_INCOMING') {
+              // SCAN_IN_INCOMING pakai key 'qty'
+              $qty -= floatval($qk['qty'] ?? 0);
+            } else {
+              // SCAN_IN_WAREHOUSE atau SCAN_OUT_TO_VENDOR (kalau ada kekurangan pakai key 'kekurangan')
+              $qty -= floatval($qk['kekurangan'] ?? 0);
+            }
+          }
+        }
+
+        if ($qty < 0) $qty = 0;
+
+        // Tambahkan ke counter sesuai action
+        switch ($action) {
+          case 'SCAN_IN_WAREHOUSE':
+            $in_wh += $qty;
+            break;
+          case 'SCAN_OUT_TO_VENDOR':
+            $out_vendor += $qty;
+            break;
+          case 'SCAN_IN_INCOMING':
+            $in_incoming += $qty;
+            break;
+        }
+      }
+    }
+
+    // Hitung Out to Production (pakai log SCAN_CHECK_QC jika ada)
+    $out_prod = 0;
+    $logs_to_use = !empty($scan_qc_logs) ? $scan_qc_logs : $scan_out_logs;
+
+    foreach ($logs_to_use as $log) {
+      $qty_real_list = json_decode($log['qty_real'] ?? '[]', true);
+      if (!is_array($qty_real_list)) continue;
+
+      $qty_kekurangan_list = [];
+      if (strtolower(trim($log['status_kekurangan'] ?? '')) === 'pending' && !empty($log['qty_kekurangan'])) {
+        $tmp = json_decode($log['qty_kekurangan'], true);
+        if (is_array($tmp)) $qty_kekurangan_list = $tmp;
+      }
+
+      foreach ($qty_real_list as $qr_item) {
+        if ((string)($qr_item['komponen'] ?? '') !== (string)$komp_id) continue;
+        $size = $qr_item['size'] ?? '';
+        $qty = floatval($qr_item['qty'] ?? 0);
+
+        // SCAN_CHECK_QC pakai key 'kekurangan'
+        foreach ($qty_kekurangan_list as $qk) {
+          if (
+            (string)($qk['komponen'] ?? '') === (string)$komp_id &&
+            (string)($qk['size'] ?? '') === (string)$size
+          ) {
+            $qty -= floatval($qk['kekurangan'] ?? 0);
+          }
+        }
+
+        if ($qty < 0) $qty = 0;
+        $out_prod += $qty;
+      }
+    }
+
+    // HITUNG BALANCE
+    $bal_in_wh = $in_wh - $total_order_job;
+    $bal_out_vendor = $out_vendor - $total_order_job;
+    $bal_in_incoming = $in_incoming - $total_order_job;
+    $bal_out_prod = $out_prod - $total_order_job;
+
+    // Susun hasil per komponen
+    $rowOut = $jobRow;
+    $rowOut['komponen'] = $komp_id;
+    $rowOut['nama_komponen'] = $nama_komponen;
+    $rowOut['vendors'] = $vendor_names;
+
+    $rowOut['total_order'] = $total_order_job;
+    $rowOut['scan_in'] = $in_wh;
+    $rowOut['balance_in'] = $bal_in_wh;
+    $rowOut['wh_to_vendor'] = $out_vendor;
+    $rowOut['balance_wh_to_vendor'] = $bal_out_vendor;
+    $rowOut['incoming'] = $in_incoming;
+    $rowOut['balance_incoming'] = $bal_in_incoming;
+    $rowOut['scan_out'] = $out_prod;
+    $rowOut['balance_out'] = $bal_out_prod;
+
+    // Debug tambahan
+    $rowOut['debug'] = [
+      'qty_logs' => [
+        'in_wh' => $in_wh,
+        'out_vendor' => $out_vendor,
+        'in_incoming' => $in_incoming,
+        'out_prod' => $out_prod
+      ],
+      'total_order_job' => $total_order_job,
+      'komponen_set' => $komponen_set,
+      'scan_check_qc_found' => $scan_qc_found,
+      'scan_qc_logs_count' => count($scan_qc_logs ?? []),
+      'scan_out_logs_count' => count($scan_out_logs ?? [])
+    ];
+
+    $finalData[] = $rowOut;
+  }
 }
 
-// ===============================
-// Final Output (JSON VALID)
-// ===============================
+
+// -----------------------
+// Output JSON
+// -----------------------
 $response = [
   "draw" => intval($draw),
   "recordsTotal" => intval($recordsTotal),
   "recordsFiltered" => intval($recordsTotal),
-  "data" => $data
+  "data" => $finalData
 ];
 
 echo json_encode($response, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);

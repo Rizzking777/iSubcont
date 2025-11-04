@@ -372,8 +372,8 @@ $vendors_per_model = !empty($vendors_all) ? implode(', ', $vendors_all) : '-';
                   <input type="text" id="ncvs" name="ncvs" class="form-control" readonly>
                 </div>
                 <div class="col-md-6">
-                  <label for="lot" class="form-label">Lot<span class="text-danger">*</span></label>
-                  <input id="lot" name="lot" type="text" class="form-control" placeholder="contoh: 1-8,10,12. Pastikan lot sesuai.">
+                  <label for="lot" class="form-label">Lot</label>
+                  <input id="lot" name="lot" type="text" class="form-control" readonly>
                 </div>
               </div>
 
@@ -1441,7 +1441,7 @@ $vendors_per_model = !empty($vendors_all) ? implode(', ', $vendors_all) : '-';
               .val(res.lot_range)
               .attr('placeholder', 'Format: 1-3,5,7-9')
               .data('lot-range', res.lot_range)
-              .prop('readonly', false);
+            $('#lot').prop('readonly', true);
           } else {
             $('#lot').val('').attr('placeholder', 'Lot tidak ditemukan');
           }
@@ -1724,26 +1724,40 @@ $vendors_per_model = !empty($vendors_all) ? implode(', ', $vendors_all) : '-';
       const popup = document.createElement("div");
       popup.className = "full-popup";
       popup.textContent = text;
-      document.body.appendChild(popup); // ⬅️ langsung ke body biar bebas posisi
+      document.body.appendChild(popup);
 
       // Hitung posisi elemen
       const rect = el.getBoundingClientRect();
       const top = rect.bottom + window.scrollY + 5;
       const left = rect.left + window.scrollX;
+      popup.style.top = `${top}px`;
+      popup.style.left = `${left}px`;
 
-      popup.style.top = top + "px";
-      popup.style.left = left + "px";
+      // Styling popup
+      popup.style.position = "absolute";
+      popup.style.background = "#fff";
+      popup.style.border = "1px solid #ccc";
+      popup.style.padding = "8px 12px";
+      popup.style.borderRadius = "8px";
+      popup.style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)";
+      popup.style.zIndex = "9999";
+      popup.style.maxWidth = "300px";
       popup.style.display = "block";
 
-      // Klik di luar popup -> tutup
-      document.addEventListener("click", function handler(e) {
-        if (!popup.contains(e.target) && e.target !== el) {
-          popup.remove();
-          document.removeEventListener("click", handler);
-        }
-      }, {
-        once: true
-      });
+      // ⏱ Delay sedikit sebelum pasang event listener biar klik awal gak ikut
+      setTimeout(() => {
+        document.addEventListener(
+          "click",
+          function handler(e) {
+            if (!popup.contains(e.target) && e.target !== el) {
+              popup.remove();
+              document.removeEventListener("click", handler);
+            }
+          }, {
+            once: true
+          }
+        );
+      }, 10);
     }
   </script>
 

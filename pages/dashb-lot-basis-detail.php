@@ -29,6 +29,66 @@ $infoQuery = "
 ";
 $info = $conn->query($infoQuery)->fetch_assoc();
 
+// 🧩 Ambil daftar komponen untuk model ini
+if (!isset($komponenList) || !is_array($komponenList) || count($komponenList) === 0) {
+  $komponenList = [];
+  $modelForKomponen = $conn->real_escape_string($info['model'] ?? '');
+  $qK = $conn->query("
+      SELECT id_komponen, nama_komponen
+      FROM tbl_komponen
+      WHERE model = '{$modelForKomponen}' AND is_deleted = 0
+      ORDER BY nama_komponen ASC
+  ");
+  if ($qK && $qK->num_rows > 0) {
+    while ($r = $qK->fetch_assoc()) {
+      $komponenList[] = [
+        'id' => (int)$r['id_komponen'],
+        'nama' => $r['nama_komponen']
+      ];
+    }
+  }
+
+  if (empty($komponenList)) {
+    $komponenList = [['id' => 0, 'nama' => 'Komponen']];
+  }
+}
+
+// 🧩 Ambil data transaksi aktif dari tlog_transaksi (CREATE_BARCODE terakhir)
+$transQ = $conn->query("
+  SELECT new_data
+  FROM tlog_transaksi
+  WHERE JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.job_order')) = '{$job_order}'
+    AND JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.type_scan')) = 'CREATE_BARCODE'
+ 
+  LIMIT 1
+");
+
+$transaksiData = [];
+if ($transQ && $transQ->num_rows > 0) {
+  $rT = $transQ->fetch_assoc();
+  $transaksiData = json_decode($rT['new_data'], true);
+}
+
+// ✅ Ambil ID komponen dari transaksi aktif
+$komponenIDsInTrans = [];
+if (!empty($transaksiData['komponen_qty'])) {
+  foreach ($transaksiData['komponen_qty'] as $kq) {
+    if (!empty($kq['komponen'])) {
+      $komponenIDsInTrans[] = (int)$kq['komponen'];
+    }
+  }
+}
+$komponenIDsInTrans = array_unique($komponenIDsInTrans);
+
+// ⚠️ Filter hanya komponen yang muncul di transaksi
+if (!empty($komponenIDsInTrans)) {
+  $komponenList = array_filter($komponenList, function ($k) use ($komponenIDsInTrans) {
+    return in_array((int)$k['id'], $komponenIDsInTrans);
+  });
+  $komponenList = array_values($komponenList);
+}
+
+
 // 2️⃣ Ambil LOT & SIZE
 $lots = $conn->query("
   SELECT DISTINCT lot 
@@ -71,26 +131,63 @@ while ($r = $planQuery->fetch_assoc()) {
 
 // 4️⃣ SCAN_IN_WAREHOUSE (IN WH)
 $inData = [];
-$inQ = $conn->query("
-  SELECT new_data FROM tlog_transaksi
-  WHERE JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.job_order'))='$job_order'
-    AND JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.type_scan'))='SCAN_IN_WAREHOUSE'
-");
-while ($r = $inQ->fetch_assoc()) {
-  $data = json_decode($r['new_data'], true);
-  $lotsArr = json_decode($data['lot'] ?? '[]', true);
-  $kompArr = json_decode($data['komponen_qty'] ?? '[]', true);
-  if (!$lotsArr || !$kompArr) continue;
+$defisitData = []; // defisit kumulatif per komponen per lot per size
 
-  foreach ($lotsArr as $lot) {
+$inQ = $conn->query("
+    SELECT new_data FROM tlog_transaksi
+    WHERE JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.job_order'))='$job_order'
+      AND JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.type_scan'))='SCAN_IN_WAREHOUSE'
+    ORDER BY id_trans ASC
+");
+
+while ($r = $inQ->fetch_assoc()) {
+    $data = json_decode($r['new_data'], true);
+    $lotsArr = json_decode($data['lot'] ?? '[]', true);
+    $kompArr = json_decode($data['komponen_qty'] ?? '[]', true);
+    if (!$lotsArr || !$kompArr) continue;
+
+    echo "<hr><strong>Transaksi ID {$data['id_trans']}</strong><br>";
+
     foreach ($kompArr as $k) {
-      $size = normalizeSize($k['size'] ?? '');
-      $qty  = (int)($k['qty'] ?? 0);
-      if ($size && $qty > 0)
-        $inData[$lot][$size] = ($inData[$lot][$size] ?? 0) + $qty;
+        $size = normalizeSize($k['size'] ?? '');
+        $qty  = (int)($k['qty'] ?? 0);
+        $komp = (int)($k['komponen'] ?? 0);
+        if (!$size) continue;
+
+        foreach ($lotsArr as $lot) {
+            // Ambil planData dengan aman, default 0 kalau ga ada
+            $planLotKomponen = (int)($planData[$lot][$size][$komp] ?? $planData[$lot][$size] ?? 0);
+            if ($planLotKomponen <= 0) continue;
+
+            // Ambil defisit sekarang, kalau belum ada inisialisasi pakai planData
+            $defisitSisa = $defisitData[$lot][$size][$komp] ?? $planLotKomponen;
+
+            // 🔹 DEBUG sebelum Take
+            echo "[DEBUG] Lot: $lot | Size: $size | Komp: $komp | Qty scan: $qty | Defisit sebelum: $defisitSisa<br>";
+
+            // Ambil sebanyak mungkin dari scan tapi tidak lebih dari defisit
+            $take = min($defisitSisa, $qty);
+
+            // Simpan hasil scan
+            $inData[$lot][$size][$komp] = ($inData[$lot][$size][$komp] ?? 0) + $take;
+            $defisitData[$lot][$size][$komp] = $defisitSisa - $take;
+
+            // 🔹 DEBUG setelah Take
+            echo "[DEBUG] Lot: $lot | Size: $size | Komp: $komp | Take: $take | Defisit setelah: {$defisitData[$lot][$size][$komp]}<br>";
+        }
     }
-  }
 }
+
+// 🔹 Debug kumulatif defisit setelah semua transaksi
+echo "<hr><strong>Hasil kumulatif semua transaksi:</strong><br>";
+foreach ($defisitData as $lot => $sizesArr) {
+    foreach ($sizesArr as $size => $kompArr) {
+        foreach ($kompArr as $komp => $deficit) {
+            echo "Lot: $lot | Size: $size | Komp: $komp | Defisit akhir: $deficit<br>";
+        }
+    }
+}
+
 
 // 🔧 5️⃣ SCAN_OUT_TO_VENDOR (WH TO VENDOR)
 $outVendorData = [];
@@ -138,11 +235,12 @@ if (isset($lots)) {
 $lots = $lotsArr; // sekarang $lots pasti array
 
 
-// 🔧 6️⃣ SCAN_IN_INCOMING (INCOMING) - versi distribusi per lot sesuai plan
+// 🔧 6️⃣ SCAN_IN_INCOMING (INCOMING) - versi distribusi per lot sesuai urutan (lot terakhir dulu)
 $incomingData = [];
 $incomingQ = $conn->query("
   SELECT 
-    JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.komponen_qty')) AS komponen_json
+    JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.komponen_qty')) AS komponen_json,
+    JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.lot')) AS lot_json
   FROM tlog_transaksi
   WHERE JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.job_order'))='$job_order'
     AND JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.type_scan'))='SCAN_IN_INCOMING'
@@ -150,32 +248,31 @@ $incomingQ = $conn->query("
 
 while ($r = $incomingQ->fetch_assoc()) {
   $kompArr = json_decode($r['komponen_json'], true) ?: [];
+  $lotArr = json_decode($r['lot_json'], true) ?: [];
 
   foreach ($kompArr as $k) {
     $size = normalizeSize($k['size'] ?? '');
     $qty  = (int)($k['qty'] ?? 0);
     if ($size === '' || $qty <= 0) continue;
 
-    // 🔹 Ambil semua lot yang punya plan untuk size ini
-    $targetLots = [];
-    foreach (($lots ?? []) as $lotRow) {
-      $lot = (string)($lotRow['lot'] ?? '');
-      if ($lot === '') continue;
-      if (!empty($planData[$lot][$size])) $targetLots[$lot] = $planData[$lot][$size];
-    }
+    // 🔹 Tentukan lot target
+    $targetLots = !empty($lotArr) ? $lotArr : array_column($lots, 'lot');
 
-    // 🧮 Distribusi qty ke lot sesuai plan
-    foreach ($targetLots as $lot => $planQty) {
-      if ($qty <= 0) break;
+    // 🧮 Distribusi qty ke lot aktif (mulai dari lot terakhir)
+    for ($i = count($targetLots) - 1; $i >= 0 && $qty > 0; $i--) {
+      $lot = (string)$targetLots[$i];
+      $planQty = (int)($planData[$lot][$size] ?? 0);
+      if ($planQty <= 0) continue;
+
       $fill = min($planQty, $qty);
       $incomingData[$lot][$size] = ($incomingData[$lot][$size] ?? 0) + $fill;
       $qty -= $fill;
     }
 
-    // ⚠️ Jika qty masih sisa tapi gak ada lot di plan, taruh ke lot pertama (fallback)
-    if ($qty > 0 && !empty($lots)) {
-      $firstLot = (string)($lots[0]['lot'] ?? 'UNDEFINED');
-      $incomingData[$firstLot][$size] = ($incomingData[$firstLot][$size] ?? 0) + $qty;
+    // ⚠️ Jika qty masih sisa tapi semua lot sudah penuh, masukkan ke lot terakhir (fallback)
+    if ($qty > 0 && !empty($targetLots)) {
+      $lastLot = (string)end($targetLots);
+      $incomingData[$lastLot][$size] = ($incomingData[$lastLot][$size] ?? 0) + $qty;
     }
   }
 }
@@ -266,7 +363,6 @@ while ($r = $kekQ->fetch_assoc()) {
   }
 }
 
-
 // 🔧 Reset semua size yang tidak disebut di kekurangan menjadi 0 (agar size lain gak bawa nilai lama)
 $semuaSize = array_column($sizes, 'size');
 $sizeKekurangan = [];
@@ -340,31 +436,31 @@ $outProdQ = $conn->query("
 ");
 
 while ($r = $outProdQ->fetch_assoc()) {
-    $newData = json_decode($r['new_data'], true);
-    if (!$newData) continue;
+  $newData = json_decode($r['new_data'], true);
+  if (!$newData) continue;
 
-    $lotsArr = $newData['lot'] ?? [];
-    $kompArrRaw = $newData['komponen_qty'] ?? [];
+  $lotsArr = $newData['lot'] ?? [];
+  $kompArrRaw = $newData['komponen_qty'] ?? [];
 
-    if (is_string($kompArrRaw)) {
-        $kompArr = json_decode($kompArrRaw, true);
-        if (is_string($kompArr)) $kompArr = json_decode($kompArr, true);
-    } else {
-        $kompArr = $kompArrRaw;
+  if (is_string($kompArrRaw)) {
+    $kompArr = json_decode($kompArrRaw, true);
+    if (is_string($kompArr)) $kompArr = json_decode($kompArr, true);
+  } else {
+    $kompArr = $kompArrRaw;
+  }
+  $kompArr = is_array($kompArr) ? $kompArr : [];
+  $lotsArr = is_array($lotsArr) ? $lotsArr : [];
+
+  foreach ($lotsArr as $lot) {
+    $lotKey = (string)$lot;
+    foreach ($kompArr as $k) {
+      $size = normalizeSize($k['size'] ?? '');
+      $qty  = (int)($k['qty'] ?? 0); // biasanya qty di sini adalah kekurangan
+      if ($size === '' || $qty <= 0) continue;
+
+      $outProdData[$lotKey][$size] = ($outProdData[$lotKey][$size] ?? 0) + $qty;
     }
-    $kompArr = is_array($kompArr) ? $kompArr : [];
-    $lotsArr = is_array($lotsArr) ? $lotsArr : [];
-
-    foreach ($lotsArr as $lot) {
-        $lotKey = (string)$lot;
-        foreach ($kompArr as $k) {
-            $size = normalizeSize($k['size'] ?? '');
-            $qty  = (int)($k['qty'] ?? 0); // biasanya qty di sini adalah kekurangan
-            if ($size === '' || $qty <= 0) continue;
-
-            $outProdData[$lotKey][$size] = ($outProdData[$lotKey][$size] ?? 0) + $qty;
-        }
-    }
+  }
 }
 
 // 🔧 CONFIRM_KEKURANGAN untuk OUT TO PROD (kurangi pending kekurangan)
@@ -376,91 +472,114 @@ $kekQ = $conn->query("
 ");
 
 while ($r = $kekQ->fetch_assoc()) {
-    $newData = json_decode($r['new_data'], true);
-    if (!$newData) continue;
+  $newData = json_decode($r['new_data'], true);
+  if (!$newData) continue;
 
-    $lastGate = strtoupper(trim($newData['last_gate'] ?? ''));
-    if ($lastGate !== 'SCAN_CHECK_QC') continue;
+  $lastGate = strtoupper(trim($newData['last_gate'] ?? ''));
+  if ($lastGate !== 'SCAN_CHECK_QC') continue;
 
-    $status = strtolower(trim($newData['status'] ?? ''));
-    $kompArrRaw = $newData['komponen_qty'] ?? [];
-    if (is_string($kompArrRaw)) {
-        $kompArr = json_decode($kompArrRaw, true);
-        if (is_string($kompArr)) $kompArr = json_decode($kompArr, true);
-    } else {
-        $kompArr = $kompArrRaw;
+  $status = strtolower(trim($newData['status'] ?? ''));
+  $kompArrRaw = $newData['komponen_qty'] ?? [];
+  if (is_string($kompArrRaw)) {
+    $kompArr = json_decode($kompArrRaw, true);
+    if (is_string($kompArr)) $kompArr = json_decode($kompArr, true);
+  } else {
+    $kompArr = $kompArrRaw;
+  }
+  $kompArr = is_array($kompArr) ? $kompArr : [];
+
+  foreach ($kompArr as $k) {
+    $size = normalizeSize($k['size'] ?? '');
+    $qty  = (int)($k['kekurangan'] ?? $k['qty'] ?? 0);
+    if ($size === '' || $qty <= 0) continue;
+
+    if ($status === 'confirmed') {
+      foreach ($lots as $lotRow) {
+        $lot = (string)$lotRow['lot'];
+        if (!isset($planData[$lot][$size])) continue;
+        $outProdData[$lot][$size] = 0;
+      }
+    } elseif ($status === 'pending') {
+      $sisa = $qty;
+      foreach ($lots as $lotRow) {
+        $lot = (string)$lotRow['lot'];
+        if (!isset($planData[$lot][$size])) continue;
+
+        $planLot = (int)($planData[$lot][$size] ?? 0);
+        $cur = (int)($outProdData[$lot][$size] ?? 0);
+
+        if ($sisa <= 0) break;
+
+        $kurang = min($planLot, $sisa);
+        $outProdData[$lot][$size] = $cur - $kurang;
+        $sisa -= $kurang;
+      }
+
+      if ($sisa > 0 && !empty($lots)) {
+        $firstLot = (string)$lots[0]['lot'];
+        $outProdData[$firstLot][$size] = ($outProdData[$firstLot][$size] ?? 0) - $sisa;
+      }
     }
-    $kompArr = is_array($kompArr) ? $kompArr : [];
-
-    foreach ($kompArr as $k) {
-        $size = normalizeSize($k['size'] ?? '');
-        $qty  = (int)($k['kekurangan'] ?? $k['qty'] ?? 0);
-        if ($size === '' || $qty <= 0) continue;
-
-        if ($status === 'confirmed') {
-            foreach ($lots as $lotRow) {
-                $lot = (string)$lotRow['lot'];
-                if (!isset($planData[$lot][$size])) continue;
-                $outProdData[$lot][$size] = 0;
-            }
-        } elseif ($status === 'pending') {
-            $sisa = $qty;
-            foreach ($lots as $lotRow) {
-                $lot = (string)$lotRow['lot'];
-                if (!isset($planData[$lot][$size])) continue;
-
-                $planLot = (int)($planData[$lot][$size] ?? 0);
-                $cur = (int)($outProdData[$lot][$size] ?? 0);
-
-                if ($sisa <= 0) break;
-
-                $kurang = min($planLot, $sisa);
-                $outProdData[$lot][$size] = $cur - $kurang;
-                $sisa -= $kurang;
-            }
-
-            if ($sisa > 0 && !empty($lots)) {
-                $firstLot = (string)$lots[0]['lot'];
-                $outProdData[$firstLot][$size] = ($outProdData[$firstLot][$size] ?? 0) - $sisa;
-            }
-        }
-    }
+  }
 }
 
-// 🔧 9️⃣ Gabungkan semua ke $tableData
+// Masukkan semua array scan
+$scanTypes = [
+  'IN WH' => $inData,
+  'WH TO VENDOR' => $outVendorData,
+  'INCOMING' => $incomingData,
+  'OUT TO PROD' => $outProdData
+];
+
+// 🔧 Distribusi total scan antar lot untuk setiap size dan komponen
 $tableData = [];
-foreach ($lots as $lotRow) {
-  $lot = (string)$lotRow['lot'];
 
-  // ❌ skip lot yang gak punya plan, in, atau incoming sama sekali
-  if (
-    empty($planData[$lot]) &&
-    empty($inData[$lot]) &&
-    empty($incomingData[$lot]) &&
-    empty($outVendorData[$lot]) &&
-    empty($outProdData[$lot])
-  ) continue;
+foreach ($sizes as $s) {
+  $sizeKey = $s['size'];
 
-  foreach ($sizes as $s) {
-    $sizeKey = $s['size'];
+  foreach ($lots as $lotRow) {
+    $lot = (string)$lotRow['lot'];
 
-    $plan      = $planData[$lot][$sizeKey] ?? 0;
-    $inScan    = $inData[$lot][$sizeKey] ?? 0;
-    $outVendor = $outVendorData[$lot][$sizeKey] ?? 0;
-    $incoming  = $incomingData[$lot][$sizeKey] ?? 0; // sudah dikurangi pending
-    $outProd   = $outProdData[$lot][$sizeKey] ?? 0;
+    $plan      = (int)($planData[$lot][$sizeKey] ?? 0);
+    $outVendor = (int)($outVendorData[$lot][$sizeKey] ?? 0);
+    $incoming  = (int)($incomingData[$lot][$sizeKey] ?? 0);
+    $outProd   = (int)($outProdData[$lot][$sizeKey] ?? 0);
 
-    // ✅ balance in / wh vendor / outgoing tetap sama
-    $balanceIn   = max(0, $plan - $inScan);
-    $whVendorVal = max(0, $inScan - $outVendor);
-    $outProdVal  = $outProd;
+    // --- Hitung IN WH per komponen berdasarkan komponenList ---
+    $inWhComponents = [];
+    foreach ($komponenList as $komponen) {
+      $kompId = $komponen['id'] ?? $komponen['nama'];
+      $planLotKomponen = $planData[$lot][$sizeKey][$kompId] ?? $plan;
+
+      $scanQty = $inData[$lot][$sizeKey][$kompId] ?? 0;
+
+      // defisit = scan kumulatif dikurangi plan per komponen
+      $inWhComponents[$kompId] = $scanQty - $planLotKomponen;
+      if ($inWhComponents[$kompId] > 0) $inWhComponents[$kompId] = 0; // jangan positif
+    }
+
+    // --- Kolom lain tetap sama ---
+    $whVendorVal = ($outVendor > 0) ? $outVendor - $plan : -$plan;
+    if ($whVendorVal > 0) $whVendorVal = 0;
+
+    $incomingVal = ($incoming > 0) ? $incoming - $plan : -$plan;
+    if ($incomingVal > 0) $incomingVal = 0;
+
+    $outProdVal = ($outProd > 0) ? $outProd - $plan : -$plan;
+    if ($outProdVal > 0) $outProdVal = 0;
+
+    // --- Hutang tersisa per lot per size ---
+    $alokasi = (int)($allocatedMap[$lot] ?? 0);
+    $hutang = $plan - $alokasi - $outVendor - $incoming - $outProd;
+    if ($hutang < 0) $hutang = 0;
 
     $tableData[$lot][$sizeKey] = [
-      'plan'      => (int)$plan,
-      'in'        => (int)$balanceIn,
+      'plan'      => $plan,
+      'in'        => $inWhComponents, // per komponen
       'wh_vendor' => (int)$whVendorVal,
-      'incoming'  => (int)$incoming,
-      'out'       => (int)$outProdVal
+      'incoming'  => (int)$incomingVal,
+      'out'       => (int)$outProdVal,
+      'hutang'    => (int)$hutang
     ];
   }
 }
@@ -674,135 +793,138 @@ foreach ($lots as $lotRow) {
                 <p class="text-success">Description data per cell</p>
                 <p class="text-success fs-4">[ PLAN | IN WH | WH TO VENDOR | INCOMING | OUT TO PROD ]</p>
 
-                <!-- Wrapper scroll -->
-                <div style="overflow-x:auto;">
-                  <table class="table table-bordered text-center align-middle" style="min-width: 1000px;">
-                    <thead class="table-light">
-                      <tr>
-                        <th style="white-space: nowrap;">LOT</th>
-                        <?php foreach ($sizes as $s): ?>
-                          <th style="white-space: nowrap;"><?= htmlspecialchars($s['size']) ?></th>
-                        <?php endforeach; ?>
-                        <th style="white-space: nowrap;">Total</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <?php
-                      $grandPlan = $grandIn = $grandWhVendor = $grandIncoming = $grandOut = 0;
-                      foreach ($tableData as $lot => $row):
-                        $lotPlan = $lotIn = $lotWhVendor = $lotIncoming = $lotOut = 0;
-                      ?>
+                <?php foreach ($komponenList as $komponen): ?>
+                  <?php $komponenName = $komponen['nama']; ?>
+
+                  <h5 class="mt-4 fw-bold">Komponen: <?= htmlspecialchars($komponenName) ?></h5>
+
+                  <div style="overflow-x:auto;">
+                    <table class="table table-bordered text-center align-middle" style="min-width: 1000px;">
+                      <thead class="table-light">
                         <tr>
-                          <td class="fw-bold bg-light"><?= htmlspecialchars($lot) ?></td>
+                          <th style="white-space: nowrap;">LOT</th>
+                          <?php foreach ($sizes as $s): ?>
+                            <th style="white-space: nowrap;"><?= htmlspecialchars($s['size']) ?></th>
+                          <?php endforeach; ?>
+                          <th style="white-space: nowrap;">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <?php
+                        $grandPlan = $grandIn = $grandWhVendor = $grandIncoming = $grandOut = 0;
+                        foreach ($tableData as $lot => $row):
+                          $lotPlan = $lotIn = $lotWhVendor = $lotIncoming = $lotOut = 0;
+                        ?>
+                          <tr>
+                            <td class="fw-bold bg-light"><?= htmlspecialchars($lot) ?></td>
+                            <?php foreach ($sizes as $s):
+                              $size = $s['size'];
+                              $d = $row[$size] ?? [
+                                'plan' => 0,
+                                'in' => [],
+                                'wh_vendor' => 0,
+                                'incoming' => 0,
+                                'out' => 0
+                              ];
+
+                              $plan = $d['plan'];
+                              $inComponents = $d['in'] ?? [];
+
+                              // Ambil hanya komponen yang sesuai
+                              $inQty = $inComponents[$komponen['id'] ?? $komponenName] ?? 0;
+
+                              $wh_vendor = $d['wh_vendor'];
+                              $incoming  = $d['incoming'];
+                              $out  = $d['out'];
+
+                              $lotPlan += $plan;
+                              $lotIn   += $inQty;
+                              $lotWhVendor += $wh_vendor;
+                              $lotIncoming += $incoming;
+                              $lotOut  += $out;
+
+                              $isEmpty = ($plan == 0 && $inQty == 0 && $wh_vendor == 0 && $incoming == 0 && $out == 0);
+                              $cellClass = $isEmpty ? "bg-dark text-white" : "";
+                            ?>
+                              <td class="<?= $cellClass ?>" style="white-space: nowrap;">
+                                <?php if (!$isEmpty): ?>
+                                  <span class="text-success"><?= $plan ?></span> |
+                                  <span class="<?= $inQty < 0 ? 'text-danger' : 'text-success' ?>"><?= $inQty ?></span> |
+                                  <span class="<?= $wh_vendor < 0 ? 'text-danger' : 'text-success' ?>"><?= $wh_vendor ?></span> |
+                                  <span class="<?= $incoming < 0 ? 'text-danger' : 'text-success' ?>"><?= $incoming ?></span> |
+                                  <span class="<?= $out < 0 ? 'text-danger' : 'text-success' ?>"><?= $out ?></span>
+                                <?php endif; ?>
+                              </td>
+                            <?php endforeach; ?>
+                            <td class="fw-bold bg-light" style="white-space: nowrap;">
+                              <span class="text-success"><?= $lotPlan ?></span> |
+                              <span class="<?= $lotIn < 0 ? 'text-danger' : 'text-success' ?>"><?= $lotIn ?></span> |
+                              <span class="<?= $lotWhVendor < 0 ? 'text-danger' : 'text-success' ?>"><?= $lotWhVendor ?></span> |
+                              <span class="<?= $lotIncoming < 0 ? 'text-danger' : 'text-success' ?>"><?= $lotIncoming ?></span> |
+                              <span class="<?= $lotOut < 0 ? 'text-danger' : 'text-success' ?>"><?= $lotOut ?></span>
+                            </td>
+                          </tr>
+                        <?php
+                          $grandPlan += $lotPlan;
+                          $grandIn   += $lotIn;
+                          $grandWhVendor += $lotWhVendor;
+                          $grandIncoming += $lotIncoming;
+                          $grandOut  += $lotOut;
+                        endforeach;
+                        ?>
+
+                        <!-- Total keseluruhan -->
+                        <tr class="fw-bold table-light">
+                          <td>Total</td>
                           <?php foreach ($sizes as $s):
                             $size = $s['size'];
-                            $d = $row[$size] ?? [
-                              'plan' => 0,
-                              'in' => 0,
-                              'wh_vendor' => 0,
-                              'incoming' => 0,
-                              'out' => 0
-                            ];
-
-                            $plan = $d['plan'];
-                            $in   = $d['in'];
-                            $wh_vendor = $d['wh_vendor'];
-                            $incoming  = $d['incoming'];
-                            $out  = $d['out'];
-
-                            $lotPlan += $plan;
-                            $lotIn   += $in;
-                            $lotWhVendor += $wh_vendor;
-                            $lotIncoming += $incoming;
-                            $lotOut  += $out;
-
-                            $isEmpty = ($plan == 0 && $in == 0 && $wh_vendor == 0 && $incoming == 0 && $out == 0);
-                            $cellClass = $isEmpty ? "bg-dark text-white" : "";
+                            $sumPlan = $sumIn = $sumWhVendor = $sumIncoming = $sumOut = 0;
+                            foreach ($tableData as $lot => $row) {
+                              $d = $row[$size] ?? [
+                                'plan' => 0,
+                                'in' => [],
+                                'wh_vendor' => 0,
+                                'incoming' => 0,
+                                'out' => 0
+                              ];
+                              $sumPlan += $d['plan'];
+                              $sumIn += $d['in'][$komponen['id'] ?? $komponenName] ?? 0;
+                              $sumWhVendor += $d['wh_vendor'];
+                              $sumIncoming += $d['incoming'];
+                              $sumOut  += $d['out'];
+                            }
+                            $inClass  = ($sumIn < 0) ? 'text-danger' : 'text-success';
+                            $whVendorClass = ($sumWhVendor < 0) ? 'text-danger' : 'text-success';
+                            $incomingClass = ($sumIncoming < 0) ? 'text-danger' : 'text-success';
+                            $outClass = ($sumOut < 0) ? 'text-danger' : 'text-success';
                           ?>
-                            <td class="<?= $cellClass ?>" style="white-space: nowrap;">
-                              <?php if (!$isEmpty): ?>
-                                <span class="text-success"><?= $plan ?></span> |
-                                <span class="<?= $in < 0 ? 'text-danger' : 'text-success' ?>"><?= $in ?></span> |
-                                <span class="<?= $wh_vendor < 0 ? 'text-danger' : 'text-success' ?>"><?= $wh_vendor ?></span> |
-                                <span class="<?= $incoming < 0 ? 'text-danger' : 'text-success' ?>"><?= $incoming ?></span> |
-                                <span class="<?= $out < 0 ? 'text-danger' : 'text-success' ?>"><?= $out ?></span>
-
-                              <?php endif; ?>
+                            <td style="white-space: nowrap;">
+                              <span class="text-success"><?= $sumPlan ?></span> |
+                              <span class="<?= $inClass ?>"><?= $sumIn ?></span> |
+                              <span class="<?= $whVendorClass ?>"><?= $sumWhVendor ?></span> |
+                              <span class="<?= $incomingClass ?>"><?= $sumIncoming ?></span> |
+                              <span class="<?= $outClass ?>"><?= $sumOut ?></span>
                             </td>
                           <?php endforeach; ?>
-                          <td class="fw-bold bg-light" style="white-space: nowrap;">
-                            <span class="text-success"><?= $lotPlan ?></span> |
-                            <span class="<?= $lotIn < 0 ? 'text-danger' : 'text-success' ?>"><?= $lotIn ?></span> |
-                            <span class="<?= $lotWhVendor < 0 ? 'text-danger' : 'text-success' ?>"><?= $lotWhVendor ?></span> |
-                            <span class="<?= $lotIncoming < 0 ? 'text-danger' : 'text-success' ?>"><?= $lotIncoming ?></span> |
-                            <span class="<?= $lotOut < 0 ? 'text-danger' : 'text-success' ?>"><?= $lotOut ?></span>
+                          <td style="white-space: nowrap;">
+                            <span class="text-success"><?= $grandPlan ?></span> |
+                            <span class="<?= ($grandIn < 0 ? 'text-danger' : 'text-success') ?>"><?= $grandIn ?></span> |
+                            <span class="<?= ($grandWhVendor < 0 ? 'text-danger' : 'text-success') ?>"><?= $grandWhVendor ?></span> |
+                            <span class="<?= ($grandIncoming < 0 ? 'text-danger' : 'text-success') ?>"><?= $grandIncoming ?></span> |
+                            <span class="<?= ($grandOut < 0 ? 'text-danger' : 'text-success') ?>"><?= $grandOut ?></span>
                           </td>
                         </tr>
-                      <?php
-                        $grandPlan += $lotPlan;
-                        $grandIn   += $lotIn;
-                        $grandWhVendor += $lotWhVendor;
-                        $grandIncoming += $lotIncoming;
-                        $grandOut  += $lotOut;
-                      endforeach;
-                      ?>
-
-                      <!-- Total keseluruhan -->
-                      <tr class="fw-bold table-light">
-                        <td>Total</td>
-                        <?php foreach ($sizes as $s):
-                          $size = $s['size'];
-                          $sumPlan = $sumIn = $sumWhVendor = $sumIncoming = $sumOut = 0;
-                          foreach ($tableData as $lot => $row) {
-                            $d = $row[$size] ?? [
-                              'plan' => 0,
-                              'in' => 0,
-                              'wh_vendor' => 0,
-                              'incoming' => 0,
-                              'out' => 0
-                            ];
-                            $sumPlan += $d['plan'];
-                            $sumIn   += $d['in'];
-                            $sumWhVendor += $d['wh_vendor'];
-                            $sumIncoming += $d['incoming'];
-                            $sumOut  += $d['out'];
-                          }
-                          $inClass  = ($sumIn < 0) ? 'text-danger' : 'text-success';
-                          $whVendorClass = ($sumWhVendor < 0) ? 'text-danger' : 'text-success';
-                          $incomingClass = ($sumIncoming < 0) ? 'text-danger' : 'text-success';
-                          $outClass = ($sumOut < 0) ? 'text-danger' : 'text-success';
-                        ?>
-                          <td style="white-space: nowrap;">
-                            <span class="text-success"><?= $sumPlan ?></span> |
-                            <span class="<?= $inClass ?>"><?= $sumIn ?></span> |
-                            <span class="<?= $whVendorClass ?>"><?= $sumWhVendor ?></span> |
-                            <span class="<?= $incomingClass ?>"><?= $sumIncoming ?></span> |
-                            <span class="<?= $outClass ?>"><?= $sumOut ?></span>
-                          </td>
-                        <?php endforeach; ?>
-                        <?php
-                        $grandInClass  = ($grandIn < 0) ? 'text-danger' : 'text-success';
-                        $grandWhVendorClass = ($grandWhVendor < 0) ? 'text-danger' : 'text-success';
-                        $grandIncomingClass = ($grandIncoming < 0) ? 'text-danger' : 'text-success';
-                        $grandOutClass = ($grandOut < 0) ? 'text-danger' : 'text-success';
-                        ?>
-                        <td style="white-space: nowrap;">
-                          <span class="text-success"><?= $grandPlan ?></span> |
-                          <span class="<?= $grandInClass ?>"><?= $grandIn ?></span> |
-                          <span class="<?= $grandWhVendorClass ?>"><?= $grandWhVendor ?></span> |
-                          <span class="<?= $grandIncomingClass ?>"><?= $grandIncoming ?></span> |
-                          <span class="<?= $grandOutClass ?>"><?= $grandOut ?></span>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-
+                      </tbody>
+                    </table>
+                  </div>
+                <?php endforeach; ?>
               </div>
 
             </div>
+
           </div>
         </div>
+      </div>
       </div>
     </section>
 

@@ -118,7 +118,7 @@ if ($action == "getKomponenSizeQtyByJobOrder") {
         exit;
     }
 
-    // Ambil model
+    // Ambil model dari tbl_master_data
     $qModel = $conn->query("SELECT model FROM tbl_master_data WHERE job_order='$jobOrder' LIMIT 1");
     if (!$qModel || $qModel->num_rows == 0) {
         echo json_encode(["success" => false, "error" => "Model tidak ditemukan"]);
@@ -126,7 +126,7 @@ if ($action == "getKomponenSizeQtyByJobOrder") {
     }
     $model = $qModel->fetch_assoc()['model'];
 
-    // Ambil komponen berdasarkan model dan id_input
+    // Ambil semua komponen untuk model ini
     $qKomponen = $conn->query("
         SELECT k.id_komponen, k.nama_komponen
         FROM tbl_komponen k
@@ -135,7 +135,6 @@ if ($action == "getKomponenSizeQtyByJobOrder") {
         GROUP BY k.id_komponen, k.nama_komponen
         ORDER BY k.nama_komponen ASC
     ");
-
     $komponenList = [];
     if ($qKomponen && $qKomponen->num_rows > 0) {
         while ($row = $qKomponen->fetch_assoc()) {
@@ -146,14 +145,10 @@ if ($action == "getKomponenSizeQtyByJobOrder") {
         }
     }
 
-    // Ambil size & total qty dari tbl_master_data
-    $lotFilter = "";
-    if (!empty($_POST['lot_input'])) {
-        // Bersihkan input lot, contoh: "1-5,7,9-10"
-        $lotInput = trim($_POST['lot_input']);
-        $lots = [];
-
-        // Parsing range, misal "1-5" → [1,2,3,4,5]
+    // Parsing lot input
+    $lotInput = $_POST['lot_input'] ?? '';
+    $lots = [];
+    if (!empty($lotInput)) {
         foreach (explode(',', $lotInput) as $part) {
             $part = trim($part);
             if (preg_match('/^(\d+)\s*-\s*(\d+)$/', $part, $m)) {
@@ -162,58 +157,82 @@ if ($action == "getKomponenSizeQtyByJobOrder") {
                 $lots[] = (int)$part;
             }
         }
+    }
 
-        if (!empty($lots)) {
-            $lotIn = implode(',', array_map('intval', $lots));
-            $lotFilter = " AND CAST(lot AS UNSIGNED) IN ($lotIn)";
+    $lotFilter = '';
+    if (!empty($lots)) {
+        $lotIn = implode(',', array_map('intval', $lots));
+        $lotFilter = " AND CAST(lot AS UNSIGNED) IN ($lotIn)";
+    }
+
+    // Ambil total plan per size dari tbl_master_data
+    $qSizePlan = $conn->query("
+        SELECT size, SUM(qty) AS plan_qty
+        FROM tbl_master_data
+        WHERE job_order='$jobOrder' $lotFilter
+        GROUP BY size
+    ");
+    $sizePlan = [];
+    if ($qSizePlan && $qSizePlan->num_rows > 0) {
+        while ($row = $qSizePlan->fetch_assoc()) {
+            $sizePlan[$row['size']] = (int)$row['plan_qty'];
         }
     }
 
-    $qSizeQty = $conn->query("
-    SELECT size, SUM(qty) AS total_qty
-    FROM tbl_master_data
-    WHERE job_order='$jobOrder' $lotFilter
-    GROUP BY size
-");
-
-
-    $sizes = [];
-    if ($qSizeQty && $qSizeQty->num_rows > 0) {
-        while ($row = $qSizeQty->fetch_assoc()) {
-            $sizes[] = [
-                'size' => $row['size'],
-                'qty'  => (int)$row['total_qty']
-            ];
+    // Ambil total qty yang sudah tersimpan di tbl_transaksi
+    $qTrans = $conn->query("
+        SELECT komponen_qty
+        FROM tbl_transaksi
+        WHERE job_order='$jobOrder' $lotFilter
+    ");
+    $usedQty = [];
+    if ($qTrans && $qTrans->num_rows > 0) {
+        while ($row = $qTrans->fetch_assoc()) {
+            $transData = json_decode($row['komponen_qty'], true);
+            if (is_array($transData)) {
+                foreach ($transData as $item) {
+                    $komponen = $item['komponen'];
+                    $size = $item['size'];
+                    $qty = (int)$item['qty'];
+                    $usedQty[$komponen][$size] = ($usedQty[$komponen][$size] ?? 0) + $qty;
+                }
+            }
         }
     }
 
-    // Urutkan size secara natural
-    usort($sizes, function ($a, $b) {
-        preg_match('/^(\d+)([A-Za-z]*)$/', $a['size'], $aParts);
-        preg_match('/^(\d+)([A-Za-z]*)$/', $b['size'], $bParts);
-
-        $aNum = isset($aParts[1]) ? (int)$aParts[1] : 0;
-        $bNum = isset($bParts[1]) ? (int)$bParts[1] : 0;
-        $aSuffix = $aParts[2] ?? '';
-        $bSuffix = $bParts[2] ?? '';
-
-        if ($aNum === $bNum) {
-            return strcmp($aSuffix, $bSuffix);
-        }
-        return $aNum - $bNum;
-    });
-
-    // Bentuk array akhir: setiap komponen punya daftar size+qty
+    // Bentuk array akhir dengan sisa qty per komponen
     $data = [];
     foreach ($komponenList as $k) {
+        $componentSizes = [];
+        foreach ($sizePlan as $size => $planQty) {
+            $used = $usedQty[$k['id']][$size] ?? 0;
+            $remaining = max(0, $planQty - $used);
+            $componentSizes[] = [
+                'size' => $size,
+                'qty' => $remaining
+            ];
+        }
+
+        // urutkan size natural
+        usort($componentSizes, function ($a, $b) {
+            preg_match('/^(\d+)([A-Za-z]*)$/', $a['size'], $aParts);
+            preg_match('/^(\d+)([A-Za-z]*)$/', $b['size'], $bParts);
+            $aNum = isset($aParts[1]) ? (int)$aParts[1] : 0;
+            $bNum = isset($bParts[1]) ? (int)$bParts[1] : 0;
+            $aSuffix = $aParts[2] ?? '';
+            $bSuffix = $bParts[2] ?? '';
+            if ($aNum === $bNum) return strcmp($aSuffix, $bSuffix);
+            return $aNum - $bNum;
+        });
+
         $data[] = [
             'id' => $k['id'],
             'nama' => $k['nama'],
-            'items' => $sizes
+            'items' => $componentSizes
         ];
     }
 
-    // Ambil range lot dari tbl_master_data (pakai CAST agar urut angka)
+    // Ambil range lot dari tbl_master_data
     $qLot = $conn->query("
         SELECT MIN(CAST(lot AS UNSIGNED)) AS min_lot, 
                MAX(CAST(lot AS UNSIGNED)) AS max_lot
@@ -236,7 +255,6 @@ if ($action == "getKomponenSizeQtyByJobOrder") {
     ]);
     exit;
 }
-
 
 // ==============================
 // Endpoint tambahan untuk ambil range LOT
