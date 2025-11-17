@@ -58,3 +58,9 @@ Komponen 20 | Size 007 | OLD=36 | NEW=36 | SELISIH=0
 Komponen 20 | Size 008 | OLD=70 | NEW=70 | SELISIH=0
 >>>>>>> abb03426709a371e84025c943f69b1cfeda47f6c
 TOTAL KEKURANGAN: 0
+--- DEBUG KEKURANGAN ---
+Komponen 20 | Size 008 | OLD=60 | NEW=60 | SELISIH=0
+Komponen 20 | Size 009 | OLD=72 | NEW=72 | SELISIH=0
+Komponen 20 | Size 08T | OLD=84 | NEW=84 | SELISIH=0
+Komponen 20 | Size 09T | OLD=60 | NEW=60 | SELISIH=0
+TOTAL KEKURANGAN: 0
