@@ -236,7 +236,7 @@ $result_transaksi = $stmt->get_result();
                     // ambil data log scan out
                     $stmt_log_qc = $conn->prepare("
                       SELECT new_data FROM tlog_transaksi
-                      WHERE id_trans = ? AND action_type = 'SCAN_OUT_TO_PRODUCTION'
+                      WHERE id_trans = ? AND action_type = 'SCAN_IN_INCOMING'
                       ORDER BY created_at DESC LIMIT 1
                     ");
                     $stmt_log_qc->bind_param("i", $row['id_trans']);

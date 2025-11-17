@@ -4517,6 +4517,15 @@ if (isset($_POST['delete-defect'])) {
 //     }
 // }
 
+// === Fungsi safeJson ===
+function safeJson($json)
+{
+    if (is_array($json)) return $json;        // sudah array, return langsung
+    if (empty($json)) return [];              // kosong, return array kosong
+    $decoded = json_decode($json, true);
+    return is_array($decoded) ? $decoded : [];
+}
+
 // === Scan Out to Production ===
 if (isset($_POST['scan-out-production'])) {
     $barcode   = $_POST['barcode'] ?? null;
@@ -4525,36 +4534,49 @@ if (isset($_POST['scan-out-production'])) {
     if ($barcode) {
         $conn->begin_transaction();
         try {
-            // --- Flow urutan scan
             $scan_flow = [
                 "SCAN_IN_WAREHOUSE",
                 "SCAN_OUT_TO_VENDOR",
                 "SCAN_IN_INCOMING",
-                // "SCAN_CHECK_QC",
                 "SCAN_OUT_TO_PRODUCTION"
             ];
 
-            // --- Ambil data lama
+            // --- Ambil data lama (old_data nanti diganti)
             $stmt_old = $conn->prepare("SELECT * FROM tbl_transaksi WHERE barcode = ?");
             $stmt_old->bind_param("s", $barcode);
             $stmt_old->execute();
             $res_old = $stmt_old->get_result();
-            $old_data = $res_old->fetch_assoc();
+            $old_data_raw = $res_old->fetch_assoc();
+            $stmt_old->close();
 
-            if (!$old_data) {
+            if (!$old_data_raw) {
                 $_SESSION['red_notif'] = "QR Code $barcode tidak ditemukan.";
                 header("Location: /isubcont/pages/trans-scan-out-to-prod.php");
                 exit;
             }
 
+            $id_trans = (int)$old_data_raw['id_trans'];
+
+            // --- Ambil data terakhir SCAN_IN_INCOMING untuk dijadikan old_data
+            $stmt_inc = $conn->prepare("
+                SELECT new_data 
+                FROM tlog_transaksi 
+                WHERE id_trans = ? AND action_type = 'SCAN_IN_INCOMING'
+                ORDER BY id_log_trans DESC LIMIT 1
+            ");
+            $stmt_inc->bind_param("i", $id_trans);
+            $stmt_inc->execute();
+            $res_inc = $stmt_inc->get_result();
+            $inc_row = $res_inc->fetch_assoc();
+            $stmt_inc->close();
+
+            $old_data = safeJson($inc_row['new_data'] ?? []);
             $json_old_data = json_encode($old_data, JSON_UNESCAPED_UNICODE);
-            $id_trans = (int)$old_data['id_trans'];
 
             // --- Validasi urutan scan
-            $current_state = strtoupper($old_data['type_scan'] ?? '');
+            $current_state = strtoupper($old_data_raw['type_scan'] ?? '');
             $current_index = array_search($current_state, $scan_flow);
             if ($current_index === false) $current_index = -1;
-
             $next_state = $scan_flow[$current_index + 1] ?? null;
             if ($next_state !== "SCAN_OUT_TO_PRODUCTION") {
                 $_SESSION['red_notif'] = "QR Code tidak bisa di-scan di tahap ini. Current: $current_state, (DONE)";
@@ -4603,14 +4625,17 @@ if (isset($_POST['scan-out-production'])) {
             $stmt_upd->execute();
             $stmt_upd->close();
 
-            // --- Ambil data baru
+            // --- Ambil data baru untuk new_data
             $stmt_new = $conn->prepare("SELECT * FROM tbl_transaksi WHERE barcode = ?");
             $stmt_new->bind_param("s", $barcode);
             $stmt_new->execute();
             $res_new = $stmt_new->get_result();
-            $new_data = $res_new->fetch_assoc();
-            $json_new_data = $new_data ? json_encode($new_data, JSON_UNESCAPED_UNICODE) : null;
+            $new_data_raw = $res_new->fetch_assoc();
             $stmt_new->close();
+
+            $new_data = safeJson($new_data_raw);
+            $new_data['type_scan'] = 'SCAN_OUT_TO_PRODUCTION';
+            $json_new_data = json_encode($new_data, JSON_UNESCAPED_UNICODE);
 
             // --- Setup qty_kekurangan & status_kekurangan
             $qty_kekurangan_json = "0";

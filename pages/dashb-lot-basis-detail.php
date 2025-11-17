@@ -12,10 +12,10 @@ if (empty($job_order)) {
   die("<div class='alert alert-danger'>Job Order tidak ditemukan.</div>");
 }
 
-// Normalisasi size
+// Normalisasi size — biarkan sesuai database
 function normalizeSize($s)
 {
-  return strtoupper(trim($s));
+  return trim((string)$s);
 }
 
 // 1️⃣ Ambil informasi umum
@@ -34,11 +34,15 @@ if (!isset($komponenList) || !is_array($komponenList) || count($komponenList) ==
   $komponenList = [];
   $modelForKomponen = $conn->real_escape_string($info['model'] ?? '');
   $qK = $conn->query("
-      SELECT id_komponen, nama_komponen
-      FROM tbl_komponen
-      WHERE model = '{$modelForKomponen}' AND is_deleted = 0
-      ORDER BY nama_komponen ASC
-  ");
+    SELECT k.id_komponen, k.nama_komponen
+    FROM tbl_komponen k
+    INNER JOIN tbl_komponen_proses p 
+      ON k.id_komponen = p.id_input
+    WHERE k.model = '{$modelForKomponen}'
+      AND k.is_deleted = 0
+    ORDER BY k.nama_komponen ASC
+");
+
   if ($qK && $qK->num_rows > 0) {
     while ($r = $qK->fetch_assoc()) {
       $komponenList[] = [
@@ -53,31 +57,38 @@ if (!isset($komponenList) || !is_array($komponenList) || count($komponenList) ==
   }
 }
 
-// 🧩 Ambil data transaksi aktif dari tlog_transaksi (CREATE_BARCODE terakhir)
+// 🧩 Ambil data transaksi aktif dari tlog_transaksi (INSERT pertama untuk job_order)
 $transQ = $conn->query("
   SELECT new_data
   FROM tlog_transaksi
-  WHERE JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.job_order')) = '{$job_order}'
-    AND JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.type_scan')) = 'CREATE_BARCODE'
- 
+  WHERE action_type = 'INSERT'
+    AND JSON_UNQUOTE(JSON_EXTRACT(new_data, '$.job_order')) = '{$job_order}'
+  ORDER BY id_log_trans ASC
   LIMIT 1
 ");
 
 $transaksiData = [];
+$komponenIDsInTrans = [];
+$kompArr = [];
+
 if ($transQ && $transQ->num_rows > 0) {
   $rT = $transQ->fetch_assoc();
   $transaksiData = json_decode($rT['new_data'], true);
-}
 
-// ✅ Ambil ID komponen dari transaksi aktif
-$komponenIDsInTrans = [];
-if (!empty($transaksiData['komponen_qty'])) {
-  foreach ($transaksiData['komponen_qty'] as $kq) {
-    if (!empty($kq['komponen'])) {
-      $komponenIDsInTrans[] = (int)$kq['komponen'];
+  if (!empty($transaksiData['qty_real'])) {
+    $qtyRealArr = json_decode($transaksiData['qty_real'], true);
+    if (is_array($qtyRealArr)) {
+      foreach ($qtyRealArr as $qr) {
+        $qr['size'] = normalizeSize($qr['size'] ?? '');
+        if (!empty($qr['komponen'])) {
+          $komponenIDsInTrans[] = (int)$qr['komponen'];
+        }
+      }
+      $kompArr = $qtyRealArr; // ✅ Simpan untuk mapping ke planData
     }
   }
 }
+
 $komponenIDsInTrans = array_unique($komponenIDsInTrans);
 
 // ⚠️ Filter hanya komponen yang muncul di transaksi
@@ -87,7 +98,6 @@ if (!empty($komponenIDsInTrans)) {
   });
   $komponenList = array_values($komponenList);
 }
-
 
 // 2️⃣ Ambil LOT & SIZE
 $lots = $conn->query("
@@ -106,481 +116,514 @@ $sizes = $conn->query("
 if (empty($lots)) die("<div class='alert alert-warning'>Tidak ada LOT ditemukan untuk job order $job_order.</div>");
 if (empty($sizes)) die("<div class='alert alert-warning'>Tidak ada SIZE ditemukan untuk job order $job_order.</div>");
 
-$sizes = array_map(fn($s) => ['size' => normalizeSize($s['size'] ?? $s)], $sizes);
-usort($sizes, function ($a, $b) {
-  $sa = $a['size'];
-  $sb = $b['size'];
-  preg_match('/\d+/', $sa, $ma);
-  preg_match('/\d+/', $sb, $mb);
-  $na = intval($ma[0] ?? 0);
-  $nb = intval($mb[0] ?? 0);
-  return $na !== $nb ? $na <=> $nb : strnatcasecmp($sa, $sb);
-});
-
-// 3️⃣ PLAN DATA
+// 3️⃣ PLAN DATA (mapping ke komponen dari qty_real)
 $planData = [];
-$planQuery = $conn->query("
+
+$modelName = $conn->real_escape_string($info['model'] ?? '');
+
+$qLotSize = $conn->query("
   SELECT lot, size, SUM(qty) AS total_plan
   FROM tbl_master_data
-  WHERE job_order = '$job_order'
+  WHERE model = '{$modelName}'
+    AND job_order = '{$job_order}'
   GROUP BY lot, size
 ");
-while ($r = $planQuery->fetch_assoc()) {
-  $planData[$r['lot']][normalizeSize($r['size'])] = (int)$r['total_plan'];
+
+if ($qLotSize && $qLotSize->num_rows > 0) {
+  while ($r = $qLotSize->fetch_assoc()) {
+    $lot  = (string)$r['lot'];
+    $size = normalizeSize($r['size']);
+    $plan = (float)$r['total_plan'];
+
+    // Assign ke semua komponen secara dinamis
+    foreach ($komponenList as $komp) {
+      $kompId = $komp['id'];
+      $planData[$lot][$size][$kompId] = $plan;
+    }
+  }
 }
 
-// 4️⃣ SCAN_IN_WAREHOUSE (IN WH)
+// 🔹 Hitung total plan per LOT dan SIZE (tanpa peduli komponen)
+$planTotal = [];
+foreach ($planData as $lot => $sizes) {
+  foreach ($sizes as $size => $komps) {
+    $planTotal[$lot][$size] = reset($komps);
+  }
+}
+
+// 🔹 Ambil daftar ukuran hanya dari plan resmi
+$officialSizes = [];
+foreach ($planData as $lot => $sizes) {
+  foreach ($sizes as $size => $komps) {
+    $officialSizes[$size] = true;
+  }
+}
+$officialSizes = array_keys($officialSizes);
+
+// 🔹 Urutkan size berdasarkan angka dan karakter tambahan (misal 07T)
+usort($officialSizes, function ($a, $b) {
+  preg_match('/\d+/', $a, $ma);
+  preg_match('/\d+/', $b, $mb);
+  $na = intval($ma[0] ?? 0);
+  $nb = intval($mb[0] ?? 0);
+  return $na !== $nb ? $na <=> $nb : strnatcasecmp($a, $b);
+});
+
+// 4️⃣ SCAN_IN_WAREHOUSE dengan distribusi FIFO antar lot
 $inData = [];
-$defisitData = []; // defisit kumulatif per komponen per lot per size
+$defisitData = [];
+
+$sortedLots = array_keys($planData);
+sort($sortedLots);
 
 $inQ = $conn->query("
-    SELECT new_data FROM tlog_transaksi
-    WHERE JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.job_order'))='$job_order'
-      AND JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.type_scan'))='SCAN_IN_WAREHOUSE'
-    ORDER BY id_trans ASC
+    SELECT *
+    FROM tlog_transaksi
+    WHERE action_type = 'SCAN_IN_WAREHOUSE'
+      AND JSON_UNQUOTE(JSON_EXTRACT(new_data, '$.job_order')) = '$job_order'
+    ORDER BY id_log_trans ASC
 ");
 
 while ($r = $inQ->fetch_assoc()) {
-    $data = json_decode($r['new_data'], true);
-    $lotsArr = json_decode($data['lot'] ?? '[]', true);
-    $kompArr = json_decode($data['komponen_qty'] ?? '[]', true);
-    if (!$lotsArr || !$kompArr) continue;
+  $data = json_decode($r['new_data'], true);
+  $lotsArr = json_decode($data['lot'] ?? '[]', true);
+  if (!$lotsArr) continue;
 
-    echo "<hr><strong>Transaksi ID {$data['id_trans']}</strong><br>";
+  $kompArr = json_decode($r['qty_real'] ?? '[]', true);
+  if (!is_array($kompArr) || empty($kompArr)) continue;
 
-    foreach ($kompArr as $k) {
-        $size = normalizeSize($k['size'] ?? '');
-        $qty  = (int)($k['qty'] ?? 0);
-        $komp = (int)($k['komponen'] ?? 0);
-        if (!$size) continue;
+  foreach ($kompArr as $k) {
+    $size = normalizeSize($k['size'] ?? '');
+    $komp = (int)($k['komponen'] ?? 0);
+    $qty  = (float)($k['qty'] ?? 0);
+    if (!$size || $qty <= 0) continue;
 
-        foreach ($lotsArr as $lot) {
-            // Ambil planData dengan aman, default 0 kalau ga ada
-            $planLotKomponen = (int)($planData[$lot][$size][$komp] ?? $planData[$lot][$size] ?? 0);
-            if ($planLotKomponen <= 0) continue;
+    $sisaQty = $qty;
+    if (empty($planTotal)) continue;
 
-            // Ambil defisit sekarang, kalau belum ada inisialisasi pakai planData
-            $defisitSisa = $defisitData[$lot][$size][$komp] ?? $planLotKomponen;
+    foreach ($sortedLots as $lot) {
+      $planLot = (float)($planTotal[$lot][$size] ?? 0);
+      if ($planLot <= 0) continue;
 
-            // 🔹 DEBUG sebelum Take
-            echo "[DEBUG] Lot: $lot | Size: $size | Komp: $komp | Qty scan: $qty | Defisit sebelum: $defisitSisa<br>";
+      $sudahMasuk = $inData[$lot][$size][$komp] ?? 0;
+      $defisit = $planLot - $sudahMasuk;
+      if ($defisit <= 0) continue;
 
-            // Ambil sebanyak mungkin dari scan tapi tidak lebih dari defisit
-            $take = min($defisitSisa, $qty);
+      $ambil = min($defisit, $sisaQty);
+      $inData[$lot][$size][$komp] = $sudahMasuk + $ambil;
 
-            // Simpan hasil scan
-            $inData[$lot][$size][$komp] = ($inData[$lot][$size][$komp] ?? 0) + $take;
-            $defisitData[$lot][$size][$komp] = $defisitSisa - $take;
-
-            // 🔹 DEBUG setelah Take
-            echo "[DEBUG] Lot: $lot | Size: $size | Komp: $komp | Take: $take | Defisit setelah: {$defisitData[$lot][$size][$komp]}<br>";
-        }
+      $sisaQty -= $ambil;
+      if ($sisaQty <= 0) break;
     }
+  }
 }
 
-// 🔹 Debug kumulatif defisit setelah semua transaksi
-echo "<hr><strong>Hasil kumulatif semua transaksi:</strong><br>";
-foreach ($defisitData as $lot => $sizesArr) {
-    foreach ($sizesArr as $size => $kompArr) {
-        foreach ($kompArr as $komp => $deficit) {
-            echo "Lot: $lot | Size: $size | Komp: $komp | Defisit akhir: $deficit<br>";
-        }
-    }
-}
-
-
-// 🔧 5️⃣ SCAN_OUT_TO_VENDOR (WH TO VENDOR)
+// 🔧 5️⃣ SCAN_OUT_TO_VENDOR (Distribusi FIFO antar LOT)
 $outVendorData = [];
+$sortedLots = array_keys($planData);
+sort($sortedLots);
+
 $outVendorQ = $conn->query("
-  SELECT new_data FROM tlog_transaksi
-  WHERE JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.job_order'))='$job_order'
-    AND JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.type_scan'))='SCAN_OUT_TO_VENDOR'
+    SELECT *
+    FROM tlog_transaksi
+    WHERE action_type = 'SCAN_OUT_TO_VENDOR'
+      AND JSON_UNQUOTE(JSON_EXTRACT(new_data, '$.job_order')) = '$job_order'
+    ORDER BY id_log_trans ASC
 ");
 
 while ($r = $outVendorQ->fetch_assoc()) {
   $data = json_decode($r['new_data'], true);
   $lotsArr = json_decode($data['lot'] ?? '[]', true);
-  $kompArr = json_decode($data['komponen_qty'] ?? '[]', true);
-  if (!$lotsArr || !$kompArr) continue;
+  if (!$lotsArr) continue;
 
-  foreach ($lotsArr as $lot) {
-    foreach ($kompArr as $k) {
-      $size = normalizeSize($k['size'] ?? '');
-      $qty  = (int)($k['qty'] ?? 0);
-      if (!$size || $qty <= 0) continue;
-
-      // 🧩 hanya proses jika lot ini punya plan / data inScan
-      $hasPlan = isset($planData[$lot][$size]) && $planData[$lot][$size] > 0;
-      $hasIn   = isset($inData[$lot][$size]) && $inData[$lot][$size] > 0;
-
-      if (!$hasPlan && !$hasIn) continue; // ❌ skip lot kosong tanpa plan/in-scan
-
-      // ✅ baru tambahkan kalau lolos filter
-      $outVendorData[$lot][$size] = ($outVendorData[$lot][$size] ?? 0) + $qty;
-    }
-  }
-}
-
-// 🧩 Pastikan LOTS berbentuk array
-$lotsArr = [];
-if (isset($lots)) {
-  if ($lots instanceof mysqli_result) {
-    while ($r = $lots->fetch_assoc()) {
-      $lotsArr[] = $r;
-    }
-  } elseif (is_array($lots)) {
-    $lotsArr = $lots;
-  }
-}
-$lots = $lotsArr; // sekarang $lots pasti array
-
-
-// 🔧 6️⃣ SCAN_IN_INCOMING (INCOMING) - versi distribusi per lot sesuai urutan (lot terakhir dulu)
-$incomingData = [];
-$incomingQ = $conn->query("
-  SELECT 
-    JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.komponen_qty')) AS komponen_json,
-    JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.lot')) AS lot_json
-  FROM tlog_transaksi
-  WHERE JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.job_order'))='$job_order'
-    AND JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.type_scan'))='SCAN_IN_INCOMING'
-");
-
-while ($r = $incomingQ->fetch_assoc()) {
-  $kompArr = json_decode($r['komponen_json'], true) ?: [];
-  $lotArr = json_decode($r['lot_json'], true) ?: [];
+  // Gunakan qty_real — bukan komponen_qty
+  $kompArr = json_decode($r['qty_real'] ?? '[]', true);
+  if (!is_array($kompArr) || empty($kompArr)) continue;
 
   foreach ($kompArr as $k) {
     $size = normalizeSize($k['size'] ?? '');
-    $qty  = (int)($k['qty'] ?? 0);
-    if ($size === '' || $qty <= 0) continue;
+    $komp = (int)($k['komponen'] ?? 0);
+    $qty  = (float)($k['qty'] ?? 0);
+    if (!$size || $qty <= 0) continue;
 
-    // 🔹 Tentukan lot target
-    $targetLots = !empty($lotArr) ? $lotArr : array_column($lots, 'lot');
+    $sisaQty = $qty;
+    if (empty($planTotal)) continue;
 
-    // 🧮 Distribusi qty ke lot aktif (mulai dari lot terakhir)
-    for ($i = count($targetLots) - 1; $i >= 0 && $qty > 0; $i--) {
-      $lot = (string)$targetLots[$i];
-      $planQty = (int)($planData[$lot][$size] ?? 0);
-      if ($planQty <= 0) continue;
+    // 🔁 Distribusi FIFO antar LOT
+    foreach ($sortedLots as $lot) {
+      $planLot = (float)($planTotal[$lot][$size] ?? 0);
+      if ($planLot <= 0) continue;
 
-      $fill = min($planQty, $qty);
-      $incomingData[$lot][$size] = ($incomingData[$lot][$size] ?? 0) + $fill;
-      $qty -= $fill;
-    }
+      $sudahKeluar = $outVendorData[$lot][$size][$komp] ?? 0;
+      $defisit = $planLot - $sudahKeluar;
+      if ($defisit <= 0) continue;
 
-    // ⚠️ Jika qty masih sisa tapi semua lot sudah penuh, masukkan ke lot terakhir (fallback)
-    if ($qty > 0 && !empty($targetLots)) {
-      $lastLot = (string)end($targetLots);
-      $incomingData[$lastLot][$size] = ($incomingData[$lastLot][$size] ?? 0) + $qty;
-    }
-  }
-}
+      $ambil = min($defisit, $sisaQty);
+      $outVendorData[$lot][$size][$komp] = $sudahKeluar + $ambil;
 
-// 🔧 7 CONFIRM_KEKURANGAN - kurangi incoming sesuai pending kekurangan 
-$kekuranganData = [];
-$kekQ = $conn->query("
-  SELECT new_data
-  FROM tlog_transaksi
-  WHERE action_type='CONFIRM_KEKURANGAN'
-    AND JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.job_order'))='$job_order'
-");
-
-while ($r = $kekQ->fetch_assoc()) {
-  $newData = json_decode($r['new_data'], true);
-  if (!$newData) continue;
-
-  // 🧠 Filter last_gate
-  $lastGate = strtoupper(trim($newData['last_gate'] ?? ''));
-  if ($lastGate !== 'SCAN_IN_INCOMING') continue;
-
-  // 🧩 Pastikan komponen_qty terbaca meskipun double-encoded
-  $kompArrRaw = $newData['komponen_qty'] ?? '[]';
-  if (is_string($kompArrRaw)) {
-    $kompArr = json_decode($kompArrRaw, true);
-    if (is_string($kompArr)) {
-      $kompArr = json_decode($kompArr, true);
-    }
-  } else {
-    $kompArr = $kompArrRaw;
-  }
-  $kompArr = is_array($kompArr) ? $kompArr : [];
-  $status = strtolower(trim($newData['status'] ?? ''));
-
-  foreach ($kompArr as $k) {
-    $size = normalizeSize($k['size'] ?? '');
-    $qty  = (int)($k['kekurangan'] ?? $k['qty'] ?? 0);
-    if ($size === '' || $qty <= 0) continue;
-
-    if ($status === 'confirmed') {
-      // ✅ sudah terpenuhi, semua lot dianggap 0 untuk size ini
-      foreach ($lots as $lotRow) {
-        $lot = (string)$lotRow['lot'];
-        if (!isset($planData[$lot][$size])) continue;
-        $incomingData[$lot][$size] = 0;
-      }
-    } elseif ($status === 'pending') {
-      // ⚠️ reset dulu semua lot untuk size ini supaya distribusi akurat
-      foreach ($lots as $lotRow) {
-        $lot = (string)$lotRow['lot'];
-        if (!isset($planData[$lot][$size])) continue;
-        $incomingData[$lot][$size] = 0;
-      }
-
-      $sisa = $qty;
-      foreach ($lots as $lotRow) {
-        $lot = (string)$lotRow['lot'];
-        if (!isset($planData[$lot][$size])) continue;
-        if ($sisa <= 0) break;
-
-        $planLot = (int)$planData[$lot][$size];
-        $kurang = min($sisa, $planLot);
-        $incomingData[$lot][$size] -= $kurang;
-        $sisa -= $kurang;
-      }
-
-      foreach ($lots as $lotRow) {
-        $lot = (string)$lotRow['lot'];
-        if (!isset($planData[$lot][$size])) continue;
-
-        $curIncoming = (int)($incomingData[$lot][$size] ?? 0);
-        $planLot     = (int)($planData[$lot][$size]);
-
-        if ($sisa <= 0) break;
-
-        // distribusi kekurangan: min(planLot, sisa)
-        $kurang = min($planLot, $sisa);
-        $incomingData[$lot][$size] = $curIncoming - $kurang;
-        $sisa -= $kurang;
-      }
-
-      // kalau sisa masih > 0 (total plan lebih kecil dari kekurangan)
-      if ($sisa > 0 && !empty($lots)) {
-        $firstLot = (string)$lots[0]['lot'];
-        $incomingData[$firstLot][$size] -= $sisa;
-      }
+      $sisaQty -= $ambil;
+      if ($sisaQty <= 0) break;
     }
   }
 }
 
-// 🔧 Reset semua size yang tidak disebut di kekurangan menjadi 0 (agar size lain gak bawa nilai lama)
-$semuaSize = array_column($sizes, 'size');
-$sizeKekurangan = [];
-
-$kekQ3 = $conn->query("
-  SELECT JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.komponen_qty')) AS komponen_json
-  FROM tlog_transaksi
-  WHERE action_type='CONFIRM_KEKURANGAN'
-    AND JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.job_order'))='$job_order'
-");
-
-while ($r3 = $kekQ3->fetch_assoc()) {
-  $arr3 = json_decode($r3['komponen_json'], true) ?: [];
-  foreach ($arr3 as $k3) {
-    $key = normalizeSize($k3['size'] ?? '');
-    if ($key !== '') $sizeKekurangan[$key] = true;
-  }
-}
-
-foreach ($incomingData as $lot => &$sizeArr) {
-  foreach ($semuaSize as $s) {
-    if (empty($sizeKekurangan[$s]) && isset($sizeArr[$s])) {
-      $sizeArr[$s] = 0; // reset yang tidak disebut di kekurangan
-    }
-  }
-}
-unset($sizeArr);
-
-// 🧹 Tambahan: reset size yang tidak ada di kekurangan atau plan agar tidak tampil angka lama
-$allKekuranganSizes = [];
-$kekQ2 = $conn->query("
-  SELECT JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.komponen_qty')) AS komponen_json
-  FROM tlog_transaksi
-  WHERE action_type='CONFIRM_KEKURANGAN'
-    AND JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.job_order'))='$job_order'
-");
-
-while ($r2 = $kekQ2->fetch_assoc()) {
-  $arr = json_decode($r2['komponen_json'], true) ?: [];
-  foreach ($arr as $k2) {
-    $sizeKey = normalizeSize($k2['size'] ?? '');
-    if ($sizeKey !== '') $allKekuranganSizes[$sizeKey] = true;
-  }
-}
-
-foreach ($incomingData as $lot => &$sizesArr) {
-  foreach ($sizesArr as $sizeKey => &$val) {
-    // kalau size ini gak ada di kekurangan dan gak ada plan, reset ke 0
-    if (empty($allKekuranganSizes[$sizeKey]) && empty($planData[$lot][$sizeKey])) {
-      $val = 0;
-    }
-  }
-}
-unset($val, $sizesArr);
-
-// 🧹 Bersihkan incomingData dari lot yang gak relevan
-foreach ($incomingData as $lot => $sizesArr) {
-  if (empty($planData[$lot]) && empty($inData[$lot])) {
-    unset($incomingData[$lot]);
-  }
-}
-
-// 🔧 7️⃣ SCAN_OUT_TO_PRODUCTION (OUT TO PROD)
+// 🔧 7️⃣ SCAN_OUT_TO_PRODUCTION — dibuat IDENTIK dengan Vendor
 $outProdData = [];
+$defisitData = [];
+
+$sortedLots = array_keys($planData);
+sort($sortedLots);
+
 $outProdQ = $conn->query("
-    SELECT 
-        new_data
+    SELECT *
     FROM tlog_transaksi
-    WHERE JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.job_order'))='$job_order'
-      AND JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.type_scan'))='SCAN_OUT_TO_PRODUCTION'
+    WHERE action_type = 'SCAN_OUT_TO_PRODUCTION'
+      AND JSON_UNQUOTE(JSON_EXTRACT(new_data, '$.job_order')) = '$job_order'
+    ORDER BY id_log_trans ASC
 ");
 
 while ($r = $outProdQ->fetch_assoc()) {
-  $newData = json_decode($r['new_data'], true);
-  if (!$newData) continue;
 
-  $lotsArr = $newData['lot'] ?? [];
-  $kompArrRaw = $newData['komponen_qty'] ?? [];
+  // --- 1) Decode new_data ---
+  $data = json_decode($r['new_data'], true);
+  $lotsArr = json_decode($data['lot'] ?? '[]', true);
+  if (!$lotsArr) continue;
 
-  if (is_string($kompArrRaw)) {
-    $kompArr = json_decode($kompArrRaw, true);
-    if (is_string($kompArr)) $kompArr = json_decode($kompArr, true);
-  } else {
-    $kompArr = $kompArrRaw;
-  }
-  $kompArr = is_array($kompArr) ? $kompArr : [];
-  $lotsArr = is_array($lotsArr) ? $lotsArr : [];
+  // --- 3) Ambil qty_real (WAJIB, sama dengan Vendor) ---
+  $kompArr = json_decode($r['qty_real'] ?? '[]', true);
+  if (!is_array($kompArr) || empty($kompArr)) continue;
 
-  foreach ($lotsArr as $lot) {
-    $lotKey = (string)$lot;
-    foreach ($kompArr as $k) {
-      $size = normalizeSize($k['size'] ?? '');
-      $qty  = (int)($k['qty'] ?? 0); // biasanya qty di sini adalah kekurangan
-      if ($size === '' || $qty <= 0) continue;
 
-      $outProdData[$lotKey][$size] = ($outProdData[$lotKey][$size] ?? 0) + $qty;
+  // --- 4) Loop qty_real ---
+  foreach ($kompArr as $k) {
+
+    // Normalisasi size → WAJIB 3 DIGIT
+    $size = normalizeSize($k['size'] ?? '');
+    $komp = (int)($k['komponen'] ?? 0);
+    $qty  = (float)($k['qty'] ?? 0);
+    if (!$size || $qty <= 0) continue;
+
+    $sisaQty = $qty;
+    if (empty($planTotal)) continue;
+
+    // --- 5) Distribusi FIFO antar LOT (IDENTIK dengan VENDOR) ---
+    foreach ($sortedLots as $lot) {
+
+      $planLot = (float)($planTotal[$lot][$size] ?? 0);
+      if ($planLot <= 0) continue;
+
+      $sudahKeluar = $outProdData[$lot][$size][$komp] ?? 0;
+      $defisit = $planLot - $sudahKeluar;
+      if ($defisit <= 0) continue;
+
+      $ambil = min($defisit, $sisaQty);
+
+      $outProdData[$lot][$size][$komp] = $sudahKeluar + $ambil;
+
+      $sisaQty -= $ambil;
+      if ($sisaQty <= 0) break;
     }
   }
 }
 
-// 🔧 CONFIRM_KEKURANGAN untuk OUT TO PROD (kurangi pending kekurangan)
-$kekQ = $conn->query("
-    SELECT new_data
-    FROM tlog_transaksi
-    WHERE action_type='CONFIRM_KEKURANGAN'
-      AND JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.job_order'))='$job_order'
+// ========================================================
+// 6️⃣ SCAN_IN_INCOMING – Distribusi FIFO per komponen & size
+// ========================================================
+$incomingData = [];
+$sortedLots = array_keys($planData);
+sort($sortedLots);
+
+$incomingQ = $conn->query("
+  SELECT *
+  FROM tlog_transaksi
+  WHERE action_type = 'SCAN_IN_INCOMING'
+    AND JSON_UNQUOTE(JSON_EXTRACT(new_data, '$.job_order')) = '$job_order'
+  ORDER BY id_log_trans ASC
 ");
 
-while ($r = $kekQ->fetch_assoc()) {
-  $newData = json_decode($r['new_data'], true);
-  if (!$newData) continue;
+// Inisialisasi agar aman jika tidak ada transaksi sama sekali
+$incomingPerTrans = []; // incomingPerTrans[komp][size] = array of actual qty per transaction
+$planPerSize = [];      // planPerSize[komp][size] = total plan per komponen-size
 
-  $lastGate = strtoupper(trim($newData['last_gate'] ?? ''));
-  if ($lastGate !== 'SCAN_CHECK_QC') continue;
+// Pastikan $incomingData minimal ada agar bagian lain tidak error
+$incomingData = $incomingData ?? [];
 
-  $status = strtolower(trim($newData['status'] ?? ''));
-  $kompArrRaw = $newData['komponen_qty'] ?? [];
-  if (is_string($kompArrRaw)) {
-    $kompArr = json_decode($kompArrRaw, true);
-    if (is_string($kompArr)) $kompArr = json_decode($kompArr, true);
-  } else {
-    $kompArr = $kompArrRaw;
+
+while ($r = $incomingQ->fetch_assoc()) {
+
+  // ambil JSON
+  $newData = json_decode($r['new_data'] ?? '{}', true);
+  if (!is_array($newData)) continue;
+
+  $rawLot = $newData['lot'] ?? '[]';
+  $lotsArr = is_string($rawLot) ? json_decode($rawLot, true) : $rawLot;
+  if (!is_array($lotsArr)) $lotsArr = [];
+  if (empty($lotsArr)) continue;
+
+  $rawKomp = $newData['komponen_qty'] ?? [];
+  $kompArr = is_string($rawKomp) ? json_decode($rawKomp, true) : $rawKomp;
+  if (!is_array($kompArr)) $kompArr = [];
+
+  $rawReal = $r['qty_real'] ?? [];
+  $qtyRealArr = is_string($rawReal) ? json_decode($rawReal, true) : $rawReal;
+  if (!is_array($qtyRealArr)) $qtyRealArr = [];
+
+  $statusTrans = strtolower(trim($r['status_kekurangan'] ?? ''));
+
+  // ========================================================
+  // 🔁 LOOP per komponen & size di transaksi ini
+  // ========================================================
+  foreach ($kompArr as $item) {
+
+    $komp = (int)($item['komponen'] ?? 0);
+    $size = normalizeSize($item['size'] ?? '');
+    $qtyNew  = (float)($item['qty'] ?? 0);
+
+    if ($komp <= 0 || !$size) continue;
+
+    // ambil qty_real kalau ada
+    $qtyReal = 0;
+    foreach ($qtyRealArr as $x) {
+      if ((int)$x['komponen'] === $komp && normalizeSize($x['size']) === $size) {
+        $qtyReal = (float)$x['qty'];
+        break;
+      }
+    }
+
+    // total plan utk komponen-size ini
+    $planTotal = 0;
+    foreach ($sortedLots as $lot) {
+      $planTotal += (float)($planData[$lot][$size][$komp] ?? 0);
+    }
+
+    // ========================================================
+    // 🎯 NEW LOGIC: status pending per size
+    // ========================================================
+    // aturan:
+    // - qtyReal hanya dipakai jika transaksi confirmed
+    // - qtyNew dipakai jika pending
+    // - jika qty >= planSize → dianggap fully confirmed walaupun transaksi pending
+    // - sisanya dianggap pending
+    // ========================================================
+
+    $actual = ($statusTrans === 'confirmed') ? $qtyReal : $qtyNew;
+
+    // hitung total actual di transaksi ini
+    // actualQty tidak bisa langsung dipakai distribusi → digabung nanti
+    $incomingPerTrans[$komp][$size][] = $actual;
+
+    // simpan plan per size
+    $planPerSize[$komp][$size] = $planTotal;
   }
-  $kompArr = is_array($kompArr) ? $kompArr : [];
+}
 
-  foreach ($kompArr as $k) {
-    $size = normalizeSize($k['size'] ?? '');
-    $qty  = (int)($k['kekurangan'] ?? $k['qty'] ?? 0);
-    if ($size === '' || $qty <= 0) continue;
+// ========================================================
+// AKUMULASI TOTAL QTY PER SIZE (aman jika tidak ada transaksi)
+// ========================================================
+$totalActual = [];
 
-    if ($status === 'confirmed') {
-      foreach ($lots as $lotRow) {
-        $lot = (string)$lotRow['lot'];
-        if (!isset($planData[$lot][$size])) continue;
-        $outProdData[$lot][$size] = 0;
-      }
-    } elseif ($status === 'pending') {
-      $sisa = $qty;
-      foreach ($lots as $lotRow) {
-        $lot = (string)$lotRow['lot'];
-        if (!isset($planData[$lot][$size])) continue;
+if (!is_array($incomingPerTrans)) $incomingPerTrans = [];
+if (!is_array($planPerSize)) $planPerSize = [];
+// pastikan incomingPerTrans adalah array sebelum sum
+if (is_array($incomingPerTrans) && count($incomingPerTrans) > 0) {
+  $totalActual = [];
 
-        $planLot = (int)($planData[$lot][$size] ?? 0);
-        $cur = (int)($outProdData[$lot][$size] ?? 0);
+  foreach ($incomingPerTrans as $komp => $sizes) {
+    if (!is_array($sizes)) continue;
+    foreach ($sizes as $size => $arr) {
+      $totalActual[$komp][$size] = is_array($arr) ? array_sum($arr) : 0;
+    }
+  }
+}
 
-        if ($sisa <= 0) break;
+// ========================================================
+// HITUNG CONFIRMED & PENDING PER SIZE (aman jika planPerSize/totalActual kosong)
+// ========================================================
+$confirmedQty = [];
+$pendingQty = [];
+if (!is_array($planPerSize)) $planPerSize = [];
 
-        $kurang = min($planLot, $sisa);
-        $outProdData[$lot][$size] = $cur - $kurang;
-        $sisa -= $kurang;
-      }
+if (is_array($planPerSize) && count($planPerSize) > 0) {
+  foreach ($planPerSize as $komp => $sizes) {
+    if (!is_array($sizes)) continue;
+    foreach ($sizes as $size => $planTotal) {
+      $actual = $totalActual[$komp][$size] ?? 0;
 
-      if ($sisa > 0 && !empty($lots)) {
-        $firstLot = (string)$lots[0]['lot'];
-        $outProdData[$firstLot][$size] = ($outProdData[$firstLot][$size] ?? 0) - $sisa;
+      if ($actual >= $planTotal) {
+        // fully confirmed
+        $confirmedQty[$komp][$size] = $planTotal;
+        $pendingQty[$komp][$size] = 0;
+      } else {
+        // partial
+        $confirmedQty[$komp][$size] = $actual;
+        $pendingQty[$komp][$size] = max(0, $planTotal - $actual);
       }
     }
   }
 }
 
-// Masukkan semua array scan
-$scanTypes = [
-  'IN WH' => $inData,
-  'WH TO VENDOR' => $outVendorData,
-  'INCOMING' => $incomingData,
-  'OUT TO PROD' => $outProdData
-];
+// ========================================================
+// DISTRIBUSI FIFO CONFIRMED KE LOT
+// ========================================================
+foreach ($confirmedQty as $komp => $sizes) {
+  foreach ($sizes as $size => $qtyConf) {
 
-// 🔧 Distribusi total scan antar lot untuk setiap size dan komponen
+    $sisa = $qtyConf;
+
+    foreach ($sortedLots as $lot) {
+      $planLot = (float)($planData[$lot][$size][$komp] ?? 0);
+      if ($planLot <= 0) continue;
+
+      $fill = min($sisa, $planLot);
+      if ($fill <= 0) break;
+
+      $incomingData[$lot][$size][$komp] = 0;
+
+      $sisa -= $fill;
+    }
+  }
+}
+
+// ========================================================
+// PENDING REVERSE FIFO (dihuungkan dulu ke LOT terakhir)
+// ========================================================
+foreach ($pendingQty as $komp => $sizes) {
+  foreach ($sizes as $size => $pendingTotal) {
+
+    if ($pendingTotal <= 0) continue;
+
+    // reverse LOT → mulai dari LOT paling akhir
+    $reverseLots = array_reverse($sortedLots);
+
+    $sisaPending = $pendingTotal;
+
+    foreach ($reverseLots as $lot) {
+
+      $planLot = (float)($planData[$lot][$size][$komp] ?? 0);
+      if ($planLot <= 0) continue;
+
+      if ($sisaPending <= 0) {
+        // sisa pending habis → lot tidak minus
+        if (!isset($incomingData[$lot][$size][$komp])) {
+          $incomingData[$lot][$size][$komp] = 0;
+        }
+        continue;
+      }
+
+      // alokasi REVERSE FIFO
+      if ($sisaPending >= $planLot) {
+        // full minus
+        $incomingData[$lot][$size][$komp] = -$planLot;
+        $sisaPending -= $planLot;
+      } else {
+        // sebagian minus
+        $incomingData[$lot][$size][$komp] = -$sisaPending;
+        $sisaPending = 0;
+      }
+    }
+  }
+}
+
+// ========================================================
+// Distribusi total scan antar LOT (alokasi FIFO per komponen & size)
+// ========================================================
 $tableData = [];
 
-foreach ($sizes as $s) {
-  $sizeKey = $s['size'];
+foreach ($komponenList as $komponen) {
+  $kompId = (string)($komponen['id'] ?? $komponen['nama']);
 
-  foreach ($lots as $lotRow) {
-    $lot = (string)$lotRow['lot'];
+  foreach (array_keys($sizes) as $sizeKey) {
+    $sizeKey = normalizeSize($sizeKey);
 
-    $plan      = (int)($planData[$lot][$sizeKey] ?? 0);
-    $outVendor = (int)($outVendorData[$lot][$sizeKey] ?? 0);
-    $incoming  = (int)($incomingData[$lot][$sizeKey] ?? 0);
-    $outProd   = (int)($outProdData[$lot][$sizeKey] ?? 0);
+    // Hitung total per LOT
+    $totalInWh = $totalOutVendor = $totalIncomingConfirmed = $totalIncomingPending = $totalOutProd = 0;
 
-    // --- Hitung IN WH per komponen berdasarkan komponenList ---
-    $inWhComponents = [];
-    foreach ($komponenList as $komponen) {
-      $kompId = $komponen['id'] ?? $komponen['nama'];
-      $planLotKomponen = $planData[$lot][$sizeKey][$kompId] ?? $plan;
+    foreach ($lots as $lotRow) {
+      $lot = (string)$lotRow['lot'];
 
-      $scanQty = $inData[$lot][$sizeKey][$kompId] ?? 0;
+      $totalInWh += (float)($inData[$lot][$sizeKey][$kompId] ?? 0);
+      $totalOutVendor += (float)($outVendorData[$lot][$sizeKey][$kompId] ?? 0);
 
-      // defisit = scan kumulatif dikurangi plan per komponen
-      $inWhComponents[$kompId] = $scanQty - $planLotKomponen;
-      if ($inWhComponents[$kompId] > 0) $inWhComponents[$kompId] = 0; // jangan positif
+      $val = $incomingData[$lot][$sizeKey][$kompId] ?? -(float)($planData[$lot][$sizeKey][$kompId] ?? 0);
+      $totalIncomingConfirmed += max(0, $val);
+      $totalIncomingPending += min(0, $val);
+
+      // OUT TO PROD dari outProdData
+      $totalOutProd += (float)($outProdData[$lot][$sizeKey][$kompId] ?? 0);
     }
 
-    // --- Kolom lain tetap sama ---
-    $whVendorVal = ($outVendor > 0) ? $outVendor - $plan : -$plan;
-    if ($whVendorVal > 0) $whVendorVal = 0;
+    // Variabel bantu FIFO
+    $sisaInWh = $totalInWh;
+    $sisaOutVendor = $totalOutVendor;
+    $sisaOutProd = $totalOutProd;
 
-    $incomingVal = ($incoming > 0) ? $incoming - $plan : -$plan;
-    if ($incomingVal > 0) $incomingVal = 0;
+    foreach ($lots as $lotRow) {
+      $lot = (string)$lotRow['lot'];
+      $planLot = (float)($planData[$lot][$sizeKey][$kompId] ?? 0);
 
-    $outProdVal = ($outProd > 0) ? $outProd - $plan : -$plan;
-    if ($outProdVal > 0) $outProdVal = 0;
+      // ===== IN WH FIFO =====
+      $inWhComponents = $tableData[$lot][$sizeKey]['in'] ?? [];
+      if ($planLot > 0) {
+        if ($sisaInWh >= $planLot) {
+          $inWhComponents[$kompId] = 0;
+          $sisaInWh -= $planLot;
+        } else {
+          $inWhComponents[$kompId] = - ($planLot - $sisaInWh);
+          $sisaInWh = 0;
+        }
+      } else {
+        $inWhComponents[$kompId] = 0;
+      }
 
-    // --- Hutang tersisa per lot per size ---
-    $alokasi = (int)($allocatedMap[$lot] ?? 0);
-    $hutang = $plan - $alokasi - $outVendor - $incoming - $outProd;
-    if ($hutang < 0) $hutang = 0;
+      // ===== OUT TO VENDOR FIFO =====
+      $outVendorComponents = $tableData[$lot][$sizeKey]['wh_vendor'] ?? [];
+      if ($planLot > 0) {
+        if ($sisaOutVendor >= $planLot) {
+          $outVendorComponents[$kompId] = 0;
+          $sisaOutVendor -= $planLot;
+        } else {
+          $outVendorComponents[$kompId] = - ($planLot - $sisaOutVendor);
+          $sisaOutVendor = 0;
+        }
+      } else {
+        $outVendorComponents[$kompId] = 0;
+      }
 
-    $tableData[$lot][$sizeKey] = [
-      'plan'      => $plan,
-      'in'        => $inWhComponents, // per komponen
-      'wh_vendor' => (int)$whVendorVal,
-      'incoming'  => (int)$incomingVal,
-      'out'       => (int)$outProdVal,
-      'hutang'    => (int)$hutang
-    ];
+      // ===== INCOMING =====
+      $incomingComponents = $tableData[$lot][$sizeKey]['incoming'] ?? [];
+      $val = $incomingData[$lot][$sizeKey][$kompId] ?? -(float)($planData[$lot][$sizeKey][$kompId] ?? 0);
+      $incomingComponents[$kompId] = [
+        'confirmed' => max(0, $val),
+        'pending'   => min(0, $val),
+      ];
+
+      // ===== OUT TO PROD FIFO (HARUS 1:1 DENGAN OUT TO VENDOR) =====
+      $outComponents = $tableData[$lot][$sizeKey]['out'] ?? [];
+
+      if ($planLot > 0) {
+        if ($sisaOutProd >= $planLot) {
+          // full cover → tidak minus
+          $outComponents[$kompId] = 0;
+          $sisaOutProd -= $planLot;
+        } else {
+          // partial → minus kekurangan
+          $shortage = $planLot - $sisaOutProd;
+          $outComponents[$kompId] = -$shortage;
+          $sisaOutProd = 0;
+        }
+      } else {
+        $outComponents[$kompId] = 0;
+      }
+
+      // Simpan ke tableData
+      $tableData[$lot][$sizeKey] = [
+        'plan'      => (int)$planLot,
+        'in'        => $inWhComponents,
+        'wh_vendor' => $outVendorComponents,
+        'incoming'  => $incomingComponents,
+        'out'       => $outComponents,
+      ];
+    }
   }
 }
 
@@ -795,7 +838,6 @@ foreach ($sizes as $s) {
 
                 <?php foreach ($komponenList as $komponen): ?>
                   <?php $komponenName = $komponen['nama']; ?>
-
                   <h5 class="mt-4 fw-bold">Komponen: <?= htmlspecialchars($komponenName) ?></h5>
 
                   <div style="overflow-x:auto;">
@@ -803,8 +845,8 @@ foreach ($sizes as $s) {
                       <thead class="table-light">
                         <tr>
                           <th style="white-space: nowrap;">LOT</th>
-                          <?php foreach ($sizes as $s): ?>
-                            <th style="white-space: nowrap;"><?= htmlspecialchars($s['size']) ?></th>
+                          <?php foreach (array_keys($sizes) as $size): ?>
+                            <th style="white-space: nowrap;"><?= htmlspecialchars($size) ?></th>
                           <?php endforeach; ?>
                           <th style="white-space: nowrap;">Total</th>
                         </tr>
@@ -817,33 +859,44 @@ foreach ($sizes as $s) {
                         ?>
                           <tr>
                             <td class="fw-bold bg-light"><?= htmlspecialchars($lot) ?></td>
-                            <?php foreach ($sizes as $s):
-                              $size = $s['size'];
+                            <?php foreach (array_keys($sizes) as $size):
                               $d = $row[$size] ?? [
                                 'plan' => 0,
                                 'in' => [],
-                                'wh_vendor' => 0,
-                                'incoming' => 0,
-                                'out' => 0
+                                'wh_vendor' => [],
+                                'incoming' => [],
+                                'out' => []
                               ];
 
-                              $plan = $d['plan'];
-                              $inComponents = $d['in'] ?? [];
+                              $kompKey = (string)($komponen['id'] ?? $komponenName);
 
-                              // Ambil hanya komponen yang sesuai
-                              $inQty = $inComponents[$komponen['id'] ?? $komponenName] ?? 0;
+                              // --- PLAN ---
+                              $plan = (float)($d['plan'] ?? 0);
 
-                              $wh_vendor = $d['wh_vendor'];
-                              $incoming  = $d['incoming'];
-                              $out  = $d['out'];
+                              // --- IN WH ---
+                              $inQty = (float)($d['in'][$kompKey] ?? 0);
 
+                              // --- WH TO VENDOR ---
+                              $wh_vendor = (float)($d['wh_vendor'][$kompKey] ?? 0);
+
+                              // --- INCOMING ---
+                              $incomingQty = 0;
+                              if (isset($d['incoming'][$kompKey])) {
+                                $incomingQty = max(0, $d['incoming'][$kompKey]['confirmed'] ?? 0) +
+                                  min(0, $d['incoming'][$kompKey]['pending'] ?? 0);
+                              }
+
+                              // --- OUT TO PROD (gunakan persis seperti OUT TO VENDOR) ---
+                              $out = (float)($d['out'][$kompKey] ?? 0);
+
+                              // --- Akumulasi per LOT ---
                               $lotPlan += $plan;
                               $lotIn   += $inQty;
                               $lotWhVendor += $wh_vendor;
-                              $lotIncoming += $incoming;
+                              $lotIncoming += $incomingQty;
                               $lotOut  += $out;
 
-                              $isEmpty = ($plan == 0 && $inQty == 0 && $wh_vendor == 0 && $incoming == 0 && $out == 0);
+                              $isEmpty = ($plan == 0 && $inQty == 0 && $wh_vendor == 0 && $incomingQty == 0 && $out == 0);
                               $cellClass = $isEmpty ? "bg-dark text-white" : "";
                             ?>
                               <td class="<?= $cellClass ?>" style="white-space: nowrap;">
@@ -851,7 +904,7 @@ foreach ($sizes as $s) {
                                   <span class="text-success"><?= $plan ?></span> |
                                   <span class="<?= $inQty < 0 ? 'text-danger' : 'text-success' ?>"><?= $inQty ?></span> |
                                   <span class="<?= $wh_vendor < 0 ? 'text-danger' : 'text-success' ?>"><?= $wh_vendor ?></span> |
-                                  <span class="<?= $incoming < 0 ? 'text-danger' : 'text-success' ?>"><?= $incoming ?></span> |
+                                  <span class="<?= $incomingQty < 0 ? 'text-danger' : 'text-success' ?>"><?= $incomingQty ?></span> |
                                   <span class="<?= $out < 0 ? 'text-danger' : 'text-success' ?>"><?= $out ?></span>
                                 <?php endif; ?>
                               </td>
@@ -876,22 +929,21 @@ foreach ($sizes as $s) {
                         <!-- Total keseluruhan -->
                         <tr class="fw-bold table-light">
                           <td>Total</td>
-                          <?php foreach ($sizes as $s):
-                            $size = $s['size'];
+                          <?php foreach (array_keys($sizes) as $size):
                             $sumPlan = $sumIn = $sumWhVendor = $sumIncoming = $sumOut = 0;
                             foreach ($tableData as $lot => $row) {
-                              $d = $row[$size] ?? [
-                                'plan' => 0,
-                                'in' => [],
-                                'wh_vendor' => 0,
-                                'incoming' => 0,
-                                'out' => 0
-                              ];
-                              $sumPlan += $d['plan'];
-                              $sumIn += $d['in'][$komponen['id'] ?? $komponenName] ?? 0;
-                              $sumWhVendor += $d['wh_vendor'];
-                              $sumIncoming += $d['incoming'];
-                              $sumOut  += $d['out'];
+                              $d = $row[$size] ?? ['plan' => 0, 'in' => [], 'wh_vendor' => [], 'incoming' => [], 'out' => []];
+                              $kompKey = (string)($komponen['id'] ?? $komponenName);
+                              $sumPlan += (float)($d['plan'] ?? 0);
+                              $sumIn += (float)($d['in'][$kompKey] ?? 0);
+                              $sumWhVendor += (float)($d['wh_vendor'][$kompKey] ?? 0);
+                              $incomingVal = 0;
+                              if (isset($d['incoming'][$kompKey])) {
+                                $incomingVal = max(0, $d['incoming'][$kompKey]['confirmed'] ?? 0) +
+                                  min(0, $d['incoming'][$kompKey]['pending'] ?? 0);
+                              }
+                              $sumIncoming += $incomingVal;
+                              $sumOut += (float)($d['out'][$kompKey] ?? 0);
                             }
                             $inClass  = ($sumIn < 0) ? 'text-danger' : 'text-success';
                             $whVendorClass = ($sumWhVendor < 0) ? 'text-danger' : 'text-success';
@@ -918,6 +970,7 @@ foreach ($sizes as $s) {
                     </table>
                   </div>
                 <?php endforeach; ?>
+
               </div>
 
             </div>

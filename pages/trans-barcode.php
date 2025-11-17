@@ -249,7 +249,7 @@ $vendors_per_model = !empty($vendors_all) ? implode(', ', $vendors_all) : '-';
   <meta charset="utf-8">
   <meta content="width=device-width, initial-scale=1.0" name="viewport">
 
-  <title>iSubcont - QR Code Transaction</title>
+  <title>iSubcont - Barcode Transaction</title>
   <meta content="" name="description">
   <meta content="" name="keywords">
 
@@ -309,7 +309,7 @@ $vendors_per_model = !empty($vendors_all) ? implode(', ', $vendors_all) : '-';
 
     <div class="pagetitle text-black" style="background-color: #f0e6d2; padding: 10px 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
       <h1 style="font-size: 1.8rem; font-weight: 700; font-family: 'Roboto', sans-serif;">
-        QR Code Transaction
+        Barcode Transaction
       </h1>
     </div>
 

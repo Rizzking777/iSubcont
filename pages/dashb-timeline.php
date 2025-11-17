@@ -240,6 +240,7 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
               <table id="example1" class="table table-bordered table-striped text-center align-middle nowrap" style="width:100%">
                 <thead class="table-light">
                   <tr>
+                    <th class="text-center">No Trans</th>
                     <th class="text-center">Job Order</th>
                     <th class="text-center">NCVS</th>
                     <th class="text-center">Bucket</th>
@@ -418,6 +419,9 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
             }
           },
           columns: [{
+              data: "no_urut"
+            },
+            {
               data: "job_order"
             },
             {

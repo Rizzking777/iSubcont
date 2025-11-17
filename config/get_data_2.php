@@ -74,7 +74,7 @@ $dataQuery = "SELECT
     t.id_trans, t.job_order, t.ncvs, t.bucket, t.po_code, 
     t.po_item, t.lot, t.model, t.style, t.komponen_qty
     " . $sql . " 
-    ORDER BY t.ncvs ASC, t.job_order ASC
+    ORDER BY t.ncvs ASC, t.job_order ASC, t.id_trans ASC
     LIMIT ?, ?";
 
 $params2 = $params;
@@ -90,9 +90,20 @@ $dataResult = $stmt2->get_result();
 $data = [];
 
 // ============================
-// Loop data
+// Loop data + Tambah nomor urut per job_order
 // ============================
+$jobOrderCounter = []; // menyimpan urutan transaksi per job_order
+
 while ($row = $dataResult->fetch_assoc()) {
+
+    // Hitung urutan transaksi per job_order
+    $job = $row['job_order'];
+    if (!isset($jobOrderCounter[$job])) {
+        $jobOrderCounter[$job] = 1;
+    } else {
+        $jobOrderCounter[$job]++;
+    }
+    $row['no_urut'] = $jobOrderCounter[$job]; // <-- kolom tambahan
 
     // --- Decode LOT jadi range
     $displayLot = '';

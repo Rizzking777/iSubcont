@@ -91,11 +91,19 @@ $stmt2->execute();
 $dataResult = $stmt2->get_result();
 
 $data = [];
-while ($row = $dataResult->fetch_assoc()) {
 
-    // ============================
-    // Decode lot JSON & ubah jadi range (min-max) untuk tampilan
-    // ============================
+$jobOrderCounter = []; // nyimpen nomor urut per job_order
+
+while ($row = $dataResult->fetch_assoc()) {
+    // ====== Tambah nomor urut per job_order ======
+    $job = $row['job_order'];
+    if (!isset($jobOrderCounter[$job])) {
+        $jobOrderCounter[$job] = 1;
+    } else {
+        $jobOrderCounter[$job]++;
+    }
+    $row['no_urut'] = $jobOrderCounter[$job]; // <-- disimpan di array hasil
+
     $displayLot = '';        // Untuk ditampilkan di tabel HTML
     $filterLotArray = [];    // Untuk query/filter backend
 
