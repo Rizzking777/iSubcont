@@ -32,8 +32,21 @@ $header = $res_header->fetch_assoc();
 if (!$header) die("Data job order tidak ditemukan.");
 
 // --- Parse lot parameter ---
-$selectedLots = array_map('trim', explode(',', $lot_param)); // ['3','4'] dll
-$selectedLots = array_filter($selectedLots, fn($l) => $l !== ''); // bersihkan empty
+// Bisa berupa: "1" atau "1-5,7,8-10"
+$selectedLots = [];
+if (!empty($lot_param)) {
+  $parts = array_map('trim', explode(',', $lot_param));
+  foreach ($parts as $part) {
+    if (strpos($part, '-') !== false) {
+      [$start, $end] = explode('-', $part);
+      $range = range(intval($start), intval($end));
+      $selectedLots = array_merge($selectedLots, $range);
+    } else {
+      $selectedLots[] = intval($part);
+    }
+  }
+  $selectedLots = array_unique($selectedLots);
+}
 
 // --- Ambil transaksi untuk job_order dan filter lot & id_trans ---
 $stmt2_sql = "SELECT t.id_trans, t.job_order, t.lot, t.komponen_qty
@@ -47,68 +60,68 @@ $stmt2->bind_param($types, ...$params);
 $stmt2->execute();
 $res_detail = $stmt2->get_result();
 
-// --- Pivot data per lot ---
+// --- Pivot data total (tanpa per-lot) ---
+$pivot = [];
+$sizes = [];
+$vendor_cache = [];
+
+// --- Pivot data total (tanpa per-lot, gabung semua komponen unik) ---
 $pivot = [];
 $sizes = [];
 $vendor_cache = [];
 
 while ($row = $res_detail->fetch_assoc()) {
-  $lot_list = json_decode($row['lot'], true);
-  if (!is_array($lot_list)) $lot_list = [$row['lot']]; // fallback string
-
-  // hanya ambil lot yang ada di selectedLots
-  $lot_list = array_filter($lot_list, fn($l) => in_array($l, $selectedLots));
-  if (empty($lot_list)) continue; // skip jika lot tidak match
-
   $komp_data = json_decode($row['komponen_qty'], true);
   if (!is_array($komp_data)) continue;
 
-  $lotCount = count($lot_list); // hitung jumlah lot untuk pembagian qty
+  foreach ($komp_data as $item) {
+    $komp_id = $item['komponen'] ?? null;
+    $size    = $item['size'] ?? null;
+    $qty     = (int)($item['qty'] ?? 0);
 
-  foreach ($lot_list as $lot_val) {
-    foreach ($komp_data as $item) {
-      $komp_id = $item['komponen'] ?? null;
-      $size    = $item['size'] ?? null;
-      $qty     = (int)($item['qty'] ?? 0);
+    if (!$komp_id || !$size) continue;
 
-      if (!$komp_id || !$size) continue;
-
-      // bagi qty per lot
-      $qty_per_lot = (int)round($qty / $lotCount);
-
-      // ambil nama komponen & vendor, cache supaya ga bolak-balik query
-      if (!isset($vendor_cache[$komp_id])) {
-        $stmt_k = $conn->prepare("
-                    SELECT k.nama_komponen, 
-                           GROUP_CONCAT(DISTINCT v.name_vendor SEPARATOR ', ') AS vendors
-                    FROM tbl_komponen k
-                    LEFT JOIN tbl_komponen_proses p 
-                          ON p.id_input = k.id_komponen OR p.id_output = k.id_komponen
-                    LEFT JOIN tbl_vendor_proses vp ON vp.id_proses = p.id_proses
-                    LEFT JOIN tbl_vendor v ON v.id_vendor = vp.id_vendor
-                    WHERE k.id_komponen = ?
-                    GROUP BY k.id_komponen
-                ");
-        $stmt_k->bind_param("i", $komp_id);
-        $stmt_k->execute();
-        $res_k = $stmt_k->get_result();
-        $komp_row = $res_k->fetch_assoc();
-        $nama_komp = $komp_row['nama_komponen'] ?? "Komponen #$komp_id";
-        $vendors   = $komp_row['vendors'] ?? '-';
-        $vendor_cache[$komp_id] = ['nama' => $nama_komp, 'vendors' => $vendors];
-        $stmt_k->close();
-      } else {
-        $nama_komp = $vendor_cache[$komp_id]['nama'];
-        $vendors   = $vendor_cache[$komp_id]['vendors'];
-      }
-
-      // Masukkan ke pivot per lot
-      $pivot[$lot_val][$nama_komp][$size] = ($pivot[$lot_val][$nama_komp][$size] ?? 0) + $qty_per_lot;
-      $pivot[$lot_val][$nama_komp]['vendor'] = $vendors;
-      $sizes[$size] = true;
+    // ambil nama komponen & vendor (cache)
+    if (!isset($vendor_cache[$komp_id])) {
+      $stmt_k = $conn->prepare("
+        SELECT k.nama_komponen, 
+               GROUP_CONCAT(DISTINCT v.name_vendor SEPARATOR ', ') AS vendors
+        FROM tbl_komponen k
+        LEFT JOIN tbl_komponen_proses p 
+              ON p.id_input = k.id_komponen OR p.id_output = k.id_komponen
+        LEFT JOIN tbl_vendor_proses vp ON vp.id_proses = p.id_proses
+        LEFT JOIN tbl_vendor v ON v.id_vendor = vp.id_vendor
+        WHERE k.id_komponen = ?
+        GROUP BY k.id_komponen
+      ");
+      $stmt_k->bind_param("i", $komp_id);
+      $stmt_k->execute();
+      $res_k = $stmt_k->get_result();
+      $komp_row = $res_k->fetch_assoc();
+      $nama_komp = $komp_row['nama_komponen'] ?? "Komponen #$komp_id";
+      $vendors   = $komp_row['vendors'] ?? '-';
+      $vendor_cache[$komp_id] = ['nama' => $nama_komp, 'vendors' => $vendors];
+      $stmt_k->close();
+    } else {
+      $nama_komp = $vendor_cache[$komp_id]['nama'];
+      $vendors   = $vendor_cache[$komp_id]['vendors'];
     }
+
+    // total per komponen per size (tanpa per-lot)
+    if (!isset($pivot[$nama_komp])) {
+      $pivot[$nama_komp] = ['vendor' => $vendors];
+    }
+
+    $pivot[$nama_komp][$size] = ($pivot[$nama_komp][$size] ?? 0) + $qty;
+    $sizes[$size] = true;
   }
 }
+
+// --- Urutkan komponen berdasarkan nama ---
+ksort($pivot);
+
+// --- Urutkan size secara alami (bukan alfabet) ---
+uksort($sizes, 'strnatcmp');
 
 // --- Hitung vendor per model ---
 $all_vendors = [];
@@ -120,13 +133,22 @@ foreach ($pivot as $komp => $data) {
     }
   }
 }
+
+// --- Hitung vendor per model (ambil dari pivot yang baru) ---
+$all_vendors = [];
+foreach ($pivot as $komp_name => $komp_data) {
+  if (isset($komp_data['vendor']) && $komp_data['vendor'] !== '-') {
+    $vs = explode(', ', $komp_data['vendor']);
+    $all_vendors = array_merge($all_vendors, $vs);
+  }
+}
 $all_vendors = array_unique($all_vendors);
 $vendors_per_model = !empty($all_vendors) ? implode(', ', $all_vendors) : '-';
+
 
 // --- Urutkan size dengan logika angka + huruf ---
 $sizes = array_keys($sizes);
 usort($sizes, function ($a, $b) {
-  // Pisahkan angka dan sisa huruf
   preg_match('/(\d+)(.*)/', $a, $ma);
   preg_match('/(\d+)(.*)/', $b, $mb);
 
@@ -134,12 +156,36 @@ usort($sizes, function ($a, $b) {
   $numB = (int)($mb[1] ?? 0);
 
   if ($numA !== $numB) {
-    return $numA - $numB; // urut angka dulu
+    return $numA - $numB;
   }
 
-  // jika angka sama, urut berdasarkan sisa string
   return strcmp($ma[2] ?? '', $mb[2] ?? '');
 });
+
+function lotArrayToRanges(array $lots): string
+{
+  if (empty($lots)) return '-';
+
+  sort($lots, SORT_NUMERIC);
+  $ranges = [];
+  $start = $prev = null;
+
+  foreach ($lots as $lot) {
+    $lot = intval($lot);
+    if ($start === null) {
+      $start = $prev = $lot;
+    } elseif ($lot == $prev + 1) {
+      $prev = $lot;
+    } else {
+      $ranges[] = ($start === $prev) ? $start : "$start-$prev";
+      $start = $prev = $lot;
+    }
+  }
+  // Tambahkan range terakhir
+  $ranges[] = ($start === $prev) ? $start : "$start-$prev";
+
+  return implode(',', $ranges);
+}
 
 ?>
 
@@ -353,8 +399,9 @@ usort($sizes, function ($a, $b) {
                   </div>
                   <div class="row mb-2">
                     <div class="col-sm-4 fw-bold">Lot:</div>
-                    <div class="col-sm-8"><?= htmlspecialchars(implode(', ', $selectedLots)); ?></div>
+                    <div class="col-sm-8"><?= htmlspecialchars(lotArrayToRanges($selectedLots)); ?></div>
                   </div>
+
                   <div class="row mb-2">
                     <div class="col-sm-4 fw-bold">To Vendor:</div>
                     <div class="col-sm-8 text-primary"><?= htmlspecialchars($vendors_per_model); ?></div>
@@ -366,37 +413,35 @@ usort($sizes, function ($a, $b) {
                 </div>
               </div>
 
-              <!-- Pivot Table per Lot -->
-              <?php foreach ($pivot as $lot_val => $komponen_list): ?>
-                <h6 class="fw-bold mt-4">Lot <?= htmlspecialchars($lot_val) ?></h6>
-                <table class="table table-bordered table-striped text-center align-middle nowrap" style="width:100%">
-                  <thead class="table-light">
-                    <tr>
-                      <th class="text-center">Komponen</th>
-                      <?php foreach ($sizes as $s): ?>
-                        <th class="text-center"><?= htmlspecialchars($s); ?></th>
-                      <?php endforeach; ?>
-                      <th class="text-center">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <?php foreach ($komponen_list as $komp => $data): ?>
-                      <tr>
-                        <td><?= htmlspecialchars($komp); ?></td>
-                        <?php
-                        $row_total = 0;
-                        foreach ($sizes as $s):
-                          $val = $data[$s] ?? 0;
-                          $row_total += $val;
-                        ?>
-                          <td><?= $val; ?></td>
-                        <?php endforeach; ?>
-                        <td><strong><?= $row_total; ?></strong></td>
-                      </tr>
+              <!-- Pivot Table Total -->
+              <table class="table table-bordered table-striped text-center align-middle nowrap" style="width:100%">
+                <thead class="table-light">
+                  <tr>
+                    <th class="text-center">Komponen</th>
+                    <?php foreach ($sizes as $s): ?>
+                      <th class="text-center"><?= htmlspecialchars($s); ?></th>
                     <?php endforeach; ?>
-                  </tbody>
-                </table>
-              <?php endforeach; ?>
+                    <th class="text-center">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <?php foreach ($pivot as $komp => $data): ?>
+                    <tr>
+                      <td><?= htmlspecialchars($komp); ?></td>
+                      <?php
+                      $row_total = 0;
+                      foreach ($sizes as $s):
+                        $val = $data[$s] ?? 0;
+                        $row_total += $val;
+                      ?>
+                        <td><?= $val; ?></td>
+                      <?php endforeach; ?>
+                      <td><strong><?= $row_total; ?></strong></td>
+                    </tr>
+                  <?php endforeach; ?>
+                </tbody>
+              </table>
+
 
             </div>
           </div>
@@ -490,306 +535,6 @@ usort($sizes, function ($a, $b) {
         });
         toast.show();
       }
-    });
-  </script>
-
-
-  <script>
-    document.addEventListener('DOMContentLoaded', function() {
-
-      <?php foreach ($result_transaksi as $row): ?>
-        const modal<?= $row['id_trans']; ?> = document.getElementById('barcodeModal<?= $row['id_trans']; ?>');
-        let qrGenerated<?= $row['id_trans']; ?> = false;
-
-        modal<?= $row['id_trans']; ?>.addEventListener('shown.bs.modal', function() {
-          if (!qrGenerated<?= $row['id_trans']; ?>) {
-            new QRCode(document.getElementById('qrcode<?= $row['id_trans']; ?>'), {
-              text: "<?= $row['barcode']; ?>",
-              width: 60,
-              height: 60
-            });
-            qrGenerated<?= $row['id_trans']; ?> = true;
-          }
-        });
-      <?php endforeach; ?>
-
-      // Print via Web Bluetooth MT200
-      document.querySelectorAll('.printNow').forEach(btn => {
-        btn.addEventListener('click', async function() {
-          const id = this.dataset.id;
-          const barcode = this.dataset.barcode;
-
-          try {
-            // 1. Pilih printer MT200
-            const device = await navigator.bluetooth.requestDevice({
-              filters: [{
-                namePrefix: 'MT200'
-              }],
-              optionalServices: [0xFFE0]
-            });
-
-            const server = await device.gatt.connect();
-            const service = await server.getPrimaryService(0xFFE0);
-            const characteristic = await service.getCharacteristic(0xFFE1);
-
-            // 2. Ambil data dari modal
-            const modalBody = document.getElementById('barcodeModal' + id).querySelector('.modal-body');
-
-            // Ambil teks info
-            let lines = [];
-            const infoDivs = modalBody.querySelectorAll('div > div, div'); // ambil semua info
-            infoDivs.forEach(d => {
-              const text = d.innerText.trim();
-              if (text) lines.push(text);
-            });
-            const infoText = lines.join('\n') + '\n\n';
-
-            // 3. Generate QR code canvas
-            const qrCanvas = modalBody.querySelector('canvas, img'); // QR code di modal
-            let qrData = null;
-
-            if (qrCanvas) {
-              const canvas = qrCanvas.tagName === 'CANVAS' ? qrCanvas : qrCanvas;
-              qrData = canvas.toDataURL('image/png'); // base64
-            }
-
-            // 4. Encode ESC/POS
-            function encodeText(str) {
-              return new TextEncoder().encode(str);
-            }
-
-            // Kirim info text
-            await characteristic.writeValue(encodeText(infoText));
-
-            // Kirim QR image jika printer support (MT200 ESC/POS)
-            if (qrData) {
-              const res = await fetch(qrData);
-              const blob = await res.blob();
-              const arrayBuffer = await blob.arrayBuffer();
-              await characteristic.writeValue(new Uint8Array(arrayBuffer));
-            }
-
-            alert('Print berhasil!');
-
-            // 5. Update count_barcode via AJAX
-            fetch('./../config/update_count_barcode.php', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/x-www-form-urlencoded'
-              },
-              body: `id_trans=${id}`
-            }).then(res => res.json()).then(data => {
-              if (data.success) {
-                const btnEl = document.querySelector(`.printBtn[data-id='${id}']`);
-                if (btnEl) btnEl.innerHTML = `<i class="bi bi-upc-scan"></i> ${data.count}`;
-              }
-            });
-
-          } catch (err) {
-            console.error('Gagal print via Bluetooth:', err);
-            alert('Tidak dapat terhubung ke printer MT200. Pastikan printer menyala dan Bluetooth aktif.');
-          }
-        });
-      });
-
-    });
-  </script>
-
-  <script>
-    $(function() {
-      // ==============================
-      // Job Order Select2 dengan AJAX Search
-      // ==============================
-      $('#job_order').select2({
-        width: "100%",
-        dropdownParent: $("#tambahTransaksi"),
-        placeholder: "Cari Job Order...",
-        allowClear: true,
-        minimumInputLength: 1,
-        ajax: {
-          url: "./../config/ajax.php",
-          type: "POST",
-          dataType: "json",
-          delay: 250,
-          data: function(params) {
-            return {
-              action: "searchJobOrder",
-              search: params.term
-            };
-          },
-          processResults: function(data) {
-            return {
-              results: data.job_order || []
-            };
-          }
-        }
-      });
-
-      // Autofocus search ketika select2 dibuka
-      $(document).on('select2:open', function() {
-        const $search = $('.select2-container--open .select2-search__field');
-        if ($search.length) $search.focus();
-      });
-
-      // ==============================
-      // Autofill fields dari JobOrder
-      // ==============================
-      $('#job_order').on('change select2:select', function() {
-        let jobOrder = $(this).val();
-        if (!jobOrder) return;
-
-        $.post("./../config/ajax.php", {
-          action: "getJobOrderDetail",
-          job_order: jobOrder
-        }, function(res) {
-          if (res.success) {
-            $('#bucket').val(res.data.bucket).prop("readonly", true);
-            $('#po_code').val(res.data.po_code).prop("readonly", true);
-            $('#po_item').val(res.data.po_item).prop("readonly", true);
-            $('#model').val(res.data.model).prop("readonly", true);
-            $('#style').val(res.data.style).prop("readonly", true);
-            $('#ncvs').val(res.data.ncvs).prop("readonly", true);
-            // ❌ jangan isi lot, biar manual
-          } else {
-            alert(res.error || "Data Job Order tidak ditemukan");
-          }
-        }, "json");
-      });
-
-      // ==============================
-      // Fungsi bikin Select2 Komponen & Size (AJAX)
-      // ==============================
-      function initKomponenSelect($el) {
-        $el.select2({
-          width: "100%",
-          dropdownParent: $("#tambahTransaksi"),
-          placeholder: "Cari Komponen...",
-          allowClear: true,
-          minimumInputLength: 1,
-          ajax: {
-            url: "./../config/ajax.php",
-            type: "POST",
-            dataType: "json",
-            delay: 250,
-            data: function(params) {
-              return {
-                action: "searchKomponen",
-                model: $("#model").val(),
-                search: params.term
-              };
-            },
-            processResults: function(data) {
-              return {
-                results: data.komponen || []
-              };
-            }
-          }
-        });
-      }
-
-      function initSizeSelect($el) {
-        $el.select2({
-          width: "100%",
-          dropdownParent: $("#tambahTransaksi"),
-          placeholder: "Cari Size...",
-          allowClear: true,
-          minimumInputLength: 1,
-          ajax: {
-            url: "./../config/ajax.php",
-            type: "POST",
-            dataType: "json",
-            delay: 250,
-            data: function(params) {
-              return {
-                action: "searchSize",
-                job_order: $("#job_order").val(),
-                search: params.term
-              };
-            },
-            processResults: function(data) {
-              return {
-                results: data.sizes || []
-              };
-            }
-          }
-        });
-      }
-
-      // ==============================
-      // Add Komponen Row
-      // ==============================
-      $('#addKomponenBtn').on('click', function() {
-        const $row = $(`
-      <div class="row g-3 mb-2 komponen-row">
-        <div class="col-md-4">
-          <select name="komponen[]" class="form-control komponen-select" required></select>
-        </div>
-        <div class="col-md-4">
-          <select name="size[]" class="form-control size-select" required></select>
-        </div>
-        <div class="col-md-3">
-          <input type="number" name="qty[]" class="form-control" placeholder="Input qty" required>
-        </div>
-        <div class="col-md-1 d-flex align-items-end">
-          <button type="button" class="btn btn-danger btn-sm removeKomponenBtn"><i class="bi bi-trash"></i></button>
-        </div>
-      </div>
-    `);
-
-        $('#komponenContainer').append($row);
-
-        // init select2 untuk row baru
-        initKomponenSelect($row.find('.komponen-select'));
-        initSizeSelect($row.find('.size-select'));
-      });
-
-      // Remove row
-      $(document).on('click', '.removeKomponenBtn', function() {
-        $(this).closest('.komponen-row').remove();
-      });
-
-      // ==============================
-      // Init row pertama (yang sudah ada di HTML)
-      // ==============================
-      initKomponenSelect($('.komponen-select'));
-      initSizeSelect($('.size-select'));
-    });
-  </script>
-
-  <script>
-    // ===============================
-    // Fungsi parsing lot
-    // ===============================
-    function parseLotInput(input) {
-      let lots = [];
-      let parts = input.split(",");
-      parts.forEach(part => {
-        part = part.trim();
-        if (part.includes("-")) {
-          let [start, end] = part.split("-").map(Number);
-          for (let i = start; i <= end; i++) {
-            lots.push(i);
-          }
-        } else if (part) {
-          lots.push(Number(part));
-        }
-      });
-      return [...new Set(lots)].sort((a, b) => a - b);
-    }
-
-    // Contoh validasi sebelum submit
-    $("#formTransaksi").on("submit", function(e) {
-      let lotInput = $("#lot").val();
-      let lots = parseLotInput(lotInput);
-
-      if (lots.length === 0) {
-        e.preventDefault();
-        alert("Lot tidak boleh kosong atau salah format!");
-        return;
-      }
-
-      console.log("Lot final:", lots);
-      // boleh lanjut submit
     });
   </script>
 

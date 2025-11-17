@@ -356,8 +356,28 @@ $result_transaksi = $stmt->get_result();
                           <div class="mb-3">
                             <label><strong>Komponen Sesudah Proses:</strong></label>
                             <?php
-                            // ambil dari transaksi sekarang
-                            $qty_data = json_decode($row['komponen_qty'], true);
+                            // ambil log terakhir SCAN_IN_INCOMING untuk id_trans
+                            $qty_data = [];
+                            $stmt_log_in = $conn->prepare("
+                                SELECT new_data 
+                                FROM tlog_transaksi 
+                                WHERE id_trans = ? 
+                                  AND action_type = 'SCAN_IN_INCOMING' 
+                                ORDER BY created_at DESC 
+                                LIMIT 1
+                            ");
+                            $stmt_log_in->bind_param("i", $row['id_trans']);
+                            $stmt_log_in->execute();
+                            $res_log_in = $stmt_log_in->get_result();
+                            $log_row = $res_log_in->fetch_assoc();
+                            $stmt_log_in->close();
+
+                            if ($log_row && !empty($log_row['new_data'])) {
+                              $log_data = json_decode($log_row['new_data'], true);
+                              if (!empty($log_data['komponen_qty']) && is_array($log_data['komponen_qty'])) {
+                                $qty_data = $log_data['komponen_qty'];
+                              }
+                            }
 
                             if (is_array($qty_data) && !empty($qty_data)) {
                               foreach ($qty_data as $idx => $item) {

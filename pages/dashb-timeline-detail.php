@@ -7,31 +7,55 @@ checkAuth('timeline_transaction'); // cek apakah sudah login dan punya akses ke 
 $nik = $_SESSION['nik_user'];
 $username = $_SESSION['username']; // Query ringkasan per job_order
 
-// ===== Ambil parameter =====
+// ======================= PARAMETER =======================
 $job_order   = $_GET['job_order'] ?? '';
-$lotParam    = $_GET['lot'] ?? '';     // contoh: "1,2"
-$idTransParam = $_GET['id_trans'] ?? ''; // contoh: "123,124"
+$lotParam    = $_GET['lot'] ?? '';
+$idTransParam = $_GET['id_trans'] ?? '';
 
-if ($job_order == '') {
-  die('Job Order tidak ditemukan.');
+if (empty($job_order)) {
+  die('❌ Job Order tidak ditemukan.');
 }
 
-// Escape
 $job_order = mysqli_real_escape_string($conn, $job_order);
 
-// ===== Lot =====
+// ======================= LOT HANDLER =======================
 $lotArray = [];
 if (!empty($lotParam)) {
-  $lotArray = array_filter(array_map('trim', explode(',', $lotParam)), fn($v) => $v !== '');
+  $parts = array_map('trim', explode(',', $lotParam));
+  foreach ($parts as $p) {
+    if (str_contains($p, '-')) {
+      [$start, $end] = array_map('intval', explode('-', $p));
+      if ($start <= $end) $lotArray = array_merge($lotArray, range($start, $end));
+    } else $lotArray[] = intval($p);
+  }
+  $lotArray = array_unique($lotArray);
 }
 
-// ===== ID Trans =====
+function lotArrayToRanges(array $arr): string
+{
+  if (empty($arr)) return '';
+  sort($arr);
+  $ranges = [];
+  $start = $prev = $arr[0];
+  for ($i = 1; $i < count($arr); $i++) {
+    $num = $arr[$i];
+    if ($num == $prev + 1) $prev = $num;
+    else {
+      $ranges[] = ($start == $prev) ? $start : "$start-$prev";
+      $start = $prev = $num;
+    }
+  }
+  $ranges[] = ($start == $prev) ? $start : "$start-$prev";
+  return implode(',', $ranges);
+}
+
+// ======================= ID TRANS =======================
 $idTransArray = [];
 if (!empty($idTransParam)) {
   $idTransArray = array_filter(array_map('intval', explode(',', $idTransParam)));
 }
 
-// ===== Ambil data transaksi utama =====
+// ======================= AMBIL TRANSAKSI =======================
 $lotWhere = '';
 if (!empty($lotArray)) {
   $lotConds = [];
@@ -43,132 +67,367 @@ if (!empty($lotArray)) {
 }
 
 $queryTrans = "
-    SELECT *
-    FROM tbl_transaksi
-    WHERE job_order = '$job_order'
-    $lotWhere
-    LIMIT 1
+  SELECT * FROM tbl_transaksi 
+  WHERE job_order = '$job_order' $lotWhere
+  LIMIT 1
 ";
-
 $resultTrans = mysqli_query($conn, $queryTrans);
-$trans = $resultTrans && mysqli_num_rows($resultTrans) > 0
+$trans = ($resultTrans && mysqli_num_rows($resultTrans) > 0)
   ? mysqli_fetch_assoc($resultTrans)
   : null;
 
 if (!$trans) {
-  echo "<div class='text-danger'>
-        ⚠️ Tidak ditemukan data transaksi untuk Job Order: <b>" . htmlspecialchars($job_order) . "</b>" .
-    (!empty($lotParam) ? " dan Lot: <b>" . htmlspecialchars($lotParam) . "</b>" : "") .
-    (!empty($idTransParam) ? " dan ID Trans: <b>" . htmlspecialchars($idTransParam) . "</b>" : "") .
-    "</div>";
+  echo "<div class='text-danger'>⚠️ Tidak ada data transaksi untuk Job Order <b>$job_order</b></div>";
+  exit;
 }
 
-// ===== Ambil vendor =====
-$vendor = [
-  'name_vendor' => 'Belum Ditentukan',
-  'code_vendor' => '-',
-  'vendor_address' => '-'
-];
+// ======================= VENDOR & KOMPONEN =======================
+$vendor = ['name_vendor' => '-', 'vendors' => '-'];
 
-if ($trans) {
-  $komponenList = json_decode($trans['komponen_qty'], true);
-  $firstKomponenID = $komponenList[0]['komponen'] ?? null;
+$komponenList = json_decode($trans['komponen_qty'], true);
+$komponenIDs = [];
 
-  if ($firstKomponenID) {
-    $sqlKomponen = "SELECT nama_komponen, model FROM tbl_komponen WHERE id_komponen = '$firstKomponenID' LIMIT 1";
-    $resultKomponen = mysqli_query($conn, $sqlKomponen);
-    $dataKomponen = mysqli_fetch_assoc($resultKomponen);
+if (is_array($komponenList)) {
+  foreach ($komponenList as $item) {
+    if (!empty($item['komponen'])) {
+      $komponenIDs[] = intval($item['komponen']);
+    }
+  }
+  $komponenIDs = array_unique($komponenIDs);
+}
 
-    if ($dataKomponen) {
-      $namaKomponen = mysqli_real_escape_string($conn, $dataKomponen['nama_komponen']);
-      $model = mysqli_real_escape_string($conn, $dataKomponen['model']);
+if (!empty($komponenIDs)) {
+  $idList = implode(',', $komponenIDs);
 
-      $sqlVendor = "
-                SELECT v.id_vendor, v.name_vendor, v.code_vendor, v.alamat AS vendor_address
-                FROM tbl_komponen k
-                JOIN tbl_komponen_proses kp ON kp.id_input = k.id_komponen
-                JOIN tbl_vendor_proses vp ON vp.id_proses = kp.id_proses
-                JOIN tbl_vendor v ON v.id_vendor = vp.id_vendor
-                WHERE k.nama_komponen = '$namaKomponen'
-                  AND k.model = '$model'
-                LIMIT 1
-            ";
-      $resultVendor = mysqli_query($conn, $sqlVendor);
-      if ($resultVendor && mysqli_num_rows($resultVendor) > 0) {
-        $vendor = mysqli_fetch_assoc($resultVendor);
-      }
+  $sqlVendor = "
+    SELECT GROUP_CONCAT(DISTINCT v.name_vendor SEPARATOR ', ') AS vendors
+    FROM tbl_vendor v
+    JOIN tbl_vendor_proses vp ON v.id_vendor = vp.id_vendor
+    JOIN tbl_komponen_proses kp ON vp.id_proses = kp.id_proses
+    WHERE kp.id_input IN ($idList) OR kp.id_output IN ($idList)
+  ";
+
+  $resVendor = mysqli_query($conn, $sqlVendor);
+  if ($resVendor && mysqli_num_rows($resVendor) > 0) {
+    $vendorRow = mysqli_fetch_assoc($resVendor);
+    if (!empty($vendorRow['vendors'])) {
+      $vendor['name_vendor'] = $vendorRow['vendors'];
     }
   }
 }
 
-// ===== Ambil semua id_trans untuk job_order + lot (kecuali jika id_trans sudah dikirim) =====
+// ======================= ID TRANS FILTER =======================
 $idTransList = [];
 if (!empty($lotArray)) {
   $idTransQueryParts = [];
   foreach ($lotArray as $lotVal) {
     $lotVal = mysqli_real_escape_string($conn, $lotVal);
-    $idTransQueryParts[] = "JSON_SEARCH(lot, 'one', '$lotVal') IS NOT NULL OR JSON_UNQUOTE(lot) LIKE '%\"$lotVal\"%' OR lot LIKE '%$lotVal%'";
+    $idTransQueryParts[] = "JSON_SEARCH(lot, 'one', '$lotVal') IS NOT NULL";
   }
   $idTransQuery = implode(' OR ', $idTransQueryParts);
 
   $qIdTrans = mysqli_query($conn, "
-        SELECT id_trans 
-        FROM tbl_transaksi
-        WHERE job_order = '$job_order'
-          AND ($idTransQuery)
-    ");
-
-  if ($qIdTrans) {
-    while ($r = mysqli_fetch_assoc($qIdTrans)) {
-      $idTransList[] = $r['id_trans'];
-    }
-  }
+    SELECT id_trans FROM tbl_transaksi
+    WHERE job_order = '$job_order' AND ($idTransQuery)
+  ");
+  while ($r = mysqli_fetch_assoc($qIdTrans)) $idTransList[] = $r['id_trans'];
 }
 
-// ===== Tentukan id_trans filter =====
-if (!empty($idTransArray)) {
-  $idTransFilter = implode(',', $idTransArray);
-} else {
-  $idTransFilter = !empty($idTransList)
-    ? implode(',', array_map('intval', $idTransList))
-    : '0';
-}
+$idTransFilter = !empty($idTransArray)
+  ? implode(',', $idTransArray)
+  : (!empty($idTransList) ? implode(',', $idTransList) : '0');
 
-// ===== Ambil log =====
+// ======================= LOG =======================
 $logWhere = "WHERE JSON_UNQUOTE(JSON_EXTRACT(new_data, '$.job_order')) = '$job_order'";
-
-if (!empty($lotArray)) {
-  $lotConditions = [];
-  foreach ($lotArray as $lotVal) {
-    $lotVal = mysqli_real_escape_string($conn, $lotVal);
-    $lotConditions[] = "JSON_SEARCH(new_data, 'one', '$lotVal', NULL, '$.lot') IS NOT NULL
-                            OR JSON_UNQUOTE(JSON_EXTRACT(new_data, '$.lot')) LIKE '%$lotVal%'";
-  }
-  $logWhere .= " AND (" . implode(" OR ", $lotConditions) . ")";
-}
-
-if (!empty($idTransFilter) && $idTransFilter !== '0') {
-  $logWhere .= " AND id_trans IN ($idTransFilter)";
-}
+if (!empty($idTransFilter) && $idTransFilter !== '0') $logWhere .= " AND id_trans IN ($idTransFilter)";
 
 $queryLog = "
-    SELECT id_log_trans, id_trans, action_type, created_at, new_data,
-           JSON_UNQUOTE(JSON_EXTRACT(new_data, '$.lot')) AS lot_json
-    FROM tlog_transaksi
-    $logWhere
-    ORDER BY created_at ASC
+  SELECT id_log_trans, id_trans, action_type, created_at, new_data,
+         qty_real, qty_kekurangan, status_kekurangan
+  FROM tlog_transaksi
+  $logWhere
+  ORDER BY created_at ASC
 ";
 $resultLog = mysqli_query($conn, $queryLog);
 
-// ===== Ambil kekurangan =====
-$queryKekurangan = "
-    SELECT tk.id_kekurangan, tk.id_trans_asal, tk.job_order, tk.komponen_qty AS tk_komponen_qty,
-           tk.total_kekurangan, tk.status AS tk_status, tk.last_gate, tk.created_at
-    FROM tbl_transaksi_kekurangan tk
-    WHERE tk.job_order = '$job_order'
-      AND tk.id_trans_asal IN ($idTransFilter)
-    ORDER BY tk.created_at ASC
+// ======================= TOTAL ORDER (PLAN) =======================
+$stmt = $conn->prepare("SELECT SUM(qty) AS total_order FROM tbl_master_data WHERE job_order = ?");
+$stmt->bind_param("s", $job_order);
+$stmt->execute();
+$resultTotal = $stmt->get_result();
+$totalOrder = $resultTotal->fetch_assoc()['total_order'] ?? 0;
+
+// ======================= STAGES =======================
+$stages = [
+  'SCAN_IN_WAREHOUSE'    => 'In Warehouse',
+  'SCAN_OUT_TO_VENDOR'   => 'Out WH to Vendor',
+  'SCAN_IN_INCOMING'     => 'Incoming WH',
+  'SCAN_OUT_TO_PRODUCTION' => 'Out to Production'
+];
+
+$stageCounts = array_fill_keys(array_keys($stages), 0);
+
+if ($resultLog) {
+  while ($log = mysqli_fetch_assoc($resultLog)) {
+    $newData = json_decode($log['new_data'], true);
+    $typeScan = strtoupper(trim($newData['type_scan'] ?? $log['action_type'] ?? ''));
+    if (empty($typeScan) || !isset($stageCounts[$typeScan])) continue;
+
+    $qty_real = intval($log['qty_real'] ?? 0);
+    $qty_kekurangan = intval($log['qty_kekurangan'] ?? 0);
+    $status_kekurangan = strtolower(trim($log['status_kekurangan'] ?? ''));
+
+    // Hitung efektif
+    $effective_qty = ($status_kekurangan === 'pending')
+      ? max(0, $qty_real - $qty_kekurangan)
+      : $qty_real;
+
+    $stageCounts[$typeScan] += $effective_qty;
+  }
+}
+
+// ======================= PERSENTASE =======================
+$stagePercents = [];
+foreach ($stages as $key => $label) {
+  $percent = ($totalOrder > 0)
+    ? round(($stageCounts[$key] / $totalOrder) * 100, 2)
+    : 0;
+  $stagePercents[$key] = min(100, $percent);
+}
+
+// ======================= IN WAREHOUSE (PLAN vs ACTUAL by KOMPN) =======================
+$inWarehouseProgress = 0;
+
+if (!empty($idTransFilter) && $idTransFilter !== '0') {
+  // Ambil plan dari tbl_transaksi
+  $planQuery = "
+    SELECT komponen_qty FROM tbl_transaksi 
+    WHERE id_trans IN ($idTransFilter)
+  ";
+  $planResult = mysqli_query($conn, $planQuery);
+
+  $planByKomponen = [];
+
+  while ($p = mysqli_fetch_assoc($planResult)) {
+    $planList = json_decode($p['komponen_qty'], true);
+    foreach ($planList as $item) {
+      $komp = $item['komponen'];
+      $planByKomponen[$komp] = ($planByKomponen[$komp] ?? 0) + ($item['qty'] ?? 0);
+    }
+  }
+
+  // Ambil actual (SCAN_IN_WAREHOUSE)
+  $actualQuery = "
+    SELECT new_data 
+    FROM tlog_transaksi
+    WHERE id_trans IN ($idTransFilter)
+    AND action_type = 'SCAN_IN_WAREHOUSE'
+  ";
+  $actualResult = mysqli_query($conn, $actualQuery);
+
+  $actualByKomponen = [];
+
+  while ($a = mysqli_fetch_assoc($actualResult)) {
+    $newData = json_decode($a['new_data'], true);
+    if (isset($newData['komponen_qty'])) {
+      $kompList = json_decode($newData['komponen_qty'], true);
+      if (is_array($kompList)) {
+        foreach ($kompList as $k) {
+          $komp = $k['komponen'];
+          $actualByKomponen[$komp] = ($actualByKomponen[$komp] ?? 0) + ($k['qty'] ?? 0);
+        }
+      }
+    }
+  }
+
+  // Ambil satu komponen unik pertama buat progress
+  $firstKomponen = array_key_first($planByKomponen);
+  if ($firstKomponen && !empty($planByKomponen[$firstKomponen])) {
+    $plan = $planByKomponen[$firstKomponen];
+    $actual = $actualByKomponen[$firstKomponen] ?? 0;
+    $inWarehouseProgress = round(($actual / $plan) * 100, 2);
+  }
+
+  // Ganti nilai di stageCounts dan stagePercents
+  $stageCounts['SCAN_IN_WAREHOUSE'] = $actualByKomponen[$firstKomponen] ?? 0;
+  $stagePercents['SCAN_IN_WAREHOUSE'] = $inWarehouseProgress;
+}
+
+// ======================= OUT WH TO VENDOR (PLAN vs ACTUAL by KOMPN) =======================
+$outToVendorProgress = 0;
+
+if (!empty($idTransFilter) && $idTransFilter !== '0') {
+  // Ambil plan dari tbl_transaksi
+  $planQueryOut = "
+    SELECT komponen_qty FROM tbl_transaksi 
+    WHERE id_trans IN ($idTransFilter)
+  ";
+  $planResultOut = mysqli_query($conn, $planQueryOut);
+
+  $planByKomponenOut = [];
+
+  while ($p = mysqli_fetch_assoc($planResultOut)) {
+    $planList = json_decode($p['komponen_qty'], true);
+    foreach ($planList as $item) {
+      $komp = $item['komponen'];
+      $planByKomponenOut[$komp] = ($planByKomponenOut[$komp] ?? 0) + ($item['qty'] ?? 0);
+    }
+  }
+
+  // Ambil actual (SCAN_OUT_TO_VENDOR)
+  $actualQueryOut = "
+    SELECT new_data 
+    FROM tlog_transaksi
+    WHERE id_trans IN ($idTransFilter)
+    AND action_type = 'SCAN_OUT_TO_VENDOR'
+  ";
+  $actualResultOut = mysqli_query($conn, $actualQueryOut);
+
+  $actualByKomponenOut = [];
+
+  while ($a = mysqli_fetch_assoc($actualResultOut)) {
+    $newData = json_decode($a['new_data'], true);
+    if (isset($newData['komponen_qty'])) {
+      $kompList = json_decode($newData['komponen_qty'], true);
+      if (is_array($kompList)) {
+        foreach ($kompList as $k) {
+          $komp = $k['komponen'];
+          $actualByKomponenOut[$komp] = ($actualByKomponenOut[$komp] ?? 0) + ($k['qty'] ?? 0);
+        }
+      }
+    }
+  }
+
+  // Ambil satu komponen unik pertama buat progress
+  $firstKomponenOut = array_key_first($planByKomponenOut);
+  if ($firstKomponenOut && !empty($planByKomponenOut[$firstKomponenOut])) {
+    $plan = $planByKomponenOut[$firstKomponenOut];
+    $actual = $actualByKomponenOut[$firstKomponenOut] ?? 0;
+    $outToVendorProgress = round(($actual / $plan) * 100, 2);
+  }
+
+  // Ganti nilai di stageCounts dan stagePercents
+  $stageCounts['SCAN_OUT_TO_VENDOR'] = $actualByKomponenOut[$firstKomponenOut] ?? 0;
+  $stagePercents['SCAN_OUT_TO_VENDOR'] = $outToVendorProgress;
+}
+
+// ======================= SCAN_IN_INCOMING (Average Progress) =======================
+$queryIncoming = "
+  SELECT 
+    id_trans,
+    qty_real,
+    qty_kekurangan,
+    status_kekurangan
+  FROM tlog_transaksi
+  WHERE action_type = 'SCAN_IN_INCOMING'
 ";
+
+if (!empty($idTransFilter) && $idTransFilter !== '0') {
+  $queryIncoming .= " AND id_trans IN ($idTransFilter)";
+}
+
+$resultIncoming = mysqli_query($conn, $queryIncoming);
+$progressIncoming = 0;
+
+if ($resultIncoming && mysqli_num_rows($resultIncoming) > 0) {
+
+  // Ambil plan sesuai id_transFilter (bukan job_order)
+  $qPlan = mysqli_query($conn, "
+    SELECT komponen_qty 
+    FROM tbl_transaksi 
+    WHERE id_trans IN ($idTransFilter)
+  ");
+
+  $planData = [];
+  while ($rowPlan = mysqli_fetch_assoc($qPlan)) {
+    $planArray = json_decode($rowPlan['komponen_qty'], true) ?? [];
+    foreach ($planArray as $p) {
+      $idKomp = intval($p['komponen'] ?? 0);
+      $sz = trim($p['size'] ?? '');
+      $qty = intval($p['qty'] ?? 0);
+      if ($idKomp && $sz !== '') {
+        $planData[$idKomp][$sz] = $qty;
+      }
+    }
+  }
+
+  $totalPersen = 0;
+  $jumlahKomponen = 0;
+
+  while ($rowIncoming = mysqli_fetch_assoc($resultIncoming)) {
+    $qtyReal = json_decode($rowIncoming['qty_real'] ?? '[]', true);
+    $qtyKekurangan = json_decode($rowIncoming['qty_kekurangan'] ?? '[]', true);
+    $statusKekurangan = strtolower(trim($rowIncoming['status_kekurangan'] ?? ''));
+
+    foreach ($qtyReal as $real) {
+      $idKomponen = intval($real['komponen']);
+      $size = $real['size'] ?? '-';
+      $qtyRealValue = intval($real['qty'] ?? 0);
+
+      $qtyKurang = 0;
+      if (!empty($qtyKekurangan) && $statusKekurangan === 'pending') {
+        foreach ($qtyKekurangan as $kurang) {
+          if (
+            intval($kurang['komponen']) === $idKomponen &&
+            ($kurang['size'] ?? '-') === $size
+          ) {
+            $qtyKurang = intval($kurang['qty'] ?? 0);
+            break;
+          }
+        }
+      } elseif ($statusKekurangan === 'confirmed') {
+        $qtyKurang = 0; // sudah selesai
+      }
+
+      $qtyFinal = max(0, $qtyRealValue - $qtyKurang);
+      $planQty = $planData[$idKomponen][$size] ?? 0;
+
+      if ($planQty > 0) {
+        $persen = ($qtyFinal / $planQty) * 100;
+        $totalPersen += $persen;
+        $jumlahKomponen++;
+      }
+    }
+  }
+
+  $progressIncoming = $jumlahKomponen > 0 ? round($totalPersen / $jumlahKomponen, 2) : 0;
+  $stagePercents['SCAN_IN_INCOMING'] = $progressIncoming;
+}
+
+// ======================= SCAN_OUT_TO_PRODUCTION =======================
+$progressProduction = 0;
+
+$queryOutProd = "
+  SELECT COUNT(*) AS total
+  FROM tlog_transaksi
+  WHERE action_type = 'SCAN_OUT_TO_PRODUCTION'
+";
+
+if (!empty($idTransFilter) && $idTransFilter !== '0') {
+  $queryOutProd .= " AND id_trans IN ($idTransFilter)";
+}
+
+$resultOutProd = mysqli_query($conn, $queryOutProd);
+$dataOutProd = mysqli_fetch_assoc($resultOutProd);
+
+if ($dataOutProd && intval($dataOutProd['total']) > 0) {
+  $progressProduction = $progressIncoming >= 100 ? 100 : $progressIncoming;
+}
+
+$stagePercents['SCAN_OUT_TO_PRODUCTION'] = $progressProduction;
+
+
+// ======================= KEKURANGAN =======================
+$queryKekurangan = "
+  SELECT *
+  FROM tlog_transaksi
+  WHERE JSON_UNQUOTE(JSON_EXTRACT(new_data, '$.job_order')) = '$job_order'
+  AND JSON_LENGTH(qty_kekurangan) > 0
+";
+if (!empty($idTransFilter) && $idTransFilter !== '0') {
+  $queryKekurangan .= " AND id_trans IN ($idTransFilter)";
+}
+
 $resultKekurangan = mysqli_query($conn, $queryKekurangan);
 
 ?>
@@ -460,40 +719,61 @@ $resultKekurangan = mysqli_query($conn, $queryKekurangan);
             <div class="card-body" style="margin-top: 10px;">
 
               <?php
-
               // 🔹 Inisialisasi array id_trans
               $idTransArray = !empty($idTransFilter) ? array_map('intval', explode(',', $idTransFilter)) : [];
 
+              $allKekurangan = [];
               $hasPendingKekurangan = false;
               $pendingGates = [];
 
               if ($resultKekurangan && mysqli_num_rows($resultKekurangan) > 0) {
-                mysqli_data_seek($resultKekurangan, 0);
+                // bangun array manual supaya fleksibel
                 while ($kr = mysqli_fetch_assoc($resultKekurangan)) {
-                  // Filter per id_trans
-                  if (!empty($idTransArray) && !in_array(intval($kr['id_trans_asal']), $idTransArray)) continue;
+                  // decode new_data JSON (jika ada)
+                  $newData = is_array($kr['new_data']) ? $kr['new_data'] : json_decode($kr['new_data'] ?? '', true);
 
-                  if (strtoupper(trim($kr['tk_status'])) !== 'CONFIRMED') {
-                    $hasPendingKekurangan = true;
-                    $pendingGates[] = $kr['last_gate'];
+                  // status kekurangan berasal dari kolom status_kekurangan, fallback ke newData jika perlu
+                  $statusKekurangan = strtolower(trim($kr['status_kekurangan'] ?? $newData['status_kekurangan'] ?? 'pending'));
+
+                  // last gate ambil dari new_data.type_scan, fallback ke action_type
+                  $lastGate = strtoupper(trim($newData['type_scan'] ?? $kr['action_type'] ?? ''));
+
+                  // pastikan id_trans yang dipakai ada (pakai id_trans)
+                  $idTrans = intval($kr['id_trans'] ?? 0);
+
+                  // jika ada filter idTransArray, skip yang bukan relevan
+                  if (!empty($idTransArray) && !in_array($idTrans, $idTransArray)) {
+                    continue;
                   }
+
+                  // tandai pending
+                  if ($statusKekurangan !== 'confirmed') {
+                    $hasPendingKekurangan = true;
+                    $pendingGates[] = $lastGate;
+                  }
+
+                  // simpan row, tapi juga tambahkan parsed fields supaya mudah pakai di view
+                  $kr['_parsed'] = [
+                    'status_kekurangan' => $statusKekurangan,
+                    'last_gate' => $lastGate,
+                    'new_data' => $newData
+                  ];
+
+                  $allKekurangan[] = $kr;
                 }
-                mysqli_data_seek($resultKekurangan, 0);
               }
 
               // 🔹 Mapping stages & labels
               $stages = [
                 'SCAN_IN_WAREHOUSE' => 'In Warehouse',
                 'SCAN_OUT_TO_VENDOR' => 'Out WH to Vendor',
-                'SCAN_IN_VENDOR' => 'In Vendor',
-                'SCAN_OUT_VENDOR' => 'Out Vendor',
                 'SCAN_IN_INCOMING' => 'Incoming WH',
-                'SCAN_CHECK_QC' => 'Check QC',
+                // 'SCAN_CHECK_QC' => 'Check QC',
                 'SCAN_OUT_TO_PRODUCTION' => 'Out to Production'
               ];
 
               $typeScanLabels = [
-                'CREATE_BARCODE'      => 'Create QR Code',
+                'CREATE_BARCODE'      => 'Create Barcode',
                 'SCAN_IN_WAREHOUSE'   => 'In Warehouse',
                 'SCAN_OUT_TO_VENDOR'  => 'Out WH to Vendor',
                 'SCAN_IN_VENDOR' => 'In Vendor',
@@ -505,24 +785,15 @@ $resultKekurangan = mysqli_query($conn, $queryKekurangan);
 
               $gateLabels = $typeScanLabels;
 
+              // 🔹 Proses log
               mysqli_data_seek($resultLog, 0);
               $logs = [];
 
               while ($log = mysqli_fetch_assoc($resultLog)) {
-                // Filter per id_trans
                 if (!empty($idTransArray) && !in_array(intval($log['id_trans']), $idTransArray)) continue;
 
                 $newData = json_decode($log['new_data'], true);
-
-                $typeScan = $newData['type_scan'] ?? '';
-                if (empty($typeScan)) {
-                  if (!empty($log['action_type'])) {
-                    $typeScan = $log['action_type'];
-                  } else {
-                    $typeScan = 'CREATE_BARCODE';
-                  }
-                }
-
+                $typeScan = strtoupper(trim($newData['type_scan'] ?? $log['action_type'] ?? 'CREATE_BARCODE'));
                 $createdBy = $newData['created_by'] ?? $log['updated_by'] ?? 'Unknown';
 
                 $logs[] = [
@@ -552,24 +823,24 @@ $resultKekurangan = mysqli_query($conn, $queryKekurangan);
 
               $progressPercent = $totalStages > 0 ? round(($completedCount / $totalStages) * 100) : 0;
               if ($progressPercent > 100) $progressPercent = 100;
-              if ($hasPendingKekurangan && $progressPercent >= 100) $progressPercent = 90;
+              if ($hasPendingKekurangan && $completedCount >= $totalStages) $progressPercent = 90;
 
-              // 🔹 Tentukan next stage & ETA
+              // 🔹 Next stage & ETA
               $nextStage = null;
-              $etaDays = 0;
-
               if (!empty($lastStage)) {
                 $lastIndex = array_search($lastStage, $stageKeys, true);
                 if ($lastIndex !== false && isset($stageKeys[$lastIndex + 1])) {
-                  $nextStageKey = $stageKeys[$lastIndex + 1];
-                  $nextStage = $stages[$nextStageKey];
+                  $nextStage = $stages[$stageKeys[$lastIndex + 1]];
                 }
               }
 
-              if (!empty($nextStage)) {
-                $remainingStages = $totalStages - $completedCount;
-                $etaDays = max(1, $remainingStages * 1);
-              }
+              // 🔹 Ambil total order
+              $stmt = $conn->prepare("SELECT SUM(qty) AS total_order FROM tbl_master_data WHERE job_order = ?");
+              $stmt->bind_param("s", $job_order);
+              $stmt->execute();
+              $resultTotal = $stmt->get_result();
+              $totalOrder = $resultTotal->fetch_assoc()['total_order'] ?? 0;
+
 
               ?>
 
@@ -584,7 +855,7 @@ $resultKekurangan = mysqli_query($conn, $queryKekurangan);
 
                   <div><strong>Lot:</strong>
                     <?= !empty($lotArray)
-                      ? htmlspecialchars(implode(', ', $lotArray))
+                      ? htmlspecialchars(lotArrayToRanges($lotArray))
                       : '<span class="text-muted">-</span>' ?>
                   </div>
 
@@ -595,67 +866,54 @@ $resultKekurangan = mysqli_query($conn, $queryKekurangan);
                   </div>
                 </div>
 
-                <div class="col-md-4 text-md-end">
-                  <?php if ($completedCount == 0): ?>
-                    <div class="text-muted">Belum mulai proses</div>
-
-                  <?php elseif ($hasPendingKekurangan): ?>
-                    <div><strong><?= $progressPercent ?>%</strong> to Complete</div>
-                    <div class="text-warning">
-                      ⚠️ Ada kekurangan yang belum dikonfirmasi.
-                    </div>
-
-                  <?php elseif ($completedCount >= $totalStages): ?>
-                    <div><strong>100%</strong> to Complete</div>
-                    <div class="text-success">All Stages Complete.</div>
-
-                  <?php else: ?>
-                    <div><strong><?= $progressPercent ?>%</strong> to Complete</div>
-                    <?php if (!empty($nextStage)): ?>
-                      <div class="text-muted">
-                        ETA: <?= $etaDays ?> Days to <?= htmlspecialchars($nextStage) ?>
-                      </div>
-                    <?php else: ?>
-                      <div class="text-muted">Menunggu proses berikutnya.</div>
-                    <?php endif; ?>
-                  <?php endif; ?>
-                </div>
               </div>
 
               <!-- Timeline -->
               <div class="timeline-container">
                 <?php foreach ($stages as $key => $label):
+                  $percent = $stagePercents[$key] ?? 0;
                   $class = '';
-                  $icon = '<i class="bi bi-circle text-secondary"></i>';
+                  $icon = '<i class="bi bi-circle text-secondary"></i>'; // default abu-abu
 
-                  if (in_array($key, $completedStages)) {
+                  if ($percent >= 100) {
+                    // ✅ Stage selesai
                     $class = 'completed';
                     $icon = '<i class="bi bi-check-circle-fill text-success"></i>';
-                  }
-
-                  if (isset($stageKeys[$completedCount]) && $key === $stageKeys[$completedCount]) {
-                    $class = 'active';
-                    $icon = '<i class="bi bi-hourglass-split text-primary"></i>';
-                  }
-
-                  if (in_array($key, $pendingGates)) {
+                  } elseif ($percent > 0 && $percent < 100) {
+                    // ⚠️ Stage belum lengkap (progress tapi belum 100%)
                     $class = 'warning';
                     $icon = '<i class="bi bi-exclamation-triangle-fill text-warning"></i>';
+                  } elseif ($percent == 0 && isset($stageKeys[$completedCount]) && $key === $stageKeys[$completedCount]) {
+                    // ⏳ Stage aktif saat ini
+                    $class = 'active';
+                    $icon = '<i class="bi bi-hourglass-split text-primary"></i>';
                   }
                 ?>
                   <div class="timeline-step <?= $class ?>">
                     <div class="timeline-circle"><?= $icon ?></div>
-                    <div class="timeline-label"><?= htmlspecialchars($label) ?></div>
+                    <div class="timeline-label text-center">
+                      <div class="fw-bold" style="font-size: 1rem;">
+                        <?= htmlspecialchars($label) ?>
+                      </div>
+                      <div class="fw-bold 
+                          <?= $percent >= 100 ? 'text-success' : ($percent > 0 ? 'text-warning' : 'text-muted') ?>"
+                        style="font-size: 1.1rem;">
+                        <?= $percent ?>%
+                        <?= $percent >= 100 ? '✅' : ($percent > 0 ? '⏳' : '') ?>
+                      </div>
+
+                    </div>
+
                   </div>
                 <?php endforeach; ?>
               </div>
 
               <hr>
-
               <!-- Riwayat Aktivitas -->
               <h6 class="fw-bold mb-3" style="border-left: 4px solid #0d6efd; padding-left: 8px; color: #0d6efd;">
                 <i class="bi bi-clock-history me-1"></i> Riwayat Aktivitas
               </h6>
+
               <table class="table table-sm table-striped mt-3">
                 <thead>
                   <tr>
@@ -666,16 +924,34 @@ $resultKekurangan = mysqli_query($conn, $queryKekurangan);
                   </tr>
                 </thead>
                 <tbody>
-                  <?php if (!empty($logs)): ?>
-                    <?php foreach ($logs as $i => $log): ?>
+                  <?php
+                  $no = 1;
+                  if (!empty($logs)):
+                    foreach ($logs as $log):
+                      // skip kalau type_scan tidak ada di daftar label
+                      if (!isset($typeScanLabels[$log['type_scan']])) continue;
+
+                      $statusLabel = $typeScanLabels[$log['type_scan']];
+                  ?>
                       <tr>
-                        <td><?= $i + 1 ?></td>
-                        <td><?= htmlspecialchars($typeScanLabels[$log['type_scan']] ?? $log['type_scan']) ?></td>
+                        <td><?= $no++ ?></td>
+                        <td><?= htmlspecialchars($statusLabel) ?></td>
                         <td><?= htmlspecialchars($log['created_by'] ?? '—') ?></td>
                         <td><?= htmlspecialchars($log['created_at']) ?></td>
                       </tr>
-                    <?php endforeach; ?>
-                  <?php else: ?>
+                    <?php
+                    endforeach;
+
+                    // kalau ternyata semua di-skip
+                    if ($no === 1):
+                    ?>
+                      <tr>
+                        <td colspan="4" class="text-center text-muted">Belum ada aktivitas.</td>
+                      </tr>
+                    <?php
+                    endif;
+                  else:
+                    ?>
                     <tr>
                       <td colspan="4" class="text-center text-muted">Belum ada aktivitas.</td>
                     </tr>
@@ -684,7 +960,7 @@ $resultKekurangan = mysqli_query($conn, $queryKekurangan);
               </table>
 
               <!-- Data Kekurangan -->
-              <?php if (mysqli_num_rows($resultKekurangan) > 0): ?>
+              <?php if (!empty($allKekurangan)): ?>
                 <hr>
                 <h6 class="fw-bold mb-3" style="border-left: 4px solid #0d6efd; padding-left: 8px; color: #0d6efd;">
                   <i class="bi bi-exclamation-triangle me-1"></i> Data Kekurangan Barang
@@ -705,59 +981,69 @@ $resultKekurangan = mysqli_query($conn, $queryKekurangan);
                     $no = 1;
                     $komponen_map = [];
 
-                    while ($k = mysqli_fetch_assoc($resultKekurangan)):
-                      // Filter per id_trans
-                      if (!empty($idTransArray) && !in_array(intval($k['id_trans_asal']), $idTransArray)) continue;
+                    foreach ($allKekurangan as $k):
+                      $newData = $k['_parsed']['new_data'] ?? json_decode($k['new_data'], true);
+                      $komponen_list = json_decode($k['qty_kekurangan'] ?? '[]', true);
 
+                      if (empty($komponen_list) || !is_array($komponen_list)) continue;
+
+                      // Ambil type_scan dari new_data
+                      $typeScan = strtoupper(trim($newData['type_scan'] ?? $k['action_type'] ?? '-'));
+
+                      // Hitung total kekurangan
+                      $total_kekurangan = 0;
+                      foreach ($komponen_list as $item) {
+                        $total_kekurangan += intval($item['qty'] ?? 0);
+                      }
+
+                      // Gabungkan komponen + size + qty
                       $komponen_display = [];
-                      if (!empty($k['tk_komponen_qty'])) {
-                        $komponen_list = json_decode($k['tk_komponen_qty'], true);
-                        if (is_array($komponen_list)) {
-                          $grouped = [];
-                          foreach ($komponen_list as $item) {
-                            $id_komponen = intval($item['komponen'] ?? 0);
-                            $size = htmlspecialchars($item['size'] ?? '-', ENT_QUOTES, 'UTF-8');
-                            $qty = intval($item['kekurangan'] ?? $item['qty'] ?? 0);
+                      $grouped = [];
 
-                            $grouped[$id_komponen][] = "{$size} ({$qty})";
-                          }
+                      foreach ($komponen_list as $item) {
+                        $id_komponen = intval($item['komponen'] ?? 0);
+                        $size = htmlspecialchars($item['size'] ?? '-', ENT_QUOTES, 'UTF-8');
+                        $qty = intval($item['qty'] ?? 0);
+                        $grouped[$id_komponen][] = "{$size} ({$qty})";
+                      }
 
-                          foreach ($grouped as $komp_id => $sizes) {
-                            if (!isset($komponen_map[$komp_id])) {
-                              $resKom = mysqli_query($conn, "SELECT nama_komponen FROM tbl_komponen WHERE id_komponen = '$komp_id' LIMIT 1");
-                              $rowKom = mysqli_fetch_assoc($resKom);
-                              $komponen_map[$komp_id] = $rowKom['nama_komponen'] ?? "Komponen {$komp_id}";
-                            }
-                            $komponen_display[] = "{$komponen_map[$komp_id]} : " . implode(', ', $sizes);
-                          }
+                      foreach ($grouped as $komp_id => $sizes) {
+                        if (!isset($komponen_map[$komp_id])) {
+                          $resKom = mysqli_query($conn, "SELECT nama_komponen FROM tbl_komponen WHERE id_komponen = '$komp_id' LIMIT 1");
+                          $rowKom = mysqli_fetch_assoc($resKom);
+                          $komponen_map[$komp_id] = $rowKom['nama_komponen'] ?? "Komponen {$komp_id}";
                         }
+                        $komponen_display[] = "{$komponen_map[$komp_id]} : " . implode(', ', $sizes);
                       }
 
                       $komponen_html = implode('<br>', $komponen_display) ?: '-';
+
+                      // Status kekurangan
+                      $status = strtolower(trim($k['_parsed']['status_kekurangan'] ?? 'pending'));
+                      $badgeClass = match ($status) {
+                        'pending'   => 'bg-warning text-dark',
+                        'confirmed' => 'bg-success',
+                        'resolved'  => 'bg-secondary',
+                        default     => 'bg-light text-dark'
+                      };
                     ?>
                       <tr>
                         <td class="text-center"><?= $no++ ?></td>
                         <td><?= $komponen_html ?></td>
-                        <td class="text-center fw-bold"><?= htmlspecialchars($k['total_kekurangan']) ?></td>
-                        <td class="text-center"><?= htmlspecialchars($gateLabels[$k['last_gate']] ?? $k['last_gate']) ?></td>
+                        <td class="text-center fw-bold"><?= $total_kekurangan ?></td>
+                        <?php
+                        $atLabel = $typeScanLabels[$typeScan] ?? $typeScan; // fallback kalau belum ada di daftar
+                        ?>
+                        <td class="text-center"><?= htmlspecialchars($atLabel) ?></td>
+
                         <td class="text-center">
-                          <?php
-                          $status = htmlspecialchars($k['tk_status']);
-                          $badgeClass = match ($status) {
-                            'pending' => 'bg-warning text-dark',
-                            'confirmed' => 'bg-success',
-                            'resolved' => 'bg-secondary',
-                            default => 'bg-light text-dark'
-                          };
-                          ?>
-                          <span class="badge <?= $badgeClass ?>"><?= $status ?></span>
+                          <span class="badge <?= $badgeClass ?>"><?= htmlspecialchars($status) ?></span>
                         </td>
                       </tr>
-                    <?php endwhile; ?>
+                    <?php endforeach; ?>
                   </tbody>
                 </table>
               <?php endif; ?>
-
             </div>
           </div>
         </div>
@@ -850,306 +1136,6 @@ $resultKekurangan = mysqli_query($conn, $queryKekurangan);
         });
         toast.show();
       }
-    });
-  </script>
-
-
-  <script>
-    document.addEventListener('DOMContentLoaded', function() {
-
-      <?php foreach ($result_transaksi as $row): ?>
-        const modal<?= $row['id_trans']; ?> = document.getElementById('barcodeModal<?= $row['id_trans']; ?>');
-        let qrGenerated<?= $row['id_trans']; ?> = false;
-
-        modal<?= $row['id_trans']; ?>.addEventListener('shown.bs.modal', function() {
-          if (!qrGenerated<?= $row['id_trans']; ?>) {
-            new QRCode(document.getElementById('qrcode<?= $row['id_trans']; ?>'), {
-              text: "<?= $row['barcode']; ?>",
-              width: 60,
-              height: 60
-            });
-            qrGenerated<?= $row['id_trans']; ?> = true;
-          }
-        });
-      <?php endforeach; ?>
-
-      // Print via Web Bluetooth MT200
-      document.querySelectorAll('.printNow').forEach(btn => {
-        btn.addEventListener('click', async function() {
-          const id = this.dataset.id;
-          const barcode = this.dataset.barcode;
-
-          try {
-            // 1. Pilih printer MT200
-            const device = await navigator.bluetooth.requestDevice({
-              filters: [{
-                namePrefix: 'MT200'
-              }],
-              optionalServices: [0xFFE0]
-            });
-
-            const server = await device.gatt.connect();
-            const service = await server.getPrimaryService(0xFFE0);
-            const characteristic = await service.getCharacteristic(0xFFE1);
-
-            // 2. Ambil data dari modal
-            const modalBody = document.getElementById('barcodeModal' + id).querySelector('.modal-body');
-
-            // Ambil teks info
-            let lines = [];
-            const infoDivs = modalBody.querySelectorAll('div > div, div'); // ambil semua info
-            infoDivs.forEach(d => {
-              const text = d.innerText.trim();
-              if (text) lines.push(text);
-            });
-            const infoText = lines.join('\n') + '\n\n';
-
-            // 3. Generate QR code canvas
-            const qrCanvas = modalBody.querySelector('canvas, img'); // QR code di modal
-            let qrData = null;
-
-            if (qrCanvas) {
-              const canvas = qrCanvas.tagName === 'CANVAS' ? qrCanvas : qrCanvas;
-              qrData = canvas.toDataURL('image/png'); // base64
-            }
-
-            // 4. Encode ESC/POS
-            function encodeText(str) {
-              return new TextEncoder().encode(str);
-            }
-
-            // Kirim info text
-            await characteristic.writeValue(encodeText(infoText));
-
-            // Kirim QR image jika printer support (MT200 ESC/POS)
-            if (qrData) {
-              const res = await fetch(qrData);
-              const blob = await res.blob();
-              const arrayBuffer = await blob.arrayBuffer();
-              await characteristic.writeValue(new Uint8Array(arrayBuffer));
-            }
-
-            alert('Print berhasil!');
-
-            // 5. Update count_barcode via AJAX
-            fetch('./../config/update_count_barcode.php', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/x-www-form-urlencoded'
-              },
-              body: `id_trans=${id}`
-            }).then(res => res.json()).then(data => {
-              if (data.success) {
-                const btnEl = document.querySelector(`.printBtn[data-id='${id}']`);
-                if (btnEl) btnEl.innerHTML = `<i class="bi bi-upc-scan"></i> ${data.count}`;
-              }
-            });
-
-          } catch (err) {
-            console.error('Gagal print via Bluetooth:', err);
-            alert('Tidak dapat terhubung ke printer MT200. Pastikan printer menyala dan Bluetooth aktif.');
-          }
-        });
-      });
-
-    });
-  </script>
-
-  <script>
-    $(function() {
-      // ==============================
-      // Job Order Select2 dengan AJAX Search
-      // ==============================
-      $('#job_order').select2({
-        width: "100%",
-        dropdownParent: $("#tambahTransaksi"),
-        placeholder: "Cari Job Order...",
-        allowClear: true,
-        minimumInputLength: 1,
-        ajax: {
-          url: "./../config/ajax.php",
-          type: "POST",
-          dataType: "json",
-          delay: 250,
-          data: function(params) {
-            return {
-              action: "searchJobOrder",
-              search: params.term
-            };
-          },
-          processResults: function(data) {
-            return {
-              results: data.job_order || []
-            };
-          }
-        }
-      });
-
-      // Autofocus search ketika select2 dibuka
-      $(document).on('select2:open', function() {
-        const $search = $('.select2-container--open .select2-search__field');
-        if ($search.length) $search.focus();
-      });
-
-      // ==============================
-      // Autofill fields dari JobOrder
-      // ==============================
-      $('#job_order').on('change select2:select', function() {
-        let jobOrder = $(this).val();
-        if (!jobOrder) return;
-
-        $.post("./../config/ajax.php", {
-          action: "getJobOrderDetail",
-          job_order: jobOrder
-        }, function(res) {
-          if (res.success) {
-            $('#bucket').val(res.data.bucket).prop("readonly", true);
-            $('#po_code').val(res.data.po_code).prop("readonly", true);
-            $('#po_item').val(res.data.po_item).prop("readonly", true);
-            $('#model').val(res.data.model).prop("readonly", true);
-            $('#style').val(res.data.style).prop("readonly", true);
-            $('#ncvs').val(res.data.ncvs).prop("readonly", true);
-            // ❌ jangan isi lot, biar manual
-          } else {
-            alert(res.error || "Data Job Order tidak ditemukan");
-          }
-        }, "json");
-      });
-
-      // ==============================
-      // Fungsi bikin Select2 Komponen & Size (AJAX)
-      // ==============================
-      function initKomponenSelect($el) {
-        $el.select2({
-          width: "100%",
-          dropdownParent: $("#tambahTransaksi"),
-          placeholder: "Cari Komponen...",
-          allowClear: true,
-          minimumInputLength: 1,
-          ajax: {
-            url: "./../config/ajax.php",
-            type: "POST",
-            dataType: "json",
-            delay: 250,
-            data: function(params) {
-              return {
-                action: "searchKomponen",
-                model: $("#model").val(),
-                search: params.term
-              };
-            },
-            processResults: function(data) {
-              return {
-                results: data.komponen || []
-              };
-            }
-          }
-        });
-      }
-
-      function initSizeSelect($el) {
-        $el.select2({
-          width: "100%",
-          dropdownParent: $("#tambahTransaksi"),
-          placeholder: "Cari Size...",
-          allowClear: true,
-          minimumInputLength: 1,
-          ajax: {
-            url: "./../config/ajax.php",
-            type: "POST",
-            dataType: "json",
-            delay: 250,
-            data: function(params) {
-              return {
-                action: "searchSize",
-                job_order: $("#job_order").val(),
-                search: params.term
-              };
-            },
-            processResults: function(data) {
-              return {
-                results: data.sizes || []
-              };
-            }
-          }
-        });
-      }
-
-      // ==============================
-      // Add Komponen Row
-      // ==============================
-      $('#addKomponenBtn').on('click', function() {
-        const $row = $(`
-      <div class="row g-3 mb-2 komponen-row">
-        <div class="col-md-4">
-          <select name="komponen[]" class="form-control komponen-select" required></select>
-        </div>
-        <div class="col-md-4">
-          <select name="size[]" class="form-control size-select" required></select>
-        </div>
-        <div class="col-md-3">
-          <input type="number" name="qty[]" class="form-control" placeholder="Input qty" required>
-        </div>
-        <div class="col-md-1 d-flex align-items-end">
-          <button type="button" class="btn btn-danger btn-sm removeKomponenBtn"><i class="bi bi-trash"></i></button>
-        </div>
-      </div>
-    `);
-
-        $('#komponenContainer').append($row);
-
-        // init select2 untuk row baru
-        initKomponenSelect($row.find('.komponen-select'));
-        initSizeSelect($row.find('.size-select'));
-      });
-
-      // Remove row
-      $(document).on('click', '.removeKomponenBtn', function() {
-        $(this).closest('.komponen-row').remove();
-      });
-
-      // ==============================
-      // Init row pertama (yang sudah ada di HTML)
-      // ==============================
-      initKomponenSelect($('.komponen-select'));
-      initSizeSelect($('.size-select'));
-    });
-  </script>
-
-  <script>
-    // ===============================
-    // Fungsi parsing lot
-    // ===============================
-    function parseLotInput(input) {
-      let lots = [];
-      let parts = input.split(",");
-      parts.forEach(part => {
-        part = part.trim();
-        if (part.includes("-")) {
-          let [start, end] = part.split("-").map(Number);
-          for (let i = start; i <= end; i++) {
-            lots.push(i);
-          }
-        } else if (part) {
-          lots.push(Number(part));
-        }
-      });
-      return [...new Set(lots)].sort((a, b) => a - b);
-    }
-
-    // Contoh validasi sebelum submit
-    $("#formTransaksi").on("submit", function(e) {
-      let lotInput = $("#lot").val();
-      let lots = parseLotInput(lotInput);
-
-      if (lots.length === 0) {
-        e.preventDefault();
-        alert("Lot tidak boleh kosong atau salah format!");
-        return;
-      }
-
-      console.log("Lot final:", lots);
-      // boleh lanjut submit
     });
   </script>
 

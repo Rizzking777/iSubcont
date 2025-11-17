@@ -155,114 +155,170 @@ $result_transaksi = $stmt->get_result();
     </div>
 
     <section class="section">
-      <div class="row">
-        <div class="col-lg-12">
-          <div class="card">
-            <div class="card-body" style="margin-top: 10px;">
-              <form action="./../config/function.php" method="post" id="scanForm">
-                <input type="hidden" name="scan-out-production"> <!-- penting -->
-                <div class="row mb-3">
-                  <label for="barcode" class="col-sm-2 col-form-label">Scan QR Code</label>
-                  <div class="col-sm-10">
-                    <input type="text" name="barcode" id="barcode"
-                      class="form-control" placeholder="Scan QR Code here..." autofocus>
-                  </div>
-                </div>
-              </form>
+  <div class="row">
+    <div class="col-lg-12">
 
-              <!-- Detail hasil scan -->
-              <?php if (isset($_GET['success'])): ?>
-                <?php
-                $barcode_success = $_GET['success'];
-                $stmt = $conn->prepare("SELECT * FROM tbl_transaksi WHERE barcode=?");
-                $stmt->bind_param("s", $barcode_success);
-                $stmt->execute();
-                $result = $stmt->get_result();
-                $row = $result->fetch_assoc();
-                ?>
-                <?php if ($row): ?>
-                  <div class="alert alert-info mt-3">
-                    <h6>Detail Transaksi Scan Out to Production:</h6>
-                    <ul class="mb-0">
-                      <li><strong>Job Order:</strong> <?= htmlspecialchars($row['job_order']); ?></li>
-                      <li><strong>PO Code:</strong> <?= htmlspecialchars($row['po_code']); ?></li>
-                      <li><strong>PO Item:</strong> <?= htmlspecialchars($row['po_item']); ?></li>
-                      <li><strong>Model:</strong> <?= htmlspecialchars($row['model']); ?></li>
-                      <li><strong>Style:</strong> <?= htmlspecialchars($row['style']); ?></li>
-                      <li><strong>NCVS:</strong> <?= htmlspecialchars($row['ncvs']); ?></li>
-                      <li><strong>Lot:</strong>
-                        <?php
-                        $lots = json_decode($row['lot'], true);
-                        echo is_array($lots) ? implode(", ", $lots) : htmlspecialchars($row['lot']);
-                        ?>
-                      </li>
-                      <li><strong>Komponen Sesudah Check QC, Size & Qty:</strong></li>
-                      <ul>
-                        <?php
-                        $qty_data    = json_decode($row['komponen_qty'], true);
-                        $defect_data = json_decode($row['defect_qty'], true);
-
-                        // bikin map defect per komponen + size
-                        $map_defect = [];
-                        if (is_array($defect_data)) {
-                          foreach ($defect_data as $d) {
-                            $id_k   = (int)($d['komponen'] ?? 0);
-                            $size   = (string)($d['size'] ?? "-");
-                            $qty_d  = (int)($d['qty'] ?? 0);
-
-                            if (!isset($map_defect[$id_k][$size])) $map_defect[$id_k][$size] = 0;
-                            $map_defect[$id_k][$size] += $qty_d;
-                          }
-                        }
-
-                        if (is_array($qty_data)) {
-                          foreach ($qty_data as $item) {
-                            $id_komponen = (int)$item['komponen'];
-                            $qty_val     = (int)$item['qty'];
-                            $size_val    = (string)($item['size'] ?? "-");
-
-                            // cari defect untuk komponen + size ini
-                            $defect_qty  = $map_defect[$id_komponen][$size_val] ?? 0;
-                            $final_qty   = max(0, $qty_val - $defect_qty);
-
-                            // ambil nama komponen dari tbl_komponen
-                            $stmt_kmp = $conn->prepare("SELECT nama_komponen FROM tbl_komponen WHERE id_komponen=?");
-                            $stmt_kmp->bind_param("i", $id_komponen);
-                            $stmt_kmp->execute();
-                            $res_kmp = $stmt_kmp->get_result();
-                            $komponen_row = $res_kmp->fetch_assoc();
-                            $nama_komponen = $komponen_row['nama_komponen'] ?? "Komponen #$id_komponen";
-                            $stmt_kmp->close();
-                        ?>
-                            <li class="mb-2">
-                              <label><strong><?= htmlspecialchars($nama_komponen); ?>: <?= htmlspecialchars($size_val); ?></strong></label>
-                              <div class="input-group">
-                                <input type="number"
-                                  name="qty[<?= $id_komponen; ?>][<?= htmlspecialchars($size_val); ?>]"
-                                  class="form-control qty-field"
-                                  value="<?= $final_qty; ?>"
-                                  readonly>
-                              </div>
-                            </li>
-                        <?php
-                          }
-                        }
-                        ?>
-                      </ul>
-
-                      <li><strong>Type Scan:</strong> <?= htmlspecialchars($row['type_scan']); ?></li>
-                      <li><strong>Scan At:</strong> <?= htmlspecialchars($row['scan_at']); ?></li>
-                      <li><strong>Scan With:</strong> <?= htmlspecialchars($row['scan_with']); ?></li>
-                      <li><strong>Hour:</strong> <?= htmlspecialchars($row['hour']); ?></li>
-                    </ul>
-                  </div>
-                <?php endif; ?>
-              <?php endif; ?>
-            </div>
+      <!-- ========== SCAN QR CODE CARD (IDENTIK) ========== -->
+      <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body text-center py-5">
+          <div class="mb-3 text-primary">
+            <i class="bi bi-upc-scan" style="font-size: 3rem;"></i>
           </div>
+          <h5 class="fw-semibold mb-4 text-primary"></h5>
+
+          <form action="./../config/function.php" method="post" id="scanForm">
+            <input type="hidden" name="scan-out-production">
+            <div class="col-md-8 mx-auto">
+              <input type="text" name="barcode" id="barcode"
+                class="form-control form-control-lg text-center"
+                placeholder="Scan barcode here..." autofocus>
+            </div>
+          </form>
         </div>
       </div>
-    </section>
+
+      <!-- ========== HASIL SCAN CARD (MATCHED STYLE) ========== -->
+      <?php if (isset($_GET['success'])): ?>
+        <?php
+        $barcode_success = $_GET['success'];
+        $stmt = $conn->prepare("SELECT * FROM tbl_transaksi WHERE barcode=?");
+        $stmt->bind_param("s", $barcode_success);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $row = $result->fetch_assoc();
+        ?>
+        <?php if ($row): ?>
+          <div class="card border-0 shadow-sm fade-in">
+            <div class="card-body p-4">
+
+              <!-- HEADER -->
+              <div class="d-flex align-items-center mb-4">
+                <div class="bg-primary bg-opacity-10 p-3 rounded-circle me-3">
+                  <i class="bi bi-info-circle text-primary" style="font-size: 1.5rem;"></i>
+                </div>
+                <h5 class="mb-0 text-primary fw-semibold">Detail Transaksi Scan Out to Production</h5>
+              </div>
+
+              <!-- GRID INFO -->
+              <div class="row g-4 mb-4">
+                <div class="col-md-6">
+                  <div class="info-box p-3 rounded-3 bg-light border-start border-4 border-primary shadow-sm-sm">
+                    <p class="mb-1"><strong>Job Order:</strong> <?= htmlspecialchars($row['job_order']); ?></p>
+                    <p class="mb-1"><strong>PO Code:</strong> <?= htmlspecialchars($row['po_code']); ?></p>
+                    <p class="mb-1"><strong>PO Item:</strong> <?= htmlspecialchars($row['po_item']); ?></p>
+                    <p class="mb-0"><strong>Model:</strong> <?= htmlspecialchars($row['model']); ?></p>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="info-box p-3 rounded-3 bg-light border-start border-4 border-success shadow-sm-sm">
+                    <p class="mb-1"><strong>Style:</strong> <?= htmlspecialchars($row['style']); ?></p>
+                    <p class="mb-1"><strong>NCVS:</strong> <?= htmlspecialchars($row['ncvs']); ?></p>
+                    <p class="mb-1"><strong>Lot:</strong>
+                      <?php
+                      $lots = json_decode($row['lot'], true);
+                      echo is_array($lots) ? implode(", ", $lots) : htmlspecialchars($row['lot']);
+                      ?>
+                    </p>
+                    <p class="mb-0"><strong>Type Scan:</strong> <?= htmlspecialchars($row['type_scan']); ?></p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- KOMPONEN -->
+              <div class="mb-4">
+                <h6 class="fw-semibold text-dark mb-3">
+                  <i class="bi bi-gear-wide-connected me-2 text-secondary"></i>
+                  Komponen Sesudah Check QC, Size & Qty:
+                </h6>
+                <div class="p-3 rounded-3 bg-light border shadow-sm-sm">
+                  <div class="row g-3">
+                    <?php
+                    // ambil data log scan out
+                    $stmt_log_qc = $conn->prepare("
+                      SELECT new_data FROM tlog_transaksi
+                      WHERE id_trans = ? AND action_type = 'SCAN_IN_INCOMING'
+                      ORDER BY created_at DESC LIMIT 1
+                    ");
+                    $stmt_log_qc->bind_param("i", $row['id_trans']);
+                    $stmt_log_qc->execute();
+                    $res_log_qc = $stmt_log_qc->get_result();
+                    $log_qc_row = $res_log_qc->fetch_assoc();
+                    $stmt_log_qc->close();
+
+                    $qty_data = [];
+                    if ($log_qc_row && !empty($log_qc_row['new_data'])) {
+                      $log_data = json_decode($log_qc_row['new_data'], true);
+                      if (!empty($log_data['komponen_qty'])) {
+                        $komponen_qty_raw = $log_data['komponen_qty'];
+                        $qty_data = is_string($komponen_qty_raw)
+                          ? json_decode($komponen_qty_raw, true)
+                          : $komponen_qty_raw;
+                      }
+                    }
+
+                    if (is_array($qty_data)) {
+                      foreach ($qty_data as $item) {
+                        $id_komponen = (int)($item['komponen'] ?? 0);
+                        $size_val    = htmlspecialchars($item['size'] ?? "-");
+                        $qty_val     = (int)($item['qty'] ?? 0);
+
+                        $stmt_kmp = $conn->prepare("SELECT nama_komponen FROM tbl_komponen WHERE id_komponen=?");
+                        $stmt_kmp->bind_param("i", $id_komponen);
+                        $stmt_kmp->execute();
+                        $res_kmp = $stmt_kmp->get_result();
+                        $komponen_row = $res_kmp->fetch_assoc();
+                        $nama_komponen = $komponen_row['nama_komponen'] ?? "Komponen #$id_komponen";
+                        $stmt_kmp->close();
+                        ?>
+                        <div class="col-md-6">
+                          <input type="text" class="form-control"
+                            value="<?= htmlspecialchars($nama_komponen) ?>: <?= $size_val ?> (<?= $qty_val ?>)"
+                            readonly>
+                        </div>
+                        <?php
+                      }
+                    }
+                    ?>
+                  </div>
+                </div>
+              </div>
+
+              <!-- INFO TAMBAHAN -->
+              <div class="border-top pt-3 text-muted small mt-3 d-flex flex-wrap gap-3">
+                <div>
+                  <strong>Scan At:</strong> <?= htmlspecialchars($row['scan_at']); ?> |
+                  <strong>Scan With:</strong> <?= htmlspecialchars($row['scan_with']); ?> |
+                  <strong>Hour:</strong> <?= htmlspecialchars($row['hour']); ?>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- STYLE -->
+          <style>
+            .fade-in {
+              animation: fadeIn 0.6s ease-in-out;
+            }
+            @keyframes fadeIn {
+              from { opacity: 0; transform: translateY(10px); }
+              to { opacity: 1; transform: translateY(0); }
+            }
+            .info-box {
+              transition: all 0.3s ease;
+            }
+            .info-box:hover {
+              background-color: #f8f9fa;
+              box-shadow: 0 3px 8px rgba(0,0,0,0.05);
+              transform: translateY(-2px);
+            }
+          </style>
+        <?php endif; ?>
+      <?php endif; ?>
+
+    </div>
+  </div>
+</section>
 
   </main><!-- End #main -->
 

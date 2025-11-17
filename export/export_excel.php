@@ -15,8 +15,22 @@ if (!$lot_param) die("Lot tidak ditemukan.");
 if (!$id_trans) die("ID Trans tidak ditemukan.");
 
 // Parse lot
-$selectedLots = array_map('trim', explode(',', $lot_param));
-$selectedLots = array_filter($selectedLots, fn($l) => $l !== '');
+// --- Parse lot agar bisa baca range seperti "1-5,7,9-12"
+$selectedLots = [];
+foreach (explode(',', $lot_param) as $part) {
+    $part = trim($part);
+    if (preg_match('/^(\d+)-(\d+)$/', $part, $m)) {
+        $start = (int)$m[1];
+        $end   = (int)$m[2];
+        for ($i = $start; $i <= $end; $i++) {
+            $selectedLots[] = (string)$i;
+        }
+    } elseif ($part !== '') {
+        $selectedLots[] = $part;
+    }
+}
+$selectedLots = array_unique($selectedLots);
+
 
 // ================== HEADER DATA ==================
 $sql = "SELECT job_order, ncvs, bucket, po_code, po_item, model, style, lot, date_created
@@ -92,6 +106,43 @@ $sheet->setCellValue('A1', 'Report Subcont Out Control');
 $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(16);
 $sheet->getStyle('A1')->getAlignment()->setHorizontal('center');
 
+// Fungsi helper untuk ubah array lot jadi "smart range"
+function formatLotRange(array $lots): string
+{
+    if (empty($lots)) return '-';
+
+    // ubah ke integer dan urutkan
+    $lots = array_map('intval', $lots);
+    sort($lots);
+
+    $ranges = [];
+    $start = $lots[0];
+    $prev = $lots[0];
+
+    for ($i = 1; $i < count($lots); $i++) {
+        $curr = $lots[$i];
+        if ($curr != $prev + 1) {
+            // tutup range
+            if ($start == $prev) {
+                $ranges[] = (string)$start;
+            } else {
+                $ranges[] = "{$start}-{$prev}";
+            }
+            $start = $curr;
+        }
+        $prev = $curr;
+    }
+
+    // range terakhir
+    if ($start == $prev) {
+        $ranges[] = (string)$start;
+    } else {
+        $ranges[] = "{$start}-{$prev}";
+    }
+
+    return implode(', ', $ranges);
+}
+
 // --- Header Info (kolom A-B) ---
 $info = [
     'Job Order' => $header['job_order'],
@@ -101,7 +152,7 @@ $info = [
     'PO Item'   => $header['po_item'],
     'Model'     => $header['model'],
     'Style'     => $header['style'],
-    'Lot'       => implode(', ', $selectedLots),
+    'Lot'       => formatLotRange($selectedLots),
     'Date'      => date('d-m-Y H:i:s', strtotime($header['date_created']))
 ];
 
@@ -130,12 +181,12 @@ $sheet->setCellValue($col . $tableRow, 'Total');
 // Styling header (tetap sama)
 $sheet->getStyle("A{$tableRow}:{$col}{$tableRow}")->getFont()->setBold(true);
 $sheet->getStyle("A{$tableRow}:{$col}{$tableRow}")->getFill()
-      ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
-      ->getStartColor()->setARGB('FFE0E0E0');
+    ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
+    ->getStartColor()->setARGB('FFE0E0E0');
 $sheet->getStyle("A{$tableRow}:{$col}{$tableRow}")->getBorders()
-      ->getAllBorders()->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
+    ->getAllBorders()->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
 $sheet->getStyle("A{$tableRow}:{$col}{$tableRow}")->getAlignment()
-      ->setHorizontal('center')->setVertical('center');
+    ->setHorizontal('center')->setVertical('center');
 
 $tableRow++;
 
@@ -155,9 +206,9 @@ foreach ($rows as $comp => $data) {
 
     // border & align (tetap sama)
     $sheet->getStyle("A{$tableRow}:{$col}{$tableRow}")->getBorders()
-          ->getAllBorders()->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
+        ->getAllBorders()->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
     $sheet->getStyle("A{$tableRow}:{$col}{$tableRow}")->getAlignment()
-          ->setHorizontal('center')->setVertical('center');
+        ->setHorizontal('center')->setVertical('center');
 
     $tableRow++;
 }
@@ -178,7 +229,7 @@ $sheet->getPageMargins()->setLeft(0.5);
 $sheet->getPageMargins()->setRight(0.5);
 
 // --- Output Excel ---
-$lotStr = implode(',', $selectedLots);
+$lotStr = str_replace(',', '-', $lot_param);
 $filename = "Export_{$job_order}_Lot_{$lotStr}_Trans{$id_trans}.xlsx";
 
 $writer = new Xlsx($spreadsheet);

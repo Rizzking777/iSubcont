@@ -1,5 +1,6 @@
 <?php
 require 'function.php';
+header('Content-Type: application/json');
 
 // Ambil request DataTables
 $draw   = $_POST['draw'] ?? 1;
@@ -90,61 +91,91 @@ $stmt2->execute();
 $dataResult = $stmt2->get_result();
 
 $data = [];
-while ($row = $dataResult->fetch_assoc()) {
 
-    // ============================
-    // Decode lot JSON (tetap seperti sebelumnya)
-    // ============================
+$jobOrderCounter = []; // nyimpen nomor urut per job_order
+
+while ($row = $dataResult->fetch_assoc()) {
+    // ====== Tambah nomor urut per job_order ======
+    $job = $row['job_order'];
+    if (!isset($jobOrderCounter[$job])) {
+        $jobOrderCounter[$job] = 1;
+    } else {
+        $jobOrderCounter[$job]++;
+    }
+    $row['no_urut'] = $jobOrderCounter[$job]; // <-- disimpan di array hasil
+
+    $displayLot = '';        // Untuk ditampilkan di tabel HTML
+    $filterLotArray = [];    // Untuk query/filter backend
+
     if (!empty($row['lot']) && is_string($row['lot'])) {
         $decodedLot = json_decode($row['lot'], true);
-        if (is_array($decodedLot)) {
-            $row['lot'] = implode(', ', $decodedLot);
+
+        if (is_array($decodedLot) && count($decodedLot) > 0) {
+            $minLot = min($decodedLot);
+            $maxLot = max($decodedLot);
+
+            if ($minLot === $maxLot) {
+                $displayLot = $minLot;       // Tampilan di tabel
+                $filterLotArray = [$minLot]; // array untuk query/filter
+            } else {
+                $displayLot = $minLot . '-' . $maxLot; // Tampilan min-max
+                $filterLotArray = range($minLot, $maxLot); // array lengkap untuk query/filter
+            }
         } else {
-            $row['lot'] = htmlspecialchars($row['lot']);
+            $displayLot = htmlspecialchars($row['lot']);
+            $filterLotArray = [$row['lot']];
         }
     }
 
-    // ============================
-    // Ambil Size dari komponen_qty (jika ada) dan urutkan custom
-    // ============================
+    // --- Ambil Size dari komponen_qty
     $row['size'] = '-';
     if (!empty($row['komponen_qty'])) {
         $kompList = json_decode($row['komponen_qty'], true);
         if (is_array($kompList) && count($kompList) > 0) {
-            // Ambil semua size
             $sizes = array_map(fn($k) => $k['size'] ?? '-', $kompList);
-
-            // Custom sort: angka dulu, lalu yang diakhiri T
             usort($sizes, function ($a, $b) {
                 $aNum = rtrim($a, 'T');
                 $bNum = rtrim($b, 'T');
-
                 if ((int)$aNum !== (int)$bNum) return (int)$aNum - (int)$bNum;
-
                 if (substr($a, -1) === 'T' && substr($b, -1) !== 'T') return 1;
                 if (substr($a, -1) !== 'T' && substr($b, -1) === 'T') return -1;
-
                 return 0;
             });
 
-            $row['size'] = implode(', ', array_unique($sizes));
+            $sizes = array_unique($sizes);
+            $fullText  = htmlspecialchars(implode(', ', $sizes), ENT_QUOTES);
+            $shortText = htmlspecialchars(implode(', ', array_slice($sizes, 0, 5)), ENT_QUOTES);
+
+            if (count($sizes) > 5) {
+                $row['size'] = "<span class=\"truncate-text\" data-full=\"{$fullText}\" onclick=\"toggleTooltip(this, event)\">{$shortText}...</span>";
+            } else {
+                $row['size'] = htmlspecialchars(implode(', ', $sizes));
+            }
         }
     }
 
-    // Link ke detail job order
+    // ============================
+    // Buat link Job Order dengan tampilan range
+    // ============================
     $row['job_order'] = '<a href="reports-out-control-detail.php?job_order=' . urlencode($row['job_order']) .
-        '&lot=' . urlencode($row['lot']) .
-        '&id_trans=' . urlencode($row['id_trans']) .
-        '" class="btn btn-sm btn-outline-primary" target="_blank">' .
+        '&lot=' . urlencode($displayLot) . // tetap 1-18
+        '&id_trans=' . urlencode($row['id_trans']) . '" class="btn btn-sm btn-outline-primary" target="_blank">' .
         htmlspecialchars($row['job_order']) . '</a>';
+
+    // ============================
+    // Simpan $displayLot untuk ditampilkan di tabel
+    // ============================
+    $row['lot_display'] = $displayLot; // nanti dipakai di tabel HTML
 
     $data[] = $row;
 }
 
-// Response JSON
+// ============================
+// Kirim response JSON sekali di akhir
+// ============================
 echo json_encode([
     "draw" => intval($draw),
     "recordsTotal" => $recordsTotal,
     "recordsFiltered" => $recordsTotal,
     "data" => $data
-]);
+], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
