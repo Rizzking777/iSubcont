@@ -990,11 +990,11 @@ $vendors_per_model = !empty($vendors_all) ? implode(', ', $vendors_all) : '-';
       }
 
       try {
-        const chunkSize = 256; // aman untuk BLE
+        const chunkSize = 100; // aman untuk BLE
         for (let i = 0; i < data.length; i += chunkSize) {
           const chunk = data.slice(i, i + chunkSize);
           await printerCharacteristic.writeValue(chunk);
-          await new Promise(r => setTimeout(r, 30)); // delay antar-chunk
+          await new Promise(r => setTimeout(r, 60)); // delay antar-chunk
         }
         return true;
       } catch (err) {
@@ -1027,8 +1027,8 @@ $vendors_per_model = !empty($vendors_all) ? implode(', ', $vendors_all) : '-';
         bwipjs.toCanvas(canvas, {
           bcid: 'code128', // format barcode
           text: cleanBarcode,
-          scale: 6, // lebar batang (sesuaikan: makin besar makin tebal)
-          height: 18, // tinggi batang (sedikit lebih tinggi biar tajam)
+          scale: 5, // lebar batang (sesuaikan: makin besar makin tebal)
+          height: 15, // tinggi batang (sedikit lebih tinggi biar tajam)
           includetext: false, // teks ditulis manual nanti
           paddingwidth: 6, // sedikit jarak kiri kanan
           paddingheight: 0 // 0 = rapet atas bawah
@@ -1168,9 +1168,9 @@ $vendors_per_model = !empty($vendors_all) ? implode(', ', $vendors_all) : '-';
           printInfo += `-----------------------------\n`;
 
           // 1️⃣ Print teks
-          const okText = await printText(printInfo);
-          if (!okText) return alert('❌ Gagal print teks');
-
+          for (let line of printInfo.split("\n")) {
+              await printText(line);
+          }
           // 2️⃣ Cetak barcode
           const okBarcode = await printBarcodeAsImage(barcode);
           if (!okBarcode) return alert('❌ Gagal print barcode');
