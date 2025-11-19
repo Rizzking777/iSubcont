@@ -5,7 +5,7 @@ include_once 'function.php'; // koneksi
 function checkAuth($menuKey = null) {
     // 1. Belum login → unauthorized
     if (!isset($_SESSION['login']) || $_SESSION['login'] !== true) {
-        header("Location: ../unauthorized.php"); // 401
+        header("Location: ../includes/unauthorized.php"); // 401
         exit;
     }
 
@@ -33,7 +33,7 @@ function checkAuth($menuKey = null) {
 
     if ($res->num_rows === 0) {
         // Tidak ada izin → forbidden
-        header("Location: ../forbidden.php"); // 403
+        header("Location: ../includes/forbidden.php"); // 403
         exit;
     }
 
