@@ -15,7 +15,7 @@ $sql = "
   SELECT t.*
   FROM tbl_transaksi t
   WHERE DATE(t.date_created) = ?
-  ORDER BY t.id_trans DESC
+  ORDER BY t.id_trans ASC
 ";
 
 $stmt = $conn->prepare($sql);
@@ -270,10 +270,10 @@ $result_transaksi = $stmt->get_result();
                     </tr>
                   </thead>
                   <tbody>
-                    <?php $i = 1; ?>
+                    <?php $mcount = 1; ?>
                     <?php foreach ($result_transaksi as $row) : ?>
                       <tr>
-                        <td><?= $i ?></td>
+                        <td><?= $mcount++; ?></td>
                         <td><?= htmlspecialchars($row["job_order"]); ?></td>
                         <td><?= htmlspecialchars($row["bucket"]); ?></td>
                         <td><?= htmlspecialchars($row["po_code"]); ?></td>
