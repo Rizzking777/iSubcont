@@ -415,13 +415,22 @@ $result_transaksi = $stmt->get_result();
     const barcodeInput = document.getElementById("barcode");
     const scanForm = document.getElementById("scanForm");
 
-    // kalau sudah ada input dari scanner, otomatis submit
+    let typingTimer;
+    let submitted = false;
+
     barcodeInput.addEventListener("input", function() {
-      if (barcodeInput.value.trim() !== "") {
-        setTimeout(() => {
-          scanForm.submit();
-        }, 300); // delay dikit biar input scanner kelar
-      }
+      clearTimeout(typingTimer);
+
+      // tunggu scanner benar-benar selesai ketik
+      typingTimer = setTimeout(() => {
+
+        if (submitted) return; // block double submit
+        if (!barcodeInput.value.trim()) return;
+
+        submitted = true;
+        scanForm.submit();
+
+      }, 350);
     });
   </script>
 
