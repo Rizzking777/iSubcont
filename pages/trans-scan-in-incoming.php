@@ -531,15 +531,23 @@ $result_transaksi = $stmt->get_result();
   <script>
     const barcodeInput = document.getElementById("barcode");
     const scanForm = document.getElementById("scanForm");
+
     let typingTimer;
+    let submitted = false;
 
     barcodeInput.addEventListener("input", function() {
       clearTimeout(typingTimer);
+
+      // tunggu scanner benar-benar selesai ketik
       typingTimer = setTimeout(() => {
-        if (barcodeInput.value.trim() !== "") {
-          scanForm.submit();
-        }
-      }, 400); // delay biar scanner selesai
+
+        if (submitted) return; // block double submit
+        if (!barcodeInput.value.trim()) return;
+
+        submitted = true;
+        scanForm.submit();
+
+      }, 350);
     });
   </script>
 
