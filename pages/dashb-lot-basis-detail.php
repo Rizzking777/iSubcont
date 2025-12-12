@@ -15,7 +15,19 @@ if (empty($job_order)) {
 // Normalisasi size — biarkan sesuai database
 function normalizeSize($s)
 {
-  return trim((string)$s);
+  $s = strtoupper(trim($s));
+
+  // Jika size angka murni → pad kiri dengan 0
+  if (preg_match('/^\d+$/', $s)) {
+    return str_pad($s, 3, "0", STR_PAD_LEFT);
+  }
+
+  // Jika format misal 4T → jadi 04T
+  if (preg_match('/^(\d+)([A-Z]+)$/', $s, $m)) {
+    return str_pad($m[1], 2, "0", STR_PAD_LEFT) . $m[2];
+  }
+
+  return $s;
 }
 
 // 1️⃣ Ambil informasi umum
@@ -355,10 +367,28 @@ while ($r = $incomingQ->fetch_assoc()) {
   $newData = json_decode($r['new_data'] ?? '{}', true);
   if (!is_array($newData)) continue;
 
+  // --- Normalisasi LOT: samakan dengan OUT PROD ---
   $rawLot = $newData['lot'] ?? '[]';
-  $lotsArr = is_string($rawLot) ? json_decode($rawLot, true) : $rawLot;
+
+  // Jika LOT masih string JSON → decode
+  $lotsArr = json_decode($rawLot, true);
+
+  // Jika decode gagal & format berupa "[1,2,3]" atau "1,2,3"
+  if (!is_array($lotsArr)) {
+    if (preg_match('/^\[?(\d+(,\d+)*)\]?$/', $rawLot)) {
+      $clean = trim($rawLot, "[]");
+      $lotsArr = explode(",", $clean);
+    }
+  }
+
+  // Fallback
   if (!is_array($lotsArr)) $lotsArr = [];
+
+  // Normalisasi index
+  $lotsArr = array_values($lotsArr);
+
   if (empty($lotsArr)) continue;
+
 
   $rawKomp = $newData['komponen_qty'] ?? [];
   $kompArr = is_string($rawKomp) ? json_decode($rawKomp, true) : $rawKomp;
@@ -532,7 +562,7 @@ $tableData = [];
 foreach ($komponenList as $komponen) {
   $kompId = (string)($komponen['id'] ?? $komponen['nama']);
 
-  foreach (array_keys($sizes) as $sizeKey) {
+  foreach ($officialSizes as $sizeKey) {
     $sizeKey = normalizeSize($sizeKey);
 
     // Hitung total per LOT
@@ -845,7 +875,7 @@ foreach ($komponenList as $komponen) {
                       <thead class="table-light">
                         <tr>
                           <th style="white-space: nowrap;">LOT</th>
-                          <?php foreach (array_keys($sizes) as $size): ?>
+                          <?php foreach ($officialSizes as $size): ?>
                             <th style="white-space: nowrap;"><?= htmlspecialchars($size) ?></th>
                           <?php endforeach; ?>
                           <th style="white-space: nowrap;">Total</th>
@@ -859,7 +889,7 @@ foreach ($komponenList as $komponen) {
                         ?>
                           <tr>
                             <td class="fw-bold bg-light"><?= htmlspecialchars($lot) ?></td>
-                            <?php foreach (array_keys($sizes) as $size):
+                            <?php foreach ($officialSizes as $size):
                               $d = $row[$size] ?? [
                                 'plan' => 0,
                                 'in' => [],
@@ -929,7 +959,7 @@ foreach ($komponenList as $komponen) {
                         <!-- Total keseluruhan -->
                         <tr class="fw-bold table-light">
                           <td>Total</td>
-                          <?php foreach (array_keys($sizes) as $size):
+                          <?php foreach ($officialSizes as $size):
                             $sumPlan = $sumIn = $sumWhVendor = $sumIncoming = $sumOut = 0;
                             foreach ($tableData as $lot => $row) {
                               $d = $row[$size] ?? ['plan' => 0, 'in' => [], 'wh_vendor' => [], 'incoming' => [], 'out' => []];
