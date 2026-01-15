@@ -8,22 +8,31 @@ $username = $_SESSION['username'] ?? '';
 $type_scan = $_SESSION['type_scan'] ?? '';
 $role_name = $_SESSION['role_name'] ?? '';
 
-// --- filter role aman ---
+$role_upper = strtoupper($role_name);
+
+// role yang boleh lihat semua
+$full_access_roles = ['SUPERADMIN', 'ADMIN'];
+
 $where = "WHERE 1=0"; // default aman
-if (!empty($role_name)) {
-  if (strtoupper($role_name) === 'SUPERADMIN') {
+
+if (!empty($role_upper)) {
+  if (in_array($role_upper, $full_access_roles)) {
+    // SUPERADMIN & ADMIN
     $where = "WHERE tk.status = 'pending'";
   } else {
-    switch (strtoupper($role_name)) {
+    switch ($role_upper) {
       case 'SCAN IN VENDOR':
         $where = "WHERE tk.status = 'pending' AND tk.last_gate = 'SCAN_IN_VENDOR'";
         break;
+
       case 'SCAN OUT VENDOR':
         $where = "WHERE tk.status = 'pending' AND tk.last_gate = 'SCAN_OUT_VENDOR'";
         break;
+
       case 'SCAN IN INCOMING':
         $where = "WHERE tk.status = 'pending' AND tk.last_gate = 'SCAN_IN_INCOMING'";
         break;
+
       case 'SCAN CHECK QC':
         $where = "WHERE tk.status = 'pending' AND tk.last_gate = 'SCAN_CHECK_QC'";
         break;
