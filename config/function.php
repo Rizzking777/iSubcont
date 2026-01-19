@@ -2764,7 +2764,7 @@ if (isset($_POST['scan-barcode'])) {
             $old_data = $res_old->fetch_assoc();
 
             if (!$old_data) {
-                $_SESSION['red_notif'] = "QR Code $barcode tidak ditemukan.";
+                $_SESSION['red_notif'] = "Barcode \"$barcode\" tidak ditemukan.";
                 header("Location: /isubcont/pages/trans-scan-in-wh.php");
                 exit;
             }
@@ -2783,7 +2783,7 @@ if (isset($_POST['scan-barcode'])) {
             $next_state = $scan_flow[$current_index + 1] ?? null;
 
             if ($next_state !== "SCAN_IN_WAREHOUSE") {
-                $_SESSION['red_notif'] = "QR Code tidak bisa di-scan di tahap ini. 
+                $_SESSION['red_notif'] = "Barcode tidak bisa di-scan di tahap ini. 
                     Current: $current_state, Next workflow: $next_state";
                 header("Location: /isubcont/pages/trans-scan-in-wh.php");
                 exit;
@@ -2848,17 +2848,17 @@ if (isset($_POST['scan-barcode'])) {
 
             $conn->commit();
 
-            $_SESSION['green_notif'] = "QR Code berhasil di-scan (Scan In Warehouse).";
+            $_SESSION['green_notif'] = "Barcode berhasil di-scan (Scan In Warehouse).";
             header("Location: /isubcont/pages/trans-scan-in-wh.php?success=$barcode");
             exit;
         } catch (Exception $e) {
             $conn->rollback();
-            $_SESSION['red_notif'] = "Gagal scan QR Code: " . $e->getMessage();
+            $_SESSION['red_notif'] = "Gagal scan Barcode: " . $e->getMessage();
             header("Location: /isubcont/pages/trans-scan-in-wh.php");
             exit;
         }
     } else {
-        $_SESSION['red_notif'] = "QR Code tidak boleh kosong.";
+        $_SESSION['red_notif'] = "Barcode tidak boleh kosong.";
         header("Location: /isubcont/pages/trans-scan-in-wh.php");
         exit;
     }
@@ -2891,7 +2891,7 @@ if (isset($_POST['scan-out-to-vendor'])) {
             $old_data = $res_old->fetch_assoc();
 
             if (!$old_data) {
-                $_SESSION['red_notif'] = "QR Code $barcode tidak ditemukan.";
+                $_SESSION['red_notif'] = "Barcode \"$barcode\" tidak ditemukan.";
                 header("Location: /isubcont/pages/trans-scan-out-to-vendor.php");
                 exit;
             }
@@ -2910,7 +2910,7 @@ if (isset($_POST['scan-out-to-vendor'])) {
             $next_state = $scan_flow[$current_index + 1] ?? null;
 
             if ($next_state !== "SCAN_OUT_TO_VENDOR") {
-                $_SESSION['red_notif'] = "QR Code tidak bisa di-scan di tahap ini. 
+                $_SESSION['red_notif'] = "Barcode tidak bisa di-scan di tahap ini. 
                     Current: $current_state, Next workflow: $next_state";
                 header("Location: /isubcont/pages/trans-scan-out-to-vendor.php");
                 exit;
@@ -2975,17 +2975,17 @@ if (isset($_POST['scan-out-to-vendor'])) {
 
             $conn->commit();
 
-            $_SESSION['green_notif'] = "QR Code berhasil di-scan (Scan Out to Vendor).";
+            $_SESSION['green_notif'] = "Barcode berhasil di-scan (Scan Out to Vendor).";
             header("Location: /isubcont/pages/trans-scan-out-to-vendor.php?success=$barcode");
             exit;
         } catch (Exception $e) {
             $conn->rollback();
-            $_SESSION['red_notif'] = "Gagal scan QR Code: " . $e->getMessage();
+            $_SESSION['red_notif'] = "Gagal scan Barcode: " . $e->getMessage();
             header("Location: /isubcont/pages/trans-scan-out-to-vendor.php");
             exit;
         }
     } else {
-        $_SESSION['red_notif'] = "QR Code tidak boleh kosong.";
+        $_SESSION['red_notif'] = "Barcode tidak boleh kosong.";
         header("Location: /isubcont/pages/trans-scan-out-to-vendor.php");
         exit;
     }
@@ -3688,7 +3688,7 @@ if (isset($_POST['confirm-in-incoming'])) {
             $stmt_old->close();
 
             if (!$old_data) {
-                $_SESSION['red_notif'] = "QR Code $barcode tidak ditemukan.";
+                $_SESSION['red_notif'] = "Barcode \"$barcode\" tidak ditemukan.";
                 header("Location: /isubcont/pages/trans-scan-in-incoming.php");
                 exit;
             }
@@ -3702,7 +3702,7 @@ if (isset($_POST['confirm-in-incoming'])) {
 
             $next_state = $scan_flow[$current_index + 1] ?? null;
             if ($next_state !== "SCAN_IN_INCOMING") {
-                $_SESSION['red_notif'] = "QR Code tidak bisa di-scan di tahap ini. 
+                $_SESSION['red_notif'] = "Barcode tidak bisa di-scan di tahap ini. 
                     Current: $current_state, Next workflow: $next_state";
                 header("Location: /isubcont/pages/trans-scan-in-incoming.php");
                 exit;
@@ -3775,7 +3775,7 @@ if (isset($_POST['confirm-in-incoming'])) {
 
             $conn->commit();
 
-            $_SESSION['green_notif'] = "QR Code berhasil di-scan (Scan In Incoming).";
+            $_SESSION['green_notif'] = "Barcode berhasil di-scan (Scan In Incoming).";
             header("Location: /isubcont/pages/trans-scan-in-incoming.php?success=$barcode");
             exit;
         } catch (Exception $e) {
@@ -3785,7 +3785,7 @@ if (isset($_POST['confirm-in-incoming'])) {
             exit;
         }
     } else {
-        $_SESSION['red_notif'] = "QR Code tidak boleh kosong.";
+        $_SESSION['red_notif'] = "Barcode tidak boleh kosong.";
         header("Location: /isubcont/pages/trans-scan-in-incoming.php");
         exit;
     }
@@ -3820,7 +3820,7 @@ if (isset($_POST['pending-in-incoming'])) {
             $stmt_old->close();
 
             if (!$old_data) {
-                $_SESSION['red_notif'] = "QR Code $barcode tidak ditemukan.";
+                $_SESSION['red_notif'] = "Barcode \"$barcode\" tidak ditemukan.";
                 header("Location: /isubcont/pages/trans-scan-in-incoming.php");
                 exit;
             }
@@ -3834,7 +3834,7 @@ if (isset($_POST['pending-in-incoming'])) {
 
             $next_state = $scan_flow[$current_index + 1] ?? null;
             if ($next_state !== "SCAN_IN_INCOMING") {
-                $_SESSION['red_notif'] = "QR Code tidak bisa di-scan di tahap ini. 
+                $_SESSION['red_notif'] = "Barcode tidak bisa di-scan di tahap ini. 
                     Current: $current_state, Next workflow: $next_state";
                 header("Location: /isubcont/pages/trans-scan-in-incoming.php");
                 exit;
@@ -4003,7 +4003,7 @@ if (isset($_POST['pending-in-incoming'])) {
 
             $conn->commit();
 
-            $_SESSION['green_notif'] = "QR Code berhasil di-scan (Scan In Incoming). Status : Quantity tidak sesuai";
+            $_SESSION['green_notif'] = "Barcode berhasil di-scan (Scan In Incoming). Status : Quantity tidak sesuai";
             header("Location: /isubcont/pages/trans-scan-in-incoming.php?success=$barcode");
             exit;
         } catch (Exception $e) {
@@ -4013,7 +4013,7 @@ if (isset($_POST['pending-in-incoming'])) {
             exit;
         }
     } else {
-        $_SESSION['red_notif'] = "QR Code tidak boleh kosong.";
+        $_SESSION['red_notif'] = "Barcode tidak boleh kosong.";
         header("Location: /isubcont/pages/trans-scan-in-incoming.php");
         exit;
     }
@@ -4550,7 +4550,7 @@ if (isset($_POST['scan-out-production'])) {
             $stmt_old->close();
 
             if (!$old_data_raw) {
-                $_SESSION['red_notif'] = "QR Code $barcode tidak ditemukan.";
+                $_SESSION['red_notif'] = "Barcode \"$barcode\" tidak ditemukan.";
                 header("Location: /isubcont/pages/trans-scan-out-to-prod.php");
                 exit;
             }
@@ -4579,7 +4579,7 @@ if (isset($_POST['scan-out-production'])) {
             if ($current_index === false) $current_index = -1;
             $next_state = $scan_flow[$current_index + 1] ?? null;
             if ($next_state !== "SCAN_OUT_TO_PRODUCTION") {
-                $_SESSION['red_notif'] = "QR Code tidak bisa di-scan di tahap ini. Current: $current_state, (DONE)";
+                $_SESSION['red_notif'] = "Barcode tidak bisa di-scan di tahap ini. Transaksi selesai.";
                 header("Location: /isubcont/pages/trans-scan-out-to-prod.php");
                 exit;
             }
@@ -4662,17 +4662,17 @@ if (isset($_POST['scan-out-production'])) {
 
             $conn->commit();
 
-            $_SESSION['green_notif'] = "QR Code berhasil di-scan (Scan Out to Production).";
+            $_SESSION['green_notif'] = "Barcode berhasil di-scan (Scan Out to Production).";
             header("Location: /isubcont/pages/trans-scan-out-to-prod.php?success=$barcode");
             exit;
         } catch (Exception $e) {
             $conn->rollback();
-            $_SESSION['red_notif'] = "Gagal scan QR Code: " . $e->getMessage();
+            $_SESSION['red_notif'] = "Gagal scan Barcode: " . $e->getMessage();
             header("Location: /isubcont/pages/trans-scan-out-to-prod.php");
             exit;
         }
     } else {
-        $_SESSION['red_notif'] = "QR Code tidak boleh kosong.";
+        $_SESSION['red_notif'] = "Barcode tidak boleh kosong.";
         header("Location: /isubcont/pages/trans-scan-out-to-prod.php");
         exit;
     }
