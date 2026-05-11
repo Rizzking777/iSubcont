@@ -7,22 +7,6 @@ checkAuth('scan_out_prod'); // cek apakah sudah login dan punya akses ke menu in
 $nik = $_SESSION['nik_user'];
 $username = $_SESSION['username'];
 
-// ambil tanggal pencarian dari GET
-$search_date = $_GET['search_date'] ?? date('Y-m-d'); // default = hari ini
-
-// query transaksi
-$sql = "
-  SELECT t.*
-  FROM tbl_transaksi t
-  WHERE DATE(t.date_created) = ?
-  ORDER BY t.id_trans DESC
-";
-
-$stmt = $conn->prepare($sql);
-$stmt->bind_param("s", $search_date);
-$stmt->execute();
-$result_transaksi = $stmt->get_result();
-
 ?>
 
 <style>
@@ -48,42 +32,104 @@ $result_transaksi = $stmt->get_result();
     }
   }
 
-  .select2-container {
-    width: 100% !important;
+  .fade-in {
+    animation: fadeIn 0.4s ease;
   }
 
-  .select2-selection {
-    min-height: 38px;
-    /* biar seragam sama form-control bootstrap */
-    display: flex;
-    align-items: center;
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 
-  #addKomponenBtn {
-    margin-top: 0px;
-    /* atau sesuai kebutuhan */
-    margin-bottom: 5px;
+  .success-card {
+    border-radius: 18px;
+    overflow: hidden;
   }
 
-  .komponen-row .form-label {
-    display: block;
+  .success-icon {
+    font-size: 50px;
+    color: #198754;
+    line-height: 1;
   }
 
-  .komponen-row .form-control {
-    width: 100%;
-  }
-
-  .qr-center {
+  .flow-box {
+    background: #f8f9fa;
+    border-radius: 16px;
+    padding: 20px;
     text-align: center;
-    margin-top: 10px;
   }
 
-  .match-height {
-    height: calc(1.5em + 0.75rem + 2px);
-    /* Cocokkan dengan .form-control Bootstrap */
+  .flow-prev {
+    color: #6c757d;
+    font-size: 14px;
+  }
+
+  .flow-arrow {
+    font-size: 22px;
+    color: #0d6efd;
+    margin: 8px 0;
+  }
+
+  .flow-current {
+    font-size: 22px;
+    font-weight: 700;
+    color: #0d6efd;
+  }
+
+  .detail-box {
+    background: #f8f9fa;
+    border-radius: 14px;
+    padding: 18px;
+    text-align: center;
+    height: 100%;
+  }
+
+  .detail-label {
+    font-size: 13px;
+    color: #6c757d;
+    margin-bottom: 8px;
+  }
+
+  .detail-value {
+    font-size: 22px;
+    font-weight: 700;
+    color: #212529;
+  }
+
+  .qty-highlight {
+    color: #198754;
+    font-size: 30px;
+  }
+
+  .size-wrapper {
+    background: #f8f9fa;
+    border-radius: 16px;
+    padding: 20px;
+  }
+
+  .size-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: #212529;
+  }
+
+  .scan-info {
+    border-top: 1px solid #eee;
+    padding-top: 15px;
+
     display: flex;
-    justify-content: center;
-    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+
+    color: #6c757d;
+    font-size: 14px;
   }
 </style>
 
@@ -150,7 +196,7 @@ $result_transaksi = $stmt->get_result();
 
     <div class="pagetitle text-black" style="background-color: #f0e6d2; padding: 10px 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
       <h1 style="font-size: 1.8rem; font-weight: 700; font-family: 'Roboto', sans-serif;">
-        Scan-Out to Production
+        Scan-Out Warehouse Subcont (Send to SM Subcont)
       </h1>
     </div>
 
@@ -158,16 +204,15 @@ $result_transaksi = $stmt->get_result();
       <div class="row">
         <div class="col-lg-12">
 
-          <!-- ========== SCAN QR CODE CARD (IDENTIK) ========== -->
+          <!-- ========== SCAN QR CODE CARD ========== -->
           <div class="card border-0 shadow-sm mb-4">
             <div class="card-body text-center py-5">
               <div class="mb-3 text-primary">
                 <i class="bi bi-upc-scan" style="font-size: 3rem;"></i>
               </div>
               <h5 class="fw-semibold mb-4 text-primary"></h5>
-
               <form action="./../config/function.php" method="post" id="scanForm">
-                <input type="hidden" name="scan-out-production">
+                <input type="hidden" name="action" value="scan_out_whsubcont_to_prod">
                 <div class="col-md-8 mx-auto">
                   <input type="text" name="barcode" id="barcode"
                     class="form-control form-control-lg text-center"
@@ -177,153 +222,124 @@ $result_transaksi = $stmt->get_result();
             </div>
           </div>
 
-          <!-- ========== HASIL SCAN CARD (MATCHED STYLE) ========== -->
+          <!-- ========== HASIL SCAN SUCCESS ========== -->
           <?php if (isset($_GET['success'])): ?>
+
             <?php
-            $barcode_success = $_GET['success'];
-            $stmt = $conn->prepare("SELECT * FROM tbl_transaksi WHERE barcode=?");
+            $barcode_success = $_GET['barcode'] ?? '';
+            if (empty($barcode_success)) {
+              return;
+            }
+
+            $stmt = $conn->prepare("
+              SELECT * 
+              FROM tbl_transaksi 
+              WHERE barcode = ?
+              ORDER BY 
+              CAST(REPLACE(size, 'T', '') AS UNSIGNED),
+              size ASC
+          ");
             $stmt->bind_param("s", $barcode_success);
             $stmt->execute();
             $result = $stmt->get_result();
-            $row = $result->fetch_assoc();
+            $rows = [];
+            $total_qty = 0;
+            while ($r = $result->fetch_assoc()) {
+              $rows[] = $r;
+              $total_qty += (float)$r['qty_whsubcont_to_smsubcont'];
+            }
+            $first = $rows[0] ?? null;
             ?>
-            <?php if ($row): ?>
-              <div class="card border-0 shadow-sm fade-in">
+
+            <?php if ($first): ?>
+              <div class="card border-0 shadow-lg success-card mb-4 fade-in">
                 <div class="card-body p-4">
-
-                  <!-- HEADER -->
-                  <div class="d-flex align-items-center mb-4">
-                    <div class="bg-primary bg-opacity-10 p-3 rounded-circle me-3">
-                      <i class="bi bi-info-circle text-primary" style="font-size: 1.5rem;"></i>
+                  <!-- SUCCESS HEADER -->
+                  <div class="text-center mb-4">
+                    <div class="success-icon mb-3">
+                      <i class="bi bi-check-circle-fill"></i>
                     </div>
-                    <h5 class="mb-0 text-primary fw-semibold">Detail Transaksi Scan Out to Production</h5>
+                    <h2 class="fw-bold text-success mb-1">
+                      TRANSAKSI BERHASIL
+                    </h2>
+                    <div class="text-muted">
+                      Barcode berhasil diproses.
+                    </div>
                   </div>
 
-                  <!-- GRID INFO -->
-                  <div class="row g-4 mb-4">
+                  <!-- SUMMARY -->
+                  <div class="row g-3 mb-4">
                     <div class="col-md-6">
-                      <div class="info-box p-3 rounded-3 bg-light border-start border-4 border-primary shadow-sm-sm">
-                        <p class="mb-1"><strong>Job Order:</strong> <?= htmlspecialchars($row['job_order']); ?></p>
-                        <p class="mb-1"><strong>PO Code:</strong> <?= htmlspecialchars($row['po_code']); ?></p>
-                        <p class="mb-1"><strong>PO Item:</strong> <?= htmlspecialchars($row['po_item']); ?></p>
-                        <p class="mb-0"><strong>Model:</strong> <?= htmlspecialchars($row['model']); ?></p>
+                      <div class="detail-box">
+                        <div class="detail-label">
+                          Komponen
+                        </div>
+                        <div class="detail-value">
+                          <?= htmlspecialchars($first['nm_komponen_out']) ?>
+                        </div>
                       </div>
                     </div>
+
                     <div class="col-md-6">
-                      <div class="info-box p-3 rounded-3 bg-light border-start border-4 border-success shadow-sm-sm">
-                        <p class="mb-1"><strong>Style:</strong> <?= htmlspecialchars($row['style']); ?></p>
-                        <p class="mb-1"><strong>NCVS:</strong> <?= htmlspecialchars($row['ncvs']); ?></p>
-                        <p class="mb-1"><strong>Lot:</strong>
-                          <?php
-                          $lots = json_decode($row['lot'], true);
-                          echo is_array($lots) ? implode(", ", $lots) : htmlspecialchars($row['lot']);
-                          ?>
-                        </p>
-                        <p class="mb-0"><strong>Type Scan:</strong> <?= htmlspecialchars($row['type_scan']); ?></p>
+                      <div class="detail-box">
+                        <div class="detail-label">
+                          Total Qty
+                        </div>
+                        <div class="detail-value qty-highlight">
+                          <?= number_format($total_qty) ?>
+                        </div>
                       </div>
                     </div>
                   </div>
 
-                  <!-- KOMPONEN -->
-                  <div class="mb-4">
-                    <h6 class="fw-semibold text-dark mb-3">
-                      <i class="bi bi-gear-wide-connected me-2 text-secondary"></i>
-                      Komponen Sesudah Check QC, Size & Qty:
-                    </h6>
-                    <div class="p-3 rounded-3 bg-light border shadow-sm-sm">
-                      <div class="row g-3">
-                        <?php
-                        // ambil data log scan out
-                        $stmt_log_qc = $conn->prepare("
-                      SELECT new_data FROM tlog_transaksi
-                      WHERE id_trans = ? AND action_type = 'SCAN_IN_INCOMING'
-                      ORDER BY created_at DESC LIMIT 1
-                    ");
-                        $stmt_log_qc->bind_param("i", $row['id_trans']);
-                        $stmt_log_qc->execute();
-                        $res_log_qc = $stmt_log_qc->get_result();
-                        $log_qc_row = $res_log_qc->fetch_assoc();
-                        $stmt_log_qc->close();
-
-                        $qty_data = [];
-                        if ($log_qc_row && !empty($log_qc_row['new_data'])) {
-                          $log_data = json_decode($log_qc_row['new_data'], true);
-                          if (!empty($log_data['komponen_qty'])) {
-                            $komponen_qty_raw = $log_data['komponen_qty'];
-                            $qty_data = is_string($komponen_qty_raw)
-                              ? json_decode($komponen_qty_raw, true)
-                              : $komponen_qty_raw;
-                          }
-                        }
-
-                        if (is_array($qty_data)) {
-                          foreach ($qty_data as $item) {
-                            $id_komponen = (int)($item['komponen'] ?? 0);
-                            $size_val    = htmlspecialchars($item['size'] ?? "-");
-                            $qty_val     = (int)($item['qty'] ?? 0);
-
-                            $stmt_kmp = $conn->prepare("SELECT nama_komponen FROM tbl_komponen WHERE id_komponen=?");
-                            $stmt_kmp->bind_param("i", $id_komponen);
-                            $stmt_kmp->execute();
-                            $res_kmp = $stmt_kmp->get_result();
-                            $komponen_row = $res_kmp->fetch_assoc();
-                            $nama_komponen = $komponen_row['nama_komponen'] ?? "Komponen #$id_komponen";
-                            $stmt_kmp->close();
-                        ?>
-                            <div class="col-md-6">
-                              <input type="text" class="form-control"
-                                value="<?= htmlspecialchars($nama_komponen) ?>: <?= $size_val ?> (<?= $qty_val ?>)"
-                                readonly>
-                            </div>
-                        <?php
-                          }
-                        }
-                        ?>
-                      </div>
+                  <!-- SIZE DETAIL -->
+                  <div class="size-wrapper mb-4">
+                    <div class="size-title mb-3">
+                      Detail Size
+                    </div>
+                    <div class="table-responsive">
+                      <table class="table align-middle table-bordered">
+                        <thead class="table-light">
+                          <tr>
+                            <th class="text-center">LOT</th>
+                            <th class="text-center">SIZE</th>
+                            <th class="text-center">QTY</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <?php foreach ($rows as $r): ?>
+                            <tr>
+                              <td class="text-center fw-semibold">
+                                <?= htmlspecialchars($r['lot']) ?>
+                              </td>
+                              <td class="text-center">
+                                <?= htmlspecialchars($r['size']) ?>
+                              </td>
+                              <td class="text-center text-success fw-bold">
+                                <?= number_format($r['qty_whsubcont_to_smsubcont']) ?>
+                              </td>
+                            </tr>
+                          <?php endforeach; ?>
+                        </tbody>
+                      </table>
                     </div>
                   </div>
 
-                  <!-- INFO TAMBAHAN -->
-                  <div class="border-top pt-3 text-muted small mt-3 d-flex flex-wrap gap-3">
+                  <!-- INFO -->
+                  <div class="scan-info">
                     <div>
-                      <strong>Scan At:</strong> <?= htmlspecialchars($row['scan_at']); ?> |
-                      <strong>Scan With:</strong> <?= htmlspecialchars($row['scan_with']); ?> |
-                      <strong>Hour:</strong> <?= htmlspecialchars($row['hour']); ?>
+                      <i class="bi bi-person-circle me-1"></i>
+                      <?= htmlspecialchars($first['transac_by']) ?>
+                    </div>
+                    <div>
+                      <i class="bi bi-clock-history me-1"></i>
+                      <?= date('d M Y H:i', strtotime($first['updated_at'])) ?>
                     </div>
                   </div>
-
                 </div>
               </div>
-
-              <!-- STYLE -->
-              <style>
-                .fade-in {
-                  animation: fadeIn 0.6s ease-in-out;
-                }
-
-                @keyframes fadeIn {
-                  from {
-                    opacity: 0;
-                    transform: translateY(10px);
-                  }
-
-                  to {
-                    opacity: 1;
-                    transform: translateY(0);
-                  }
-                }
-
-                .info-box {
-                  transition: all 0.3s ease;
-                }
-
-                .info-box:hover {
-                  background-color: #f8f9fa;
-                  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.05);
-                  transform: translateY(-2px);
-                }
-              </style>
             <?php endif; ?>
+
           <?php endif; ?>
 
         </div>

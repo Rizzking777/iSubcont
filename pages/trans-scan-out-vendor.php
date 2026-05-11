@@ -7,22 +7,6 @@ checkAuth('scan_out_vendor'); // cek apakah sudah login dan punya akses ke menu 
 $nik = $_SESSION['nik_user'];
 $username = $_SESSION['username'];
 
-// ambil tanggal pencarian dari GET
-$search_date = $_GET['search_date'] ?? date('Y-m-d'); // default = hari ini
-
-// query transaksi
-$sql = "
-  SELECT t.*
-  FROM tbl_transaksi t
-  WHERE DATE(t.date_created) = ?
-  ORDER BY t.id_trans DESC
-";
-
-$stmt = $conn->prepare($sql);
-$stmt->bind_param("s", $search_date);
-$stmt->execute();
-$result_transaksi = $stmt->get_result();
-
 ?>
 
 <style>
@@ -39,51 +23,198 @@ $result_transaksi = $stmt->get_result();
   }
 
   @keyframes progressBar {
-    0% {
+    from {
       width: 100%;
     }
 
-    100% {
+    to {
       width: 0%;
     }
   }
 
-  .select2-container {
-    width: 100% !important;
+  .fade-in {
+    animation: fadeIn .35s ease;
   }
 
-  .select2-selection {
-    min-height: 38px;
-    /* biar seragam sama form-control bootstrap */
-    display: flex;
-    align-items: center;
+  @keyframes fadeIn {
+
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 
-  #addKomponenBtn {
-    margin-top: 0px;
-    /* atau sesuai kebutuhan */
-    margin-bottom: 5px;
-  }
-
-  .komponen-row .form-label {
-    display: block;
-  }
-
-  .komponen-row .form-control {
-    width: 100%;
-  }
-
-  .qr-center {
+  .flow-header {
     text-align: center;
-    margin-top: 10px;
   }
 
-  .match-height {
-    height: calc(1.5em + 0.75rem + 2px);
-    /* Cocokkan dengan .form-control Bootstrap */
+  .flow-title {
+    font-size: 28px;
+    font-weight: 700;
+    color: #0d6efd;
+  }
+
+  .flow-sub {
+    color: #6c757d;
+  }
+
+  .scan-card {
+    border-radius: 24px;
+  }
+
+  .scan-icon {
+    font-size: 42px;
+    color: #0d6efd;
+  }
+
+  .scan-input {
+    height: 58px;
+    border-radius: 14px;
+    font-size: 22px;
+    font-weight: 600;
+  }
+
+  .success-card,
+  .partial-card {
+    border-radius: 18px;
+    overflow: hidden;
+  }
+
+  .success-icon,
+  .merge-success-icon,
+  .partial-icon {
+    line-height: 1;
+  }
+
+  .success-icon,
+  .merge-success-icon {
+    font-size: 42px;
+    color: #198754;
+  }
+
+  .partial-icon {
+    font-size: 42px;
+    color: #ffc107;
+  }
+
+  .partial-icon i {
+    animation: pulseWaiting 1.5s infinite;
+  }
+
+  @keyframes pulseWaiting {
+
+    0% {
+      opacity: .5;
+      transform: scale(.95);
+    }
+
+    50% {
+      opacity: 1;
+      transform: scale(1);
+    }
+
+    100% {
+      opacity: .5;
+      transform: scale(.95);
+    }
+  }
+
+  .detail-box {
+    background: #f8f9fa;
+    border-radius: 14px;
+    padding: 18px;
+    text-align: center;
+    height: 100%;
+  }
+
+  .detail-label {
+    font-size: 13px;
+    color: #6c757d;
+    margin-bottom: 8px;
+  }
+
+  .detail-value {
+    font-size: 18px;
+    font-weight: 700;
+    color: #212529;
+  }
+
+  .qty-highlight {
+    color: #198754;
+    font-size: 24px;
+  }
+
+  .size-wrapper {
+    background: #f8f9fa;
+    border-radius: 16px;
+    padding: 20px;
+  }
+
+  .size-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: #212529;
+  }
+
+  .scan-info {
+    border-top: 1px solid #eee;
+    padding-top: 15px;
+
     display: flex;
-    justify-content: center;
-    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+
+    color: #6c757d;
+    font-size: 14px;
+  }
+
+  .component-status-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .component-item {
+    padding: 14px 18px;
+    border-radius: 12px;
+    font-weight: 600;
+    font-size: 14px;
+  }
+
+  .component-item.success {
+    background: #e9f7ef;
+    color: #198754;
+  }
+
+  .component-item.waiting {
+    background: #fff8e1;
+    color: #ff9800;
+  }
+
+  .next-action-box {
+    background: #e9f7ef;
+    border: 1px solid #c7ebd3;
+    border-radius: 14px;
+    padding: 16px;
+    text-align: center;
+    color: #198754;
+    font-weight: 600;
+    font-size: 14px;
+  }
+
+  .next-action-box i {
+    font-size: 18px;
+  }
+
+  .partial-progress {
+    font-size: 18px;
+    font-weight: 800;
+    color: #212529;
   }
 </style>
 
@@ -150,214 +281,312 @@ $result_transaksi = $stmt->get_result();
 
     <div class="pagetitle text-black" style="background-color: #f0e6d2; padding: 10px 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
       <h1 style="font-size: 1.8rem; font-weight: 700; font-family: 'Roboto', sans-serif;">
-        Scan-Out Vendor
+        Scan-Out Vendor (Send to WH Subcont)
       </h1>
     </div>
 
     <section class="section">
       <div class="row">
         <div class="col-lg-12">
-          <div class="card">
-            <div class="card-body" style="margin-top: 10px;">
 
-              <!-- Form Scan -->
-              <form method="post" id="scanForm">
-                <input type="hidden" name="scan-now" value="1"> <!-- biar $_POST['scan-now'] kebaca -->
-                <div class="row mb-3">
-                  <label for="barcode" class="col-sm-2 col-form-label">Scan QR Code</label>
-                  <div class="col-sm-10">
-                    <input type="text" name="barcode" id="barcode"
-                      class="form-control" placeholder="Scan QR Code here..." autofocus>
-                  </div>
+          <!-- ========== SCAN QR CODE CARD ========== -->
+          <div class="card border-0 shadow-sm mb-4">
+            <div class="card-body text-center py-5">
+              <div class="mb-3 text-primary">
+                <i class="bi bi-upc-scan" style="font-size: 3rem;"></i>
+              </div>
+              <h5 class="fw-semibold mb-4 text-primary"></h5>
+              <form action="./../config/function.php" method="post" id="scanForm">
+                <input type="hidden" name="action" value="scan_vendor_to_whsubcont">
+                <div class="col-md-8 mx-auto">
+                  <input type="text" name="barcode" id="barcode"
+                    class="form-control form-control-lg text-center"
+                    placeholder="Scan barcode here..." autofocus>
                 </div>
               </form>
-
-              <!-- Detail hasil scan -->
-              <?php
-              if (isset($_POST['scan-now'])) {
-                $barcode_scan = $_POST['barcode'] ?? null;
-
-                if ($barcode_scan) {
-                  $stmt = $conn->prepare("SELECT * FROM tbl_transaksi WHERE barcode=?");
-                  $stmt->bind_param("s", $barcode_scan);
-                  $stmt->execute();
-                  $result = $stmt->get_result();
-                  $row = $result->fetch_assoc();
-
-                  if ($row):
-              ?>
-                    <div class="alert alert-info mt-3">
-                      <h6>Detail Transaksi Scan Out Vendor:</h6>
-                      <form action="./../config/function.php" method="post" id="confirmForm">
-                        <input type="hidden" name="barcode" value="<?= htmlspecialchars($row['barcode']); ?>">
-
-                        <ul class="mb-3">
-                          <li><strong>Job Order:</strong> <?= htmlspecialchars($row['job_order']); ?></li>
-                          <li><strong>PO Code:</strong> <?= htmlspecialchars($row['po_code']); ?></li>
-                          <li><strong>PO Item:</strong> <?= htmlspecialchars($row['po_item']); ?></li>
-                          <li><strong>Model:</strong> <?= htmlspecialchars($row['model']); ?></li>
-                          <li><strong>Style:</strong> <?= htmlspecialchars($row['style']); ?></li>
-                          <li><strong>NCVS:</strong> <?= htmlspecialchars($row['ncvs']); ?></li>
-                          <li><strong>Lot:</strong>
-                            <?php
-                            $lots = json_decode($row['lot'], true);
-                            echo is_array($lots) ? implode(", ", $lots) : htmlspecialchars($row['lot']);
-                            ?>
-                          </li>
-
-                          <li><strong>Komponen, Size & Qty:</strong></li>
-                          <ul>
-                            <li>
-                              <!-- Group Input -->
-                              <div class="mb-2">
-                                <label><strong>Komponen Sebelum Proses:</strong></label>
-                                <div class="row">
-                                  <?php
-                                  $id_trans = $row['id_trans'];
-
-                                  // === Ambil log terakhir untuk SCAN_OUT_TO_VENDOR ===
-                                  $stmt_log = $conn->prepare("
-                                      SELECT old_data 
-                                      FROM tlog_transaksi 
-                                      WHERE id_trans = ? 
-                                        AND action_type = 'SCAN_OUT_TO_VENDOR'
-                                        AND old_data IS NOT NULL
-                                      ORDER BY created_at DESC 
-                                      LIMIT 1
-                                    ");
-                                  $stmt_log->bind_param("i", $id_trans);
-                                  $stmt_log->execute();
-                                  $res_log = $stmt_log->get_result();
-                                  $komponen_input = [];
-
-                                  if ($row_log = $res_log->fetch_assoc()) {
-                                    $old_data = json_decode($row_log['old_data'], true);
-                                    if (!empty($old_data['komponen_qty'])) {
-                                      $komponen_input = json_decode($old_data['komponen_qty'], true);
-                                    }
-                                  }
-
-                                  // === Ambil data kekurangan (jika ada)
-                                  $stmt_kurang = $conn->prepare("
-                                    SELECT komponen_qty 
-                                    FROM tbl_transaksi_kekurangan 
-                                    WHERE id_trans_asal = ?
-                                  ");
-                                  $stmt_kurang->bind_param("i", $id_trans);
-                                  $stmt_kurang->execute();
-                                  $res_kurang = $stmt_kurang->get_result();
-
-                                  $map_kurang = []; // [komponen|size] => qty_kurang
-                                  while ($row_kurang = $res_kurang->fetch_assoc()) {
-                                    $data_kurang = json_decode($row_kurang['komponen_qty'], true);
-                                    if (is_array($data_kurang)) {
-                                      foreach ($data_kurang as $dk) {
-                                        $key = "{$dk['komponen']}|{$dk['size']}";
-                                        $map_kurang[$key] = ($map_kurang[$key] ?? 0) + (int)($dk['kekurangan'] ?? 0);
-                                      }
-                                    }
-                                  }
-
-                                  // === Tampilkan komponen input (qty disesuaikan)
-                                  if (!empty($komponen_input)) {
-                                    foreach ($komponen_input as $item) {
-                                      $id_input = (int)$item['komponen'];
-                                      $size_val = $item['size'] ?? "-";
-                                      $qty_val  = (int)$item['qty'];
-
-                                      $key = "{$id_input}|{$size_val}";
-                                      if (isset($map_kurang[$key])) {
-                                        $qty_val -= $map_kurang[$key]; // kurangi dengan qty kekurangan
-                                        if ($qty_val < 0) $qty_val = 0; // safety
-                                      }
-
-                                      // ambil nama komponen
-                                      $stmt_in = $conn->prepare("SELECT nama_komponen FROM tbl_komponen WHERE id_komponen=?");
-                                      $stmt_in->bind_param("i", $id_input);
-                                      $stmt_in->execute();
-                                      $res_in = $stmt_in->get_result();
-                                      $in_row = $res_in->fetch_assoc();
-                                      $nama_input = $in_row['nama_komponen'] ?? "Komponen #$id_input";
-                                  ?>
-                                      <div class="col-md-6 mb-1">
-                                        <input type="text" class="form-control"
-                                          value="<?= htmlspecialchars($nama_input) ?>: <?= htmlspecialchars($size_val) ?> (<?= $qty_val ?>)" readonly>
-                                      </div>
-                                  <?php
-                                    }
-                                  } else {
-                                    echo "<div class='col-12'><em>Tidak ada data komponen.</em></div>";
-                                  }
-                                  ?>
-                                </div>
-                              </div>
-
-                              <!-- Group Output -->
-                              <div>
-                                <label><strong>Komponen Sesudah Proses:</strong> </label>
-                                <?php
-                                // ambil dari transaksi sekarang
-                                $qty_data = json_decode($row['komponen_qty'], true);
-
-                                if (is_array($qty_data)) {
-                                  foreach ($qty_data as $item) {
-                                    $id_out  = $item['komponen'];
-                                    $qty_val = $item['qty'];
-                                    $size_val = $item['size'] ?? "-";
-
-                                    // ambil nama output
-                                    $stmt_out = $conn->prepare("SELECT nama_komponen FROM tbl_komponen WHERE id_komponen=?");
-                                    $stmt_out->bind_param("i", $id_out);
-                                    $stmt_out->execute();
-                                    $res_out = $stmt_out->get_result();
-                                    $out_row = $res_out->fetch_assoc();
-                                    $nama_output = $out_row['nama_komponen'] ?? "Komponen #$id_out";
-                                ?>
-                                    <div class="input-group mb-2">
-                                      <span class="input-group-text" style="min-width:180px;">
-                                        <?= htmlspecialchars($nama_output) ?>: <?= htmlspecialchars($size_val) ?>
-                                      </span>
-                                      <input type="number"
-                                        name="qty[<?= $id_out ?>][<?= htmlspecialchars($size_val) ?>]"
-                                        class="form-control qty-field"
-                                        value="<?= htmlspecialchars($qty_val) ?>"
-                                        readonly>
-                                      <button type="button" class="btn btn-danger btn-tidak-sesuai">Tidak Sesuai</button>
-                                    </div>
-                                <?php
-                                  }
-                                }
-                                ?>
-                              </div>
-                            </li>
-                          </ul>
-
-                          <!-- Keterangan (hidden dulu) -->
-                          <li id="keterangan-wrap" class="d-none">
-                            <strong>Keterangan:</strong>
-                            <textarea name="keterangan" class="form-control mt-1"
-                              placeholder="Wajib isi keterangan jika qty tidak sesuai"></textarea>
-                          </li>
-                        </ul>
-
-                        <!-- Tombol aksi -->
-                        <button type="submit" name="confirm-out-vendor" class="btn btn-success">
-                          <i class="bi bi-check-circle"></i> Confirm
-                        </button>
-                        <button type="submit" name="pending-out-vendor" class="btn btn-warning">
-                          <i class="bi bi-check-circle"></i> Confirm (Qty Tidak Sesuai)
-                        </button>
-                      </form>
-                    </div>
-              <?php
-                  else:
-                    echo "<div class='alert alert-danger mt-3'>QR Code tidak ditemukan.</div>";
-                  endif;
-                }
-              }
-              ?>
             </div>
           </div>
+
+          <!-- UNTUK SUKSES SCAN MERGE -->
+          <?php if (isset($_GET['merge_success'])): ?>
+            <?php
+            $main_barcode = $_GET['main'] ?? '';
+            $stmt = $conn->prepare("
+              SELECT *
+              FROM tbl_transaksi
+              WHERE barcode = ?
+              ORDER BY
+              CAST(REPLACE(size, 'T', '') AS UNSIGNED),
+              size ASC
+          ");
+
+            $stmt->bind_param("s", $main_barcode);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $rows = [];
+            $total_qty = 0;
+            while ($r = $result->fetch_assoc()) {
+              $rows[] = $r;
+              $total_qty += (float)$r['qty_vendor_to_whsubcont'];
+            }
+            $first = $rows[0] ?? null;
+            ?>
+
+            <?php if ($first): ?>
+              <div class="card border-0 shadow-lg success-card mb-4 fade-in">
+                <div class="card-body p-4">
+                  <!-- SUCCESS HEADER -->
+                  <div class="text-center mb-4">
+                    <div class="merge-success-icon mb-3">
+                      <i class="bi bi-check-circle-fill"></i>
+                    </div>
+                    <h2 class="fw-bold text-success mb-1">
+                      TRANSAKSI BERHASIL
+                    </h2>
+                    <div class="text-muted">
+                      Semua komponen berhasil diproses.
+                    </div>
+                  </div>
+
+                  <!-- SUMMARY -->
+                  <div class="row g-3 mb-4">
+                    <div class="col-md-6">
+                      <div class="detail-box">
+                        <div class="detail-label">
+                          Output Component
+                        </div>
+
+                        <div class="detail-value">
+                          <?= htmlspecialchars($first['nm_komponen_out']) ?>
+                        </div>
+
+                      </div>
+                    </div>
+
+                    <div class="col-md-6">
+                      <div class="detail-box">
+                        <div class="detail-label">
+                          Total Qty
+                        </div>
+                        <div class="detail-value qty-highlight">
+                          <?= number_format($total_qty) ?>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- SIZE DETAIL -->
+                  <div class="size-wrapper mb-4">
+                    <div class="size-title mb-3">
+                      Detail Size
+                    </div>
+                    <div class="table-responsive">
+                      <table class="table align-middle table-bordered">
+                        <thead class="table-light">
+                          <tr>
+                            <th class="text-center">LOT</th>
+                            <th class="text-center">SIZE</th>
+                            <th class="text-center">QTY</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <?php foreach ($rows as $r): ?>
+                            <tr>
+                              <td class="text-center fw-semibold">
+                                <?= htmlspecialchars($r['lot']) ?>
+                              </td>
+                              <td class="text-center">
+                                <?= htmlspecialchars($r['size']) ?>
+                              </td>
+                              <td class="text-center text-success fw-bold">
+                                <?= number_format($r['qty_vendor_to_whsubcont']) ?>
+                              </td>
+                            </tr>
+                          <?php endforeach; ?>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  <!-- FINAL INFO -->
+                  <div class="next-action-box">
+                    <i class="bi bi-check2-all me-2"></i>
+                    Semua komponen selesai diproses. Silakan lanjutkan ke proses berikutnya.
+                  </div>
+                </div>
+              </div>
+            <?php endif; ?>
+          <?php endif; ?>
+
+          <!-- UNTUK SUKSES SCAN SINGLE -->
+          <?php if (isset($_GET['success']) && $_GET['success'] == 'single'): ?>
+            <?php
+            $barcode_success = $_GET['barcode'] ?? '';
+            if (empty($barcode_success)) {
+              return;
+            }
+            $stmt = $conn->prepare("
+              SELECT * 
+              FROM tbl_transaksi 
+              WHERE barcode = ?
+              ORDER BY 
+              CAST(REPLACE(size, 'T', '') AS UNSIGNED),
+              size ASC
+          ");
+            $stmt->bind_param("s", $barcode_success);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $rows = [];
+            $total_qty = 0;
+            while ($r = $result->fetch_assoc()) {
+              $rows[] = $r;
+              $total_qty += (float)$r['qty_vendor_to_whsubcont'];
+            }
+            $first = $rows[0] ?? null;
+            ?>
+
+            <?php if ($first): ?>
+              <div class="card border-0 shadow-lg success-card mb-4 fade-in">
+                <div class="card-body p-4">
+                  <!-- SUCCESS HEADER -->
+                  <div class="text-center mb-4">
+                    <div class="success-icon mb-3">
+                      <i class="bi bi-check-circle-fill"></i>
+                    </div>
+                    <h2 class="fw-bold text-success mb-1">
+                      TRANSAKSI BERHASIL
+                    </h2>
+                    <div class="text-muted">
+                      Barcode berhasil diproses
+                    </div>
+                  </div>
+
+                  <!-- SUMMARY -->
+                  <div class="row g-3 mb-4">
+                    <div class="col-md-6">
+                      <div class="detail-box">
+                        <div class="detail-label">
+                          Komponen
+                        </div>
+                        <div class="detail-value">
+                          <?= htmlspecialchars($first['nm_komponen_in']) ?>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="col-md-6">
+                      <div class="detail-box">
+                        <div class="detail-label">
+                          Total Qty
+                        </div>
+                        <div class="detail-value qty-highlight">
+                          <?= number_format($total_qty) ?>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- SIZE DETAIL -->
+                  <div class="size-wrapper mb-4">
+                    <div class="size-title mb-3">
+                      Detail Size
+                    </div>
+                    <div class="table-responsive">
+                      <table class="table align-middle table-bordered">
+                        <thead class="table-light">
+                          <tr>
+                            <th class="text-center">LOT</th>
+                            <th class="text-center">SIZE</th>
+                            <th class="text-center">QTY</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <?php foreach ($rows as $r): ?>
+                            <tr>
+                              <td class="text-center fw-semibold">
+                                <?= htmlspecialchars($r['lot']) ?>
+                              </td>
+                              <td class="text-center">
+                                <?= htmlspecialchars($r['size']) ?>
+                              </td>
+                              <td class="text-center text-success fw-bold">
+                                <?= number_format($r['qty_vendor_to_whsubcont']) ?>
+                              </td>
+                            </tr>
+                          <?php endforeach; ?>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  <!-- INFO -->
+                  <div class="scan-info">
+                    <div>
+                      <i class="bi bi-person-circle me-1"></i>
+                      <?= htmlspecialchars($first['transac_by']) ?>
+                    </div>
+                    <div>
+                      <i class="bi bi-clock-history me-1"></i>
+                      <?= date('d M Y H:i', strtotime($first['updated_at'])) ?>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            <?php endif; ?>
+          <?php endif; ?>
+
+          <!-- UNTUK SCAN PARSIAL -->
+          <?php if (isset($_GET['partial_ready'])): ?>
+            <div class="card border-0 shadow-lg mb-4 partial-card fade-in">
+              <div class="card-body p-5">
+                <!-- HEADER -->
+                <div class="text-center mb-4">
+                  <div class="partial-icon mb-3">
+                    <i class="bi bi-hourglass-split"></i>
+                  </div>
+                  <h2 class="fw-bold text-warning mb-1">
+                    TRANSAKSI PARSIAL BERHASIL
+                  </h2>
+                  <div class="partial-progress">
+                    <?= $_GET['ready'] ?>
+                    /
+                    <?= $_GET['total'] ?>
+                    Komponen Ready
+
+                  </div>
+                </div>
+
+                <!-- OUTPUT -->
+                <div class="detail-box mb-4">
+                  <div class="detail-label">
+                    Output Process
+                  </div>
+                  <div class="detail-value">
+                    <?= htmlspecialchars($_GET['output']) ?>
+                  </div>
+                </div>
+
+                <!-- COMPONENT STATUS -->
+                <div class="component-status-wrapper mb-4">
+                  <div class="component-item success">
+                    <i class="bi bi-check-circle-fill me-2"></i>
+                    <?= htmlspecialchars($_GET['ready_component']) ?>
+                  </div>
+                  <div class="component-item waiting">
+                    <i class="bi bi-hourglass-split me-2"></i>
+                    <?= htmlspecialchars($_GET['waiting_component']) ?>
+                  </div>
+                </div>
+
+                <!-- NEXT ACTION -->
+                <div class="next-action-box">
+                  <i class="bi bi-arrow-repeat me-2"></i>
+                  Menunggu seluruh komponen selesai diproses.
+                </div>
+              </div>
+            </div>
+          <?php endif; ?>
+
         </div>
       </div>
     </section>
@@ -454,74 +683,22 @@ $result_transaksi = $stmt->get_result();
   <script>
     const barcodeInput = document.getElementById("barcode");
     const scanForm = document.getElementById("scanForm");
-    let typingTimer;
 
-    barcodeInput.addEventListener("input", function() {
-      clearTimeout(typingTimer);
-      typingTimer = setTimeout(() => {
-        if (barcodeInput.value.trim() !== "") {
-          scanForm.submit();
-        }
-      }, 400); // delay biar scanner selesai
-    });
-  </script>
+    let submitted = false;
 
-  <script>
-    const confirmBtn = document.querySelector("button[name='confirm-out-vendor']");
-    const pendingBtn = document.querySelector("button[name='pending-out-vendor']");
-    const ketWrap = document.getElementById("keterangan-wrap");
-
-    // simpan nilai awal qty
-    const initialQty = {};
-    document.querySelectorAll(".qty-field").forEach(input => {
-      initialQty[input.name] = input.value;
-    });
-
-    // awalnya sembunyikan Pending
-    pendingBtn.style.display = "none";
-
-    document.querySelectorAll(".btn-tidak-sesuai").forEach(btn => {
-      btn.addEventListener("click", function() {
-        const input = this.previousElementSibling;
-
-        // toggle readonly
-        if (input.hasAttribute("readonly")) {
-          input.removeAttribute("readonly");
-          input.focus();
-          this.classList.remove("btn-danger");
-          this.classList.add("btn-secondary");
-          this.textContent = "Batal";
-
-          // tampilkan keterangan
-          ketWrap.classList.remove("d-none");
-
-          // tombol Confirm → Pending
-          confirmBtn.style.display = "none";
-          pendingBtn.style.display = "inline-block";
-        } else {
-          input.setAttribute("readonly", true);
-          input.value = initialQty[input.name];
-          this.classList.remove("btn-secondary");
-          this.classList.add("btn-danger");
-          this.textContent = "Tidak Sesuai";
-
-          // cek kalau semua qty readonly
-          const anyNotReadOnly = document.querySelectorAll(".qty-field:not([readonly])").length > 0;
-          if (!anyNotReadOnly) {
-            ketWrap.classList.add("d-none");
-            confirmBtn.style.display = "inline-block";
-            pendingBtn.style.display = "none";
-          }
-        }
-      });
-    });
-
-    // validasi keterangan saat Pending
-    pendingBtn.addEventListener("click", function(e) {
-      const ket = document.querySelector("textarea[name='keterangan']");
-      if (ket.value.trim() === "") {
-        alert("Harap isi keterangan jika ada quantity yang tidak sesuai.");
+    barcodeInput.addEventListener("keydown", function(e) {
+      if (e.key === "Enter") {
         e.preventDefault();
+
+        if (submitted) return;
+        if (!this.value.trim()) return;
+
+        submitted = true;
+
+        // kunci input biar gak double scan
+        this.setAttribute("readonly", true);
+
+        scanForm.submit();
       }
     });
   </script>

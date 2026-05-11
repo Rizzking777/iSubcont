@@ -180,13 +180,24 @@ $result = $conn->query($sql);
                 <div class="col-md-12">
                   <label class="form-label">Input Komponen</label>
                   <div id="inputKomponenWrapper">
-                    <div class="d-flex mb-2">
+
+                    <div class="d-flex align-items-center mb-2 input-row">
+
+                      <input type="radio" name="main_komponen" class="form-check-input me-2 main-komponen-radio">
+
                       <input type="text" name="input_komponen[]" class="form-control me-2" placeholder="Nama komponen input" required>
+
                       <button type="button" class="btn btn-success btnAddInput">
                         <i class="bi bi-plus-circle"></i>
                       </button>
+
                     </div>
+
                   </div>
+
+                  <small class="text-muted">
+                    Pilih salah satu sebagai <b>komponen utama.</b>
+                  </small>
                 </div>
 
                 <!-- Output Komponen -->
@@ -470,71 +481,120 @@ $result = $conn->query($sql);
 
   <script>
     // Event klik tombol edit
-$(document).on('click', '.editKomponenBtn', function() {
-    // Ambil data dari tombol
-    let id_output = $(this).data('id');
-    let model = $(this).data('model');
-    let style = $(this).data('style');
-    let output = $(this).data('output');
-    let inputs = $(this).data('input').split(',');
-    let vendorId = $(this).data('vendor-id'); // pakai id vendor
+    $(document).on('click', '.editKomponenBtn', function() {
+      // Ambil data dari tombol
+      let id_output = $(this).data('id');
+      let model = $(this).data('model');
+      let style = $(this).data('style');
+      let output = $(this).data('output');
+      let inputs = $(this).data('input').split(',');
+      let vendorId = $(this).data('vendor-id'); // pakai id vendor
 
-    // Set field modal
-    $('#edit_id_output').val(id_output);
-    $('#edit_model').val(model);
-    $('#edit_style').val(style);
-    $('#edit_output').val(output);
+      // Set field modal
+      $('#edit_id_output').val(id_output);
+      $('#edit_model').val(model);
+      $('#edit_style').val(style);
+      $('#edit_output').val(output);
 
-    // Generate input komponen
-    $('#editInputWrapper').empty();
-    inputs.forEach(function(item) {
+      // Generate input komponen
+      $('#editInputWrapper').empty();
+      inputs.forEach(function(item) {
         $('#editInputWrapper').append(`
             <div class="mb-2">
                 <input type="text" name="input_komponen[]" class="form-control" value="${item.trim()}">
             </div>
         `);
+      });
+
+      // Set vendor
+      $('#edit_vendorSelect').val(vendorId).trigger('change'); // untuk Select2
     });
 
-    // Set vendor
-    $('#edit_vendorSelect').val(vendorId).trigger('change'); // untuk Select2
-});
-
-// Inisialisasi Select2 saat modal tampil
-$('#editKomponenModal').on('shown.bs.modal', function () {
-    $('#edit_vendorSelect').select2({
+    // Inisialisasi Select2 saat modal tampil
+    $('#editKomponenModal').on('shown.bs.modal', function() {
+      $('#edit_vendorSelect').select2({
         dropdownParent: $('#editKomponenModal'), // penting supaya dropdown muncul di modal
         width: '100%'
+      });
     });
-});
-
   </script>
 
   <script>
     $(document).ready(function() {
-      // --- Inisialisasi Select2 untuk Vendor ---
+
+      // =============================
+      // SELECT2
+      // =============================
       $('#vendorSelect').select2({
         placeholder: "Pilih vendor",
         allowClear: true,
         width: '100%',
-        dropdownParent: $('#modalAddKomponen') // ⬅️ ini penting biar nggak kabur keluar modal
+        dropdownParent: $('#modalAddKomponen')
       });
 
-      // --- Tambah input komponen ---
+      // =============================
+      // UPDATE MAIN KOMPONEN
+      // =============================
+      function updateMainKomponen() {
+        const rows = $('.input-row');
+
+        if (rows.length === 1) {
+          rows.find('.main-komponen-radio')
+            .prop('checked', true)
+            .prop('disabled', true);
+        } else {
+          $('.main-komponen-radio').prop('disabled', false);
+        }
+      }
+
+      // INIT
+      updateMainKomponen();
+
+      // =============================
+      // ADD INPUT
+      // =============================
       $(document).on('click', '.btnAddInput', function() {
+
+        const index = $('.input-row').length;
+
         let html = `
-        <div class="d-flex mb-2">
-          <input type="text" name="input_komponen[]" class="form-control me-2" placeholder="Nama komponen input" required>
-          <button type="button" class="btn btn-danger btnRemoveInput">
-            <i class="bi bi-dash-circle"></i>
-          </button>
-        </div>`;
+      <div class="d-flex align-items-center mb-2 input-row">
+
+        <input 
+          type="radio" 
+          name="main_komponen" 
+          value="${index}"
+          class="form-check-input me-2 main-komponen-radio"
+        >
+
+        <input 
+          type="text" 
+          name="input_komponen[]" 
+          class="form-control me-2" 
+          placeholder="Nama komponen input" 
+          required
+        >
+
+        <button type="button" class="btn btn-danger btnRemoveInput">
+          <i class="bi bi-dash-circle"></i>
+        </button>
+
+      </div>
+    `;
+
         $('#inputKomponenWrapper').append(html);
+
+        updateMainKomponen();
       });
 
-      // --- Hapus input komponen ---
+      // =============================
+      // REMOVE INPUT
+      // =============================
       $(document).on('click', '.btnRemoveInput', function() {
-        $(this).closest('div').remove();
+        $(this).closest('.input-row').remove();
+        updateMainKomponen();
       });
+
     });
   </script>
 

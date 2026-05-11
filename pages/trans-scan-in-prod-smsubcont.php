@@ -2,7 +2,7 @@
 // menghubungkan php dengan koneksi database
 require_once __DIR__ . '/../config/function.php';
 require_once __DIR__ . '/../config/auth.php';
-checkAuth('scan_in_incoming'); // cek apakah sudah login dan punya akses ke menu ini
+checkAuth('scan_in_prod_from_wh'); // cek apakah sudah login dan punya akses ke menu ini
 
 $nik = $_SESSION['nik_user'];
 $username = $_SESSION['username'];
@@ -187,7 +187,7 @@ $username = $_SESSION['username'];
 
   <!-- Header -->
   <?php
-  $page = 'scan_in_incoming';
+  $page = 'scan_in_prod_from_wh';
   include_once __DIR__ . '/../includes/header.php';
   ?>
   <!-- End Header -->
@@ -196,7 +196,7 @@ $username = $_SESSION['username'];
 
     <div class="pagetitle text-black" style="background-color: #f0e6d2; padding: 10px 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
       <h1 style="font-size: 1.8rem; font-weight: 700; font-family: 'Roboto', sans-serif;">
-        Scan-In Incoming Warehouse (Receiving from Vendor)
+        Scan-In Production (Receiving from Warehouse Subcont)
       </h1>
     </div>
 
@@ -212,7 +212,7 @@ $username = $_SESSION['username'];
               </div>
               <h5 class="fw-semibold mb-4 text-primary"></h5>
               <form action="./../config/function.php" method="post" id="scanForm">
-                <input type="hidden" name="action" value="scan_whsubcont_from_vendor">
+                <input type="hidden" name="action" value="scan_in_prod_from_whsubcont">
                 <div class="col-md-8 mx-auto">
                   <input type="text" name="barcode" id="barcode"
                     class="form-control form-control-lg text-center"
@@ -246,7 +246,7 @@ $username = $_SESSION['username'];
             $total_qty = 0;
             while ($r = $result->fetch_assoc()) {
               $rows[] = $r;
-              $total_qty += (float)$r['qty_whsubcont_fr_vendor'];
+              $total_qty += (float)$r['qty_smsubcont_fr_whsubcont'];
             }
             $first = $rows[0] ?? null;
             ?>
@@ -316,7 +316,7 @@ $username = $_SESSION['username'];
                                 <?= htmlspecialchars($r['size']) ?>
                               </td>
                               <td class="text-center text-success fw-bold">
-                                <?= number_format($r['qty_whsubcont_fr_vendor']) ?>
+                                <?= number_format($r['qty_smsubcont_fr_whsubcont']) ?>
                               </td>
                             </tr>
                           <?php endforeach; ?>
