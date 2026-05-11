@@ -5,153 +5,216 @@ header('Content-Type: application/json');
 
 $filter = $_GET['type'] ?? 'SCAN_IN_WAREHOUSE';
 
-// =============== MODE DETAIL ==================
-if (isset($_GET['detail']) && $_GET['detail'] == '1') {
+// ---------------- SCAN_IN_WAREHOUSE (JOB ORDER BASED) ----------------
+if ($filter === 'SCAN_IN_WAREHOUSE') {
 
-    $ncvs = $_GET['ncvs'] ?? '';
-    $type = $_GET['filter'] ?? '';
+    $debug = isset($_GET['debug']) && $_GET['debug'] == '1';
 
-    if ($ncvs === '') {
-        echo json_encode(["error" => "NCVS not provided"]);
+    $stock = [];   // stok per JOB ORDER + PO + BUCKET
+    $log   = [];
+
+    $sql = <<<SQL
+SELECT 
+    action_type,
+    new_data,
+    JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.job_order')) AS job_order,
+    JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.bucket')) AS bucket,
+    JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.ncvs')) AS ncvs,
+    JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.po_code')) AS po_code,
+    JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.po_item')) AS po_item,
+    JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.style')) AS style,
+    JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.model')) AS model,
+    JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.komponen_qty')) AS komponen_qty,
+    COALESCE(
+      JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.scan_at')),
+      JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.date_created'))
+    ) AS scan_at
+FROM tlog_transaksi
+WHERE action_type IN ('SCAN_IN_WAREHOUSE','SCAN_OUT_TO_VENDOR')
+ORDER BY scan_at ASC
+SQL;
+
+    $res = mysqli_query($conn, $sql);
+    if (!$res) {
+        echo json_encode(["error" => mysqli_error($conn)]);
         exit;
     }
 
-    // Ambil semua transaksi terkait NCVS ini
-    $sql = "
-        SELECT 
-            action_type,
-            created_at,
-            JSON_EXTRACT(new_data,'$.id_trans') AS id_trans,
-            JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.komponen_qty')) AS arr
-        FROM tlog_transaksi
-        WHERE JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.ncvs')) = '$ncvs'
-        ORDER BY created_at ASC
-    ";
-
-    $res = mysqli_query($conn, $sql);
-
-    $details = [];
-    $sumIn = 0;
-    $sumOut = 0;
-
     while ($row = mysqli_fetch_assoc($res)) {
 
-        // hitung total qty
-        $arr = json_decode($row['arr'], true);
-        $qty = 0;
-        if (is_array($arr)) {
-            foreach ($arr as $c) $qty += (int)($c['qty'] ?? 0);
+        if (!$row['job_order'] || !$row['ncvs']) continue;
+
+        // 🔑 COMPOSITE KEY (inti refactor)
+        $key = implode('__', [
+            $row['job_order'],
+            $row['bucket'],
+            $row['po_code'],
+            $row['po_item'],
+            $row['ncvs']
+        ]);
+
+        $komponen = json_decode($row['komponen_qty'] ?? '[]', true);
+        if (!is_array($komponen)) $komponen = [];
+
+        // INIT bucket stok
+        if (!isset($stock[$key])) {
+            $stock[$key] = [
+                'job_order' => $row['job_order'],
+                'bucket'    => $row['bucket'],
+                'ncvs'      => $row['ncvs'],
+                'po_code'   => $row['po_code'],
+                'po_item'   => $row['po_item'],
+                'style'     => $row['style'],
+                'model'     => $row['model'],
+                'size'      => []
+            ];
         }
 
-        // summary khusus (optional)
-        if ($row['action_type'] === 'SCAN_IN_INCOMING') $sumIn += $qty;
-        if ($row['action_type'] === 'SCAN_OUT_TO_PRODUCTION') $sumOut += $qty;
+        foreach ($komponen as $c) {
+            $size = $c['size'];
+            $qty  = (int)$c['qty'];
 
-        $details[] = [
-            "id_trans" => $row['id_trans'],
-            "action_type" => $row['action_type'],
-            "qty" => $qty,
-            "tanggal" => $row['created_at']
-        ];
-    }
+            if (!isset($stock[$key]['size'][$size])) {
+                $stock[$key]['size'][$size] = 0;
+            }
 
-    $summary = [
-        "total_in" => $sumIn,
-        "total_out" => $sumOut,
-        "wip" => $sumIn - $sumOut
-    ];
-
-    echo json_encode([
-        "ncvs" => $ncvs,
-        "summary" => $summary,
-        "details" => $details
-    ]);
-    exit;
-}
-
-// ---------------- SCAN_IN_WAREHOUSE ----------------
-if ($filter === 'SCAN_IN_WAREHOUSE') {
-
-    $scanInWH = [];
-    $scanOutVendor = [];
-
-    $sqlWH = "SELECT JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.ncvs')) AS ncvs,
-                     JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.komponen_qty')) AS arr,
-                     action_type
-              FROM tlog_transaksi
-              WHERE action_type IN ('SCAN_IN_WAREHOUSE','SCAN_OUT_TO_VENDOR')";
-    $resWH = mysqli_query($conn, $sqlWH);
-
-    while ($row = mysqli_fetch_assoc($resWH)) {
-        $arr = json_decode($row['arr'], true);
-        $qtySum = 0;
-        if (is_array($arr)) {
-            foreach ($arr as $c) $qtySum += isset($c['qty']) ? (int)$c['qty'] : 0;
-        }
-
-        if ($row['action_type'] === 'SCAN_IN_WAREHOUSE') {
-            $scanInWH[$row['ncvs']] = ($scanInWH[$row['ncvs']] ?? 0) + $qtySum;
-        } else {
-            $scanOutVendor[$row['ncvs']] = ($scanOutVendor[$row['ncvs']] ?? 0) + $qtySum;
-        }
-    }
-
-    $allNcvs = array_unique(array_merge(array_keys($scanInWH), array_keys($scanOutVendor)));
-    $data = [];
-    foreach ($allNcvs as $ncvs) {
-        $data[] = [
-            'ncvs' => $ncvs,
-            'wip_in_wh' => ($scanInWH[$ncvs] ?? 0) - ($scanOutVendor[$ncvs] ?? 0)
-        ];
-    }
-
-    echo json_encode($data);
-    exit;
-}
-
-// ---------------- SCAN_OUT_TO_VENDOR ----------------
-if ($filter === 'SCAN_OUT_TO_VENDOR') {
-
-    $scanOutVendor = [];
-    $scanInIncoming = [];
-    $confirmVendor = [];
-
-    // =======================
-    // 1. Ambil OUT vendor + IN incoming
-    // =======================
-    $sqlOutVendor = "
-        SELECT 
-            JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.ncvs')) AS ncvs,
-            JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.komponen_qty')) AS arr,
-            action_type
-        FROM tlog_transaksi
-        WHERE action_type IN ('SCAN_OUT_TO_VENDOR','SCAN_IN_INCOMING')
-    ";
-
-    $resVen = mysqli_query($conn, $sqlOutVendor);
-
-    while ($row = mysqli_fetch_assoc($resVen)) {
-
-        $ncvs = $row['ncvs'];
-        $arr = json_decode($row['arr'], true);
-
-        $qtySum = 0;
-        if (is_array($arr)) {
-            foreach ($arr as $c) {
-                $qtySum += isset($c['qty']) ? (int)$c['qty'] : 0;
+            if ($row['action_type'] === 'SCAN_IN_WAREHOUSE') {
+                $stock[$key]['size'][$size] += $qty;
+            } else { // SCAN_OUT_TO_VENDOR
+                $stock[$key]['size'][$size] -= $qty;
             }
         }
 
-        if ($row['action_type'] === 'SCAN_OUT_TO_VENDOR') {
-            $scanOutVendor[$ncvs] = ($scanOutVendor[$ncvs] ?? 0) + $qtySum;
-        } else {
-            $scanInIncoming[$ncvs] = ($scanInIncoming[$ncvs] ?? 0) + $qtySum;
+        if ($debug) {
+            $log[] = [
+                'key'    => $key,
+                'action' => $row['action_type'],
+                'size'   => $stock[$key]['size']
+            ];
         }
     }
 
-    // =======================
-    // 2. Ambil CONFIRM_KEKURANGAN
-    // =======================
+    // ===============================
+    // SUMMARY PER NCVS
+    // ===============================
+    $summary = [];
+
+    foreach ($stock as $row) {
+        $ncvs  = $row['ncvs'];
+        $total = array_sum($row['size']);
+
+        if (!isset($summary[$ncvs])) {
+            $summary[$ncvs] = [
+                'ncvs'       => $ncvs,
+                'total_qty' => 0,
+                'detail'    => []
+            ];
+        }
+
+        $summary[$ncvs]['total_qty'] += $total;
+
+        $summary[$ncvs]['detail'][] = [
+            'job_order' => $row['job_order'],
+            'bucket'    => $row['bucket'],
+            'po_code'   => $row['po_code'],
+            'po_item'   => $row['po_item'],
+            'style'     => $row['style'],
+            'model'     => $row['model'],
+            'size'      => $row['size'],
+            'total'     => $total
+        ];
+    }
+
+    echo json_encode(
+        $debug
+            ? ['log' => $log, 'result' => array_values($summary)]
+            : array_values($summary)
+    );
+    exit;
+}
+
+// ---------------- SCAN_OUT_TO_VENDOR (FINAL & STABLE) ----------------
+if ($filter === 'SCAN_OUT_TO_VENDOR') {
+
+    $stock = [];           // detail fisik (PO + size)
+    $confirmByNcvs = [];   // confirm hanya total
+
+    // ===============================
+    // 1. AMBIL TRANSAKSI FISIK
+    // ===============================
+    $sql = <<<SQL
+SELECT 
+    action_type,
+    new_data,
+    JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.job_order')) AS job_order,
+    JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.bucket')) AS bucket,
+    JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.ncvs')) AS ncvs,
+    JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.po_code')) AS po_code,
+    JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.po_item')) AS po_item,
+    JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.style')) AS style,
+    JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.model')) AS model,
+    JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.komponen_qty')) AS komponen_qty,
+    COALESCE(
+        JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.scan_at')),
+        JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.date_created'))
+    ) AS scan_at
+FROM tlog_transaksi
+WHERE action_type IN ('SCAN_OUT_TO_VENDOR','SCAN_IN_INCOMING')
+ORDER BY scan_at ASC
+SQL;
+
+    $res = mysqli_query($conn, $sql);
+
+    while ($row = mysqli_fetch_assoc($res)) {
+
+        if (!$row['job_order'] || !$row['ncvs']) continue;
+
+        // 🔑 COMPOSITE KEY IDENTIK DENGAN IN WH
+        $key = implode('__', [
+            $row['job_order'],
+            $row['bucket'],
+            $row['po_code'],
+            $row['po_item'],
+            $row['ncvs']
+        ]);
+
+        if (!isset($stock[$key])) {
+            $stock[$key] = [
+                'job_order' => $row['job_order'],
+                'bucket'    => $row['bucket'],
+                'ncvs'      => $row['ncvs'],
+                'po_code'   => $row['po_code'],
+                'po_item'   => $row['po_item'],
+                'style'     => $row['style'],
+                'model'     => $row['model'],
+                'size'      => []
+            ];
+        }
+
+        $komponen = json_decode($row['komponen_qty'] ?? '[]', true);
+        if (!is_array($komponen)) $komponen = [];
+
+        foreach ($komponen as $c) {
+            $size = $c['size'];
+            $qty  = (int)$c['qty'];
+
+            if (!isset($stock[$key]['size'][$size])) {
+                $stock[$key]['size'][$size] = 0;
+            }
+
+            if ($row['action_type'] === 'SCAN_OUT_TO_VENDOR') {
+                $stock[$key]['size'][$size] += $qty;
+            }
+
+            if ($row['action_type'] === 'SCAN_IN_INCOMING') {
+                $stock[$key]['size'][$size] -= $qty;
+            }
+        }
+    }
+
+    // ===============================
+    // 2. CONFIRM_KEKURANGAN (TOTAL ONLY)
+    // ===============================
     $sqlConf = "
         SELECT 
             JSON_EXTRACT(new_data,'$.id_trans_asal') AS id_trans_asal,
@@ -159,54 +222,64 @@ if ($filter === 'SCAN_OUT_TO_VENDOR') {
         FROM tlog_transaksi
         WHERE action_type = 'CONFIRM_KEKURANGAN'
     ";
+
     $resConf = mysqli_query($conn, $sqlConf);
 
     while ($row = mysqli_fetch_assoc($resConf)) {
 
-        $idTransAsal = (int)$row['id_trans_asal'];
-        $totalKekurangan = (int)$row['total_kekurangan'];
+        $idAsal = (int)$row['id_trans_asal'];
+        $qtyConf = (int)$row['total_kekurangan'];
 
-        // cari NCVS dari id_trans_asal
+        // cari NCVS dari transaksi asal
         $sqlNcvs = "
             SELECT JSON_UNQUOTE(JSON_EXTRACT(new_data,'$.ncvs')) AS ncvs
             FROM tlog_transaksi
-            WHERE action_type = 'SCAN_OUT_TO_VENDOR'
-              AND JSON_EXTRACT(new_data,'$.id_trans') = $idTransAsal
+            WHERE JSON_EXTRACT(new_data,'$.id_trans') = {$idAsal}
             LIMIT 1
         ";
 
-        $resNcvs = mysqli_query($conn, $sqlNcvs);
-        if ($resNcvs && $r = mysqli_fetch_assoc($resNcvs)) {
-            $ncvsKey = $r['ncvs'];
-            $confirmVendor[$ncvsKey] = ($confirmVendor[$ncvsKey] ?? 0) + $totalKekurangan;
+        $resN = mysqli_query($conn, $sqlNcvs);
+        if ($resN && $r = mysqli_fetch_assoc($resN)) {
+            $ncvs = $r['ncvs'];
+            $confirmByNcvs[$ncvs] = ($confirmByNcvs[$ncvs] ?? 0) + $qtyConf;
         }
     }
 
-    // =======================
-    // 3. Hitung final SCAN_OUT_TO_VENDOR
-    // =======================
-    $allNcvs = array_unique(array_merge(
-        array_keys($scanOutVendor),
-        array_keys($scanInIncoming),
-        array_keys($confirmVendor)
-    ));
+    // ===============================
+    // 3. SUMMARY PER NCVS
+    // ===============================
+    $summary = [];
 
-    $data = [];
+    foreach ($stock as $row) {
 
-    foreach ($allNcvs as $ncvs) {
-        $out = $scanOutVendor[$ncvs] ?? 0;
-        $in  = $scanInIncoming[$ncvs] ?? 0;
-        $conf = $confirmVendor[$ncvs] ?? 0;
+        $rowTotal = array_sum($row['size']);
+        if ($rowTotal <= 0) continue;
 
-        $wip = $out - ($in + $conf);
+        $ncvs = $row['ncvs'];
 
-        $data[] = [
-            'ncvs' => $ncvs,
-            'wip_out_vendor' => $wip
-        ];
+        if (!isset($summary[$ncvs])) {
+            $summary[$ncvs] = [
+                'ncvs' => $ncvs,
+                'wip_out_vendor' => 0,
+                'detail' => []
+            ];
+        }
+
+        $summary[$ncvs]['wip_out_vendor'] += $rowTotal;
+        $summary[$ncvs]['detail'][] = array_merge($row, [
+            'total' => $rowTotal
+        ]);
     }
 
-    echo json_encode($data);
+    // ===============================
+    // 4. APPLY CONFIRM (FINAL STEP)
+    // ===============================
+    foreach ($summary as $ncvs => &$s) {
+        $s['wip_out_vendor'] =
+            max(0, $s['wip_out_vendor'] - ($confirmByNcvs[$ncvs] ?? 0));
+    }
+
+    echo json_encode(array_values($summary));
     exit;
 }
 

@@ -2,7 +2,7 @@
 // menghubungkan php dengan koneksi database
 require_once __DIR__ . '/../config/function.php';
 require_once __DIR__ . '/../config/auth.php';
-checkAuth('scan_in_incoming'); // cek apakah sudah login dan punya akses ke menu ini
+checkAuth('scan_in_smsubcont'); // cek apakah sudah login dan punya akses ke menu ini
 
 $nik = $_SESSION['nik_user'];
 $username = $_SESSION['username'];
@@ -187,7 +187,7 @@ $username = $_SESSION['username'];
 
   <!-- Header -->
   <?php
-  $page = 'scan_in_incoming';
+  $page = 'scan_in_smsubcont';
   include_once __DIR__ . '/../includes/header.php';
   ?>
   <!-- End Header -->
@@ -196,7 +196,7 @@ $username = $_SESSION['username'];
 
     <div class="pagetitle text-black" style="background-color: #f0e6d2; padding: 10px 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
       <h1 style="font-size: 1.8rem; font-weight: 700; font-family: 'Roboto', sans-serif;">
-        Scan-In Incoming Warehouse (Receiving from Vendor)
+        Scan-In SM Subcont (Receiving from Cutting)
       </h1>
     </div>
 
@@ -212,7 +212,7 @@ $username = $_SESSION['username'];
               </div>
               <h5 class="fw-semibold mb-4 text-primary"></h5>
               <form action="./../config/function.php" method="post" id="scanForm">
-                <input type="hidden" name="action" value="scan_whsubcont_from_vendor">
+                <input type="hidden" name="action" value="scan_sm_subcont_from_cut">
                 <div class="col-md-8 mx-auto">
                   <input type="text" name="barcode" id="barcode"
                     class="form-control form-control-lg text-center"
@@ -226,10 +226,7 @@ $username = $_SESSION['username'];
           <?php if (isset($_GET['success'])): ?>
 
             <?php
-            $barcode_success = $_GET['barcode'] ?? '';
-            if (empty($barcode_success)) {
-              return;
-            }
+            $barcode_success = $_GET['success'];
 
             $stmt = $conn->prepare("
               SELECT * 
@@ -239,57 +236,79 @@ $username = $_SESSION['username'];
               CAST(REPLACE(size, 'T', '') AS UNSIGNED),
               size ASC
           ");
+
             $stmt->bind_param("s", $barcode_success);
             $stmt->execute();
+
             $result = $stmt->get_result();
+
             $rows = [];
             $total_qty = 0;
+
             while ($r = $result->fetch_assoc()) {
+
               $rows[] = $r;
-              $total_qty += (float)$r['qty_whsubcont_fr_vendor'];
+
+              $total_qty += (float)$r['qty_smsubcont_fr_cut'];
             }
+
             $first = $rows[0] ?? null;
             ?>
 
             <?php if ($first): ?>
+
               <div class="card border-0 shadow-lg success-card mb-4 fade-in">
+
                 <div class="card-body p-4">
+
                   <!-- SUCCESS HEADER -->
                   <div class="text-center mb-4">
+
                     <div class="success-icon mb-3">
                       <i class="bi bi-check-circle-fill"></i>
                     </div>
+
                     <h2 class="fw-bold text-success mb-1">
                       TRANSAKSI BERHASIL
                     </h2>
+
                     <div class="text-muted">
                       Barcode berhasil diproses.
                     </div>
+
                   </div>
 
                   <!-- SUMMARY -->
                   <div class="row g-3 mb-4">
+
                     <div class="col-md-6">
                       <div class="detail-box">
+
                         <div class="detail-label">
                           Komponen
                         </div>
+
                         <div class="detail-value">
-                          <?= htmlspecialchars($first['nm_komponen_out']) ?>
+                          <?= htmlspecialchars($first['nm_komponen_in']) ?>
                         </div>
+
                       </div>
                     </div>
 
                     <div class="col-md-6">
                       <div class="detail-box">
+
                         <div class="detail-label">
                           Total Qty
                         </div>
+
                         <div class="detail-value qty-highlight">
                           <?= number_format($total_qty) ?>
                         </div>
+
                       </div>
                     </div>
+
                   </div>
 
                   <!-- SIZE DETAIL -->
@@ -308,29 +327,35 @@ $username = $_SESSION['username'];
                         </thead>
                         <tbody>
                           <?php foreach ($rows as $r): ?>
+
                             <tr>
+
                               <td class="text-center fw-semibold">
                                 <?= htmlspecialchars($r['lot']) ?>
                               </td>
+
                               <td class="text-center">
                                 <?= htmlspecialchars($r['size']) ?>
                               </td>
+
                               <td class="text-center text-success fw-bold">
-                                <?= number_format($r['qty_whsubcont_fr_vendor']) ?>
+                                <?= number_format($r['qty_smsubcont_fr_cut']) ?>
                               </td>
+
                             </tr>
                           <?php endforeach; ?>
                         </tbody>
                       </table>
                     </div>
                   </div>
-
                   <!-- INFO -->
                   <div class="scan-info">
+
                     <div>
                       <i class="bi bi-person-circle me-1"></i>
                       <?= htmlspecialchars($first['transac_by']) ?>
                     </div>
+
                     <div>
                       <i class="bi bi-clock-history me-1"></i>
                       <?= date('d M Y H:i', strtotime($first['updated_at'])) ?>
@@ -338,6 +363,7 @@ $username = $_SESSION['username'];
                   </div>
                 </div>
               </div>
+
             <?php endif; ?>
 
           <?php endif; ?>

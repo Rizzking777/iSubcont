@@ -358,7 +358,7 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
           data.forEach(row => {
             let total = 0;
 
-            if (type === "SCAN_IN_WAREHOUSE") total = row.wip_in_wh ?? 0;
+            if (type === "SCAN_IN_WAREHOUSE") total = row.total_qty ?? 0;
             if (type === "SCAN_OUT_TO_VENDOR") total = row.wip_out_vendor ?? 0;
             if (type === "SCAN_IN_INCOMING") total = row.wip_in_incoming ?? 0;
             if (type === "SCAN_OUT_TO_PRODUCTION") total = row.wip_out_prod ?? 0;
@@ -432,11 +432,11 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
     }
   </script>
 
-  <!-- <script>
+  <script>
     function goDetail(ncvs, type) {
       window.open(`dashb-wip-detail.php?ncvs=${ncvs}&type=${type}`, '_blank');
     }
-  </script> -->
+  </script>
 
 </body>
 

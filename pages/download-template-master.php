@@ -12,8 +12,8 @@ $sheet = $spreadsheet->getActiveSheet();
 
 // Header kolom
 $headers = [
-    'job_order', 'bucket', 'po_code', 'po_item',
-    'style', 'model', 'ncvs', 'qr_code', 'lot', 'size', 'qty'
+    'bucket', 'job_order', 'po_code', 'po_item',
+    'style', 'model', 'ncvs', 'status_lot', 'lot', 'size', 'qty', 'qr_code'
 ];
 
 // Isi header di baris pertama
@@ -31,7 +31,7 @@ $headerRange = "A1:{$lastCol}1";
 $sheet->getStyle($headerRange)->applyFromArray([
     'font' => [
         'bold' => true,
-        'color' => ['rgb' => 'FFFFFF'], // putih
+        'color' => ['rgb' => '000000'], // hitam
         'size' => 12
     ],
     'alignment' => [
@@ -40,7 +40,7 @@ $sheet->getStyle($headerRange)->applyFromArray([
     ],
     'fill' => [
         'fillType' => Fill::FILL_SOLID,
-        'startColor' => ['rgb' => '4CAF50'] // hijau (bisa ganti kode hex lain)
+        'startColor' => ['rgb' => 'FDC3A1'] // hijau (bisa ganti kode hex lain)
     ]
 ]);
 
@@ -51,7 +51,7 @@ foreach (range('A', $lastCol) as $columnID) {
 
 // Output ke browser
 header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-header('Content-Disposition: attachment;filename="template_tbl_master_data.xlsx"');
+header('Content-Disposition: attachment;filename="template_master_data.xlsx"');
 header('Cache-Control: max-age=0');
 
 $writer = new Xlsx($spreadsheet);

@@ -18,6 +18,7 @@ if ($action == "getOptions") {
     $response = [];
 
     $map = [
+        "status_lot" => "status_lot",
         "job_order" => "job_order",
         "bucket"    => "bucket",
         "po_code"   => "po_code",
@@ -85,41 +86,72 @@ if ($action == "getKomponen") {
     exit;
 }
 
-if ($action == "getJobOrderDetail") {
-    $job_order = $_POST['job_order'] ?? '';
+if ($action == "getStatusLotDetail") {
 
-    if (!$job_order) {
-        echo json_encode(["success" => false, "error" => "Job order kosong"]);
+    $status_lot = $_POST['status_lot'] ?? '';
+
+    if (!$status_lot) {
+        echo json_encode(["success" => false, "error" => "Status lot kosong"]);
         exit;
     }
 
-    $sql = "SELECT job_order, bucket, po_code, po_item, model, style, ncvs, size, lot 
-            FROM tbl_master_data 
-            WHERE job_order = '" . $conn->real_escape_string($job_order) . "' 
-            LIMIT 1";
+    $sql = "SELECT DISTINCT job_order, bucket, po_code, po_item, model, style, ncvs
+            FROM tbl_master_data
+            WHERE status_lot = '" . $conn->real_escape_string($status_lot) . "'
+            ORDER BY job_order ASC";
 
     $result = $conn->query($sql);
 
-    if ($result && $row = $result->fetch_assoc()) {
-        echo json_encode([
-            "success" => true,
-            "data" => $row
-        ]);
-    } else {
+    if (!$result || $result->num_rows == 0) {
         echo json_encode(["success" => false, "error" => "Data tidak ditemukan"]);
+        exit;
     }
+
+    $job_order = [];
+    $bucket = [];
+    $po_code = [];
+    $po_item = [];
+    $model = [];
+    $style = [];
+    $ncvs = [];
+
+    while ($row = $result->fetch_assoc()) {
+
+        $job_order[] = $row['job_order'];
+        $bucket[] = $row['bucket'];
+        $po_code[] = $row['po_code'];
+        $po_item[] = $row['po_item'];
+        $model[] = $row['model'];
+        $style[] = $row['style'];
+        $ncvs[] = $row['ncvs'];
+    }
+
+    $data = [
+        "job_order" => implode(", ", $job_order),
+        "bucket" => implode(", ", array_unique($bucket)),
+        "po_code" => implode(", ", $po_code),
+        "po_item" => implode(", ", $po_item),
+        "model" => implode(", ", array_unique($model)),
+        "style" => implode(", ", array_unique($style)),
+        "ncvs" => implode(", ", array_unique($ncvs))
+    ];
+
+    echo json_encode([
+        "success" => true,
+        "data" => $data
+    ]);
     exit;
 }
 
-if ($action == "getKomponenSizeQtyByJobOrder") {
-    $jobOrder = $_POST['job_order'] ?? '';
-    if (empty($jobOrder)) {
-        echo json_encode(["success" => false, "error" => "Job Order kosong"]);
+if ($action == "getKomponenSizeQtyByStatusLot") {
+    $statusLot = $_POST['status_lot'] ?? '';
+    if (empty($statusLot)) {
+        echo json_encode(["success" => false, "error" => "Status Lot kosong"]);
         exit;
     }
 
     // Ambil model dari tbl_master_data
-    $qModel = $conn->query("SELECT model FROM tbl_master_data WHERE job_order='$jobOrder' LIMIT 1");
+    $qModel = $conn->query("SELECT model FROM tbl_master_data WHERE status_lot='$statusLot' LIMIT 1");
     if (!$qModel || $qModel->num_rows == 0) {
         echo json_encode(["success" => false, "error" => "Model tidak ditemukan"]);
         exit;
@@ -169,7 +201,7 @@ if ($action == "getKomponenSizeQtyByJobOrder") {
     $qSizePlan = $conn->query("
         SELECT size, SUM(qty) AS plan_qty
         FROM tbl_master_data
-        WHERE job_order='$jobOrder' $lotFilter
+        WHERE status_lot='$statusLot' $lotFilter
         GROUP BY size
     ");
     $sizePlan = [];
@@ -183,7 +215,7 @@ if ($action == "getKomponenSizeQtyByJobOrder") {
     $qTrans = $conn->query("
         SELECT komponen_qty
         FROM tbl_transaksi
-        WHERE job_order='$jobOrder' $lotFilter
+        WHERE status_lot='$statusLot' $lotFilter
     ");
     $usedQty = [];
     if ($qTrans && $qTrans->num_rows > 0) {
@@ -237,7 +269,7 @@ if ($action == "getKomponenSizeQtyByJobOrder") {
         SELECT MIN(CAST(lot AS UNSIGNED)) AS min_lot, 
                MAX(CAST(lot AS UNSIGNED)) AS max_lot
         FROM tbl_master_data
-        WHERE job_order='$jobOrder'
+        WHERE status_lot='$statusLot'
     ");
     $lotRange = "";
     if ($qLot && $row = $qLot->fetch_assoc()) {
@@ -259,16 +291,16 @@ if ($action == "getKomponenSizeQtyByJobOrder") {
 // ==============================
 // Endpoint tambahan untuk ambil range LOT
 // ==============================
-if ($action == 'getLotRangeByJobOrder') {
-    $jobOrder = $_POST['job_order'] ?? '';
+if ($action == 'getLotRangeByStatusLot') {
+    $statusLot = $_POST['status_lot'] ?? '';
 
     $stmt = $conn->prepare("
         SELECT MIN(CAST(lot AS UNSIGNED)) AS min_lot, 
                MAX(CAST(lot AS UNSIGNED)) AS max_lot
         FROM tbl_master_data
-        WHERE job_order = ?
+        WHERE status_lot = ?
     ");
-    $stmt->bind_param('s', $jobOrder);
+    $stmt->bind_param('s', $statusLot);
     $stmt->execute();
     $result = $stmt->get_result()->fetch_assoc();
 
@@ -291,15 +323,15 @@ if ($action == 'getLotRangeByJobOrder') {
 }
 
 if ($action == "getSize") {
-    $job_order = $_POST['job_order'] ?? '';
+    $status_lot = $_POST['status_lot'] ?? '';
 
-    if (!$job_order) {
+    if (!$status_lot) {
         echo json_encode(["sizes" => []]);
         exit;
     }
 
     $sql = "SELECT DISTINCT size FROM tbl_master_data 
-            WHERE job_order = '" . $conn->real_escape_string($job_order) . "'
+            WHERE status_lot = '" . $conn->real_escape_string($status_lot) . "'
             ORDER BY size ASC";
 
     $result = $conn->query($sql);
@@ -315,26 +347,26 @@ if ($action == "getSize") {
     exit;
 }
 
-if ($action == "searchJobOrder") {
+if ($action == "searchStatusLot") {
     $search = $_POST['search'] ?? '';
 
-    $sql = "SELECT DISTINCT job_order FROM tbl_master_data WHERE 1=1";
+    $sql = "SELECT DISTINCT status_lot FROM tbl_master_data WHERE 1=1";
     if ($search) {
-        $sql .= " AND job_order LIKE '%" . $conn->real_escape_string($search) . "%'";
+        $sql .= " AND status_lot LIKE '%" . $conn->real_escape_string($search) . "%'";
     }
-    $sql .= " ORDER BY job_order ASC LIMIT 50";
+    $sql .= " ORDER BY status_lot ASC LIMIT 50";
 
     $result = $conn->query($sql);
 
     $options = [];
     if ($result) {
         while ($row = $result->fetch_assoc()) {
-            $val = $row['job_order'];
+            $val = $row['status_lot'];
             $options[] = ["id" => $val, "text" => $val];
         }
     }
 
-    echo json_encode(["job_order" => $options]);
+    echo json_encode(["status_lot" => $options]);
     exit;
 }
 
@@ -366,10 +398,10 @@ if ($action == "searchKomponen") {
 }
 
 if ($action == "searchSize") {
-    $job_order = $_POST['job_order'] ?? '';
+    $status_lot = $_POST['status_lot'] ?? '';
     $search    = $_POST['search'] ?? '';
 
-    $sql = "SELECT DISTINCT size FROM tbl_master_data WHERE job_order = '" . $conn->real_escape_string($job_order) . "'";
+    $sql = "SELECT DISTINCT size FROM tbl_master_data WHERE status_lot = '" . $conn->real_escape_string($status_lot) . "'";
     if ($search) {
         $sql .= " AND size LIKE '%" . $conn->real_escape_string($search) . "%'";
     }

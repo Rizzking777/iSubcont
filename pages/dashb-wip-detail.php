@@ -7,35 +7,17 @@ checkAuth('wip'); // cek apakah sudah login dan punya akses ke menu ini
 $nik = $_SESSION['nik_user'];
 $username = $_SESSION['username']; // Query ringkasan per job_order
 
-$ncvs = $_GET['ncvs'];
-$type = $_GET['type'];
+$ncvs = $_GET['ncvs'] ?? '';
+$type = $_GET['type'] ?? '';
 
-// Ambil detail dari API get_wip.php
-$url = "http://localhost/iSubcont/config/get_wip.php?filter=$type&ncvs=$ncvs&detail=1";
+$typeLabelMap = [
+  'SCAN_IN_WAREHOUSE'   => 'IN WAREHOUSE',
+  'SCAN_OUT_TO_VENDOR'  => 'OUT TO VENDOR',
+  'SCAN_IN_INCOMING'  => 'INCOMING FROM VENDOR',
+  'SCAN_OUT_TO_PRODUCTION' => 'OUT TO PRODUCTION',
+];
 
-// Ambil hasil API
-$response = file_get_contents($url);
-$data = json_decode($response, true);
-
-$record = $data; // API detail mengembalikan satu object saja
-$summary = $record['summary'];
-$details = $record['details'];
-
-// Format ulang agar cocok dengan tabel lama kamu
-$detail = [];
-
-foreach ($details as $row) {
-  $detail[] = [
-    'ncvs'     => $record['ncvs'],
-    'bucket'   => '-',     // API WIP tidak punya ini (isi '-' dulu)
-    'style'    => '-',     // bisa diisi kalau diperlukan
-    'model'    => '-',
-    'po_code'  => '-',
-    'po_item'  => '-',
-    'scan_at'  => $row['tanggal'],
-    'qty'      => $row['qty']
-  ];
-}
+$typeLabel = $typeLabelMap[$type] ?? 'UNKNOWN';
 
 ?>
 
@@ -88,6 +70,50 @@ foreach ($details as $row) {
 
   #detailTable th,
   #detailTable td {
+    text-align: center;
+    vertical-align: middle;
+  }
+
+  .wip-scroll {
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+
+  .wip-scroll table {
+    min-width: 1200px;
+    /* biar ga gepeng */
+  }
+
+  .wip-scroll th,
+  .wip-scroll td {
+    text-align: center;
+    vertical-align: middle;
+    font-size: 13px;
+  }
+
+  .wip-scroll th {
+    background: #f8f9fa;
+    font-weight: 600;
+  }
+
+  .wip-scroll td.text-end {
+    text-align: center !important;
+    /* override */
+  }
+
+  .wip-scroll thead th,
+  .wip-scroll tfoot th {
+    background-color: #DCDCDC;
+    /* abu-abu Bootstrap */
+    color: #212529;
+    font-weight: 600;
+    text-align: center;
+    vertical-align: middle;
+    border-top: 2px solid #DCDCDC;
+    border-bottom: 2px solid #DCDCDC;
+  }
+
+  .wip-scroll tbody td {
     text-align: center;
     vertical-align: middle;
   }
@@ -154,9 +180,12 @@ foreach ($details as $row) {
 
   <main id="main" class="main">
 
-    <div class="pagetitle text-black" style="background-color: #f0e6d2; padding: 10px 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+    <div class="pagetitle text-black"
+      style="background-color: #f0e6d2; padding: 10px 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
       <h1 style="font-size: 1.8rem; font-weight: 700; font-family: 'Roboto', sans-serif;">
-        WIP Activity Dashboard Detail NCVS : <?= htmlspecialchars($ncvs) ?>
+        WIP Activity Dashboard Detail NCVS :
+        <?= htmlspecialchars($ncvs) ?>
+        <span class="text-muted">| <?= htmlspecialchars($typeLabel) ?></span>
       </h1>
     </div>
 
@@ -165,49 +194,9 @@ foreach ($details as $row) {
         <div class="card-body pt-3">
 
           <div class="table-responsive">
-            <table id="example1" class="table table-bordered table-striped text-center align-middle nowrap" style="width:100%">
-              <thead class="table-light">
-                <tr>
-                  <th class="text-center">No</th>
-                  <th class="text-center">NCVS</th>
-                  <th class="text-center">Bucket</th>
-                  <th class="text-center">Style</th>
-                  <th class="text-center">Model</th>
-                  <th class="text-center">PO Code</th>
-                  <th class="text-center">PO Item</th>
-                  <th class="text-center">Scan Date</th>
-                  <th class="text-center">Total Qty</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                <?php
-                $no = 1;
-                foreach ($detail as $d) {
-
-                  // Format tanggal saja (YYYY-MM-DD)
-                  $scanDate = date("Y-m-d", strtotime($d['scan_at']));
-
-                  echo "
-              <tr>
-                <td>{$no}</td>
-                <td>{$d['ncvs']}</td>
-                <td>{$d['bucket']}</td>
-                <td>{$d['style']}</td>
-                <td>{$d['model']}</td>
-                <td>{$d['po_code']}</td>
-                <td>{$d['po_item']}</td>
-                <td>{$scanDate}</td>
-                <td>{$d['qty']}</td>
-              </tr>
-            ";
-                  $no++;
-                }
-                ?>
-              </tbody>
-
-            </table>
+            <div id="content"></div>
           </div>
+
 
         </div>
       </div>
@@ -300,6 +289,185 @@ foreach ($details as $row) {
         destroy: true // biar gak error reinit
       });
     });
+  </script>
+
+  <script>
+    let ncvs = "<?= $ncvs ?>";
+    let type = "<?= $type ?>";
+
+    fetch(`../config/get_wip.php?filter=${type}`)
+      .then(res => res.json())
+      .then(data => {
+
+        const row = data.find(r => r.ncvs == ncvs);
+        if (!row) {
+          document.getElementById("content").innerHTML = "Data tidak ditemukan";
+          return;
+        }
+
+        // ================================
+        // GATE 1 : SCAN IN WAREHOUSE
+        // ================================
+        if (type === "SCAN_IN_WAREHOUSE") {
+
+          const details = row.detail || [];
+
+          // hitung total WIP dulu
+          const totalWip = details.reduce((sum, r) => {
+            const t = Object.values(r.size || {}).reduce((a, b) => a + b, 0);
+            return sum + t;
+          }, 0);
+
+          if (totalWip <= 0) {
+            document.getElementById("content").innerHTML = `
+      <div class="alert alert-secondary text-center d-flex justify-content-center align-items-center gap-2">
+  <i class="bi bi-info-circle-fill"></i>
+  <strong>Tidak ada data WIP In Warehouse.</strong>
+</div>`;
+            return;
+          }
+
+          renderTableInWH(details);
+          return;
+        }
+
+        // ================================
+        // GATE 2 : SCAN OUT TO VENDOR
+        // ================================
+        if (type === "SCAN_OUT_TO_VENDOR") {
+
+          const totalWip = row.wip_out_vendor || 0;
+
+          if (totalWip <= 0) {
+            document.getElementById("content").innerHTML = `
+      <div class="alert alert-secondary text-center d-flex justify-content-center align-items-center gap-2">
+        <i class="bi bi-info-circle-fill"></i>
+        <strong>Tidak ada data WIP Out to Vendor.</strong>
+      </div>`;
+            return;
+          }
+
+          // 🔥 SAMA PERSIS DENGAN IN WH
+          renderTableInWH(row.detail);
+          return;
+        }
+
+      });
+  </script>
+
+  <script>
+    function sortSize(a, b) {
+      const parse = s => {
+        const isT = s.endsWith("T");
+        return {
+          num: parseInt(s.replace("T", ""), 10),
+          t: isT ? 1 : 0
+        };
+      };
+
+      const A = parse(a);
+      const B = parse(b);
+
+      if (A.num !== B.num) return A.num - B.num;
+      return A.t - B.t; // non-T dulu, lalu T
+    }
+  </script>
+
+  <script>
+    function renderTableInWH(details) {
+
+      if (!Array.isArray(details) || details.length === 0) {
+        document.getElementById("content").innerHTML = `
+      <div class="alert alert-info text-center">
+        Tidak ada WIP IN Warehouse
+      </div>`;
+        return;
+      }
+
+      // 🔥 FILTER: hanya row yang masih punya qty > 0
+      const filteredDetails = details.filter(r => {
+        const total = Object.values(r.size || {}).reduce((a, b) => a + b, 0);
+        return total > 0;
+      });
+
+      if (filteredDetails.length === 0) {
+        document.getElementById("content").innerHTML = `
+      <div class="alert alert-secondary text-center">
+        Semua PO pada NCVS ini sudah selesai diproses
+      </div>`;
+        return;
+      }
+
+      // =========================
+      // 1. UNION SIZE (dari filtered)
+      // =========================
+      const sizeSet = new Set();
+      filteredDetails.forEach(r => {
+        Object.keys(r.size || {}).forEach(s => sizeSet.add(s));
+      });
+      const sizes = Array.from(sizeSet).sort(sortSize);
+
+      // =========================
+      // 2. HEADER
+      // =========================
+      let html = `
+  <div class="table-responsive wip-scroll">
+    <table class="table table-bordered table-sm">
+      <thead class="table-secondary text-center">
+        <tr>
+          <th>No</th>
+          <th>Bucket</th>
+          <th>PO Code</th>
+          <th>PO Item</th>
+          <th>Style</th>
+          <th>Model</th>`;
+
+      sizes.forEach(s => html += `<th>${s}</th>`);
+      html += `<th>Total</th></tr></thead><tbody>`;
+
+      // =========================
+      // 3. BODY
+      // =========================
+      let grandTotal = 0;
+
+      filteredDetails.forEach((r, i) => {
+        let rowTotal = 0;
+
+        html += `
+      <tr class="text-center">
+        <td>${i + 1}</td>
+        <td>${r.bucket || "-"}</td>
+        <td>${r.po_code || "-"}</td>
+        <td>${r.po_item || "-"}</td>
+        <td>${r.style || "-"}</td>
+        <td>${r.model || "-"}</td>`;
+
+        sizes.forEach(s => {
+          const qty = Number(r.size?.[s] || 0);
+          rowTotal += qty;
+          html += `<td>${qty}</td>`;
+        });
+
+        grandTotal += rowTotal;
+        html += `<td class="fw-bold">${rowTotal}</td></tr>`;
+      });
+
+      // =========================
+      // 4. FOOTER
+      // =========================
+      html += `
+      </tbody>
+      <tfoot class="table-secondary">
+        <tr>
+          <th colspan="${6 + sizes.length}" class="text-center">TOTAL</th>
+          <th class="text-center fw-bold">${grandTotal}</th>
+        </tr>
+      </tfoot>
+    </table>
+  </div>`;
+
+      document.getElementById("content").innerHTML = html;
+    }
   </script>
 
 </body>
