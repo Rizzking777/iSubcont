@@ -2514,29 +2514,37 @@ if (isset($_POST['action']) && $_POST['action'] == 'create-barcode') {
     $batch_increment = 1;
 
     if ($row = mysqli_fetch_assoc($qBatch)) {
-        $last = explode('-', $row['batch_transaksi']);
-        $batch_increment = intval(end($last)) + 1;
+
+    // ambil 3 digit terakhir batch
+    $lastIncrement = (int) substr($row['batch_transaksi'], -3);
+
+    // increment
+    $batch_increment = $lastIncrement + 1;
     }
 
     $batch_format = str_pad($batch_increment, 3, '0', STR_PAD_LEFT);
     $batch_transaksi = "B-{$ncvs}{$date}{$batch_format}";
 
     // GENERATE BARCODE START
-    $qBarcode = mysqli_query($conn, "
-        SELECT barcode 
-        FROM tbl_transaksi
-        WHERE ncvs = '$ncvs'
-        AND DATE(created_at) = CURDATE()
-        ORDER BY id_trans DESC
-        LIMIT 1
-    ");
+        $qBarcode = mysqli_query($conn, "
+            SELECT barcode 
+            FROM tbl_transaksi
+            WHERE ncvs = '$ncvs'
+            AND DATE(created_at) = CURDATE()
+            ORDER BY id_trans DESC
+            LIMIT 1
+        ");
 
-    $increment = 1;
+        $increment = 1;
 
-    if ($row = mysqli_fetch_assoc($qBarcode)) {
-        $last = explode('-', $row['barcode']);
-        $increment = intval(end($last)) + 1;
-    }
+        if ($row = mysqli_fetch_assoc($qBarcode)) {
+
+            // ambil 3 digit terakhir barcode
+            $lastIncrement = (int) substr($row['barcode'], -3);
+
+            // next increment
+            $increment = $lastIncrement + 1;
+        }
 
     // LOOP CORE 
     foreach ($detail as $lot => $sizes) {

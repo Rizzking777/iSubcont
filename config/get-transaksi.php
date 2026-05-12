@@ -40,6 +40,8 @@ SELECT
     MAX(style) AS style,
     MAX(ncvs) AS ncvs,
     MAX(is_main_komponen) AS is_main_komponen,
+    MAX(count_barcode) AS count_barcode,
+    MAX(qty_smsubcont_fr_cut) AS qty_smsubcont_fr_cut,
 
     GROUP_CONCAT(DISTINCT lot ORDER BY lot SEPARATOR ', ') AS lot,
 
@@ -65,7 +67,7 @@ WHERE job_order = '$job_order'
 
 GROUP BY barcode
 
-ORDER BY created_at DESC
+ORDER BY created_at, count_barcode DESC
 
 ";
 

@@ -631,7 +631,7 @@ usort($officialSizes, function ($a, $b) {
                             <th>Komponen</th>
                             <th>User</th>
                             <th>Created At</th>
-                            <th>Barcode</th>
+                            <!-- <th>Barcode</th> -->
                             <th>Action</th>
                         </tr>
 
@@ -854,18 +854,30 @@ document.addEventListener('DOMContentLoaded', function () {
                         ${row.created_at ?? ''}
                     </td>
 
-                    <td class="text-center">
+                    <!--- <td class="text-center">
 
                         <div class="small fw-bold mt-1">
                             ${row.barcode ?? ''}
                         </div>
 
-                    </td>
+                    </td> !--->
 
                     <td class="text-center">
 
                     <button
-                        class="btn btn-sm btn-primary btnPrintRow"
+                        class="btn btn-sm ${
+                            row.qty_smsubcont_fr_cut != null &&
+                            row.count_barcode != null
+                                ? 'btn-secondary'
+                                : 'btn-primary'
+                        } btnPrintRow"
+
+                        ${
+                            row.qty_smsubcont_fr_cut != null &&
+                            row.count_barcode != null
+                                ? 'disabled'
+                                : ''
+                        }
 
                         data-joborder="${row.job_order ?? ''}"
                         data-bucket="${row.bucket ?? ''}"
@@ -886,9 +898,7 @@ document.addEventListener('DOMContentLoaded', function () {
                                 : `${row.nm_komponen_in ?? ''}`
                         }"
 
-                        /* INI YANG PENTING */
                         data-size="${row.size_detail ?? ''}"
-                        data-qty_cut="${row.qty_cut_to_smsubcont ?? ''}"
                         data-total_qty="${row.total_qty ?? ''}"
 
                         data-lot='${JSON.stringify([row.lot ?? ""])}'
@@ -896,7 +906,13 @@ document.addEventListener('DOMContentLoaded', function () {
                         data-barcode="${row.barcode ?? ''}"
                     >
                         <i class="bi bi-printer"></i>
-                        Print
+
+                        ${
+                            row.qty_smsubcont_fr_cut != null &&
+                            row.count_barcode != null
+                                ? 'Sudah Scan'
+                                : 'Print'
+                        }
                     </button>
 
                 </td>
@@ -937,187 +953,285 @@ document.addEventListener('DOMContentLoaded', function () {
 let bluetoothDevice = null;
 let printerCharacteristic = null;
 
-const SERVICE_UUID = 0x18F0;
-const CHARACTERISTIC_UUID = 0x2AF1;
+// UUID Printer
+const SERVICE_UUID =
+'000018f0-0000-1000-8000-00805f9b34fb';
 
-// ESC/POS Command Barcode (CODE128)
-const GS = 0x1D;
+const CHARACTERISTIC_UUID =
+'00002af1-0000-1000-8000-00805f9b34fb';
+
+// ==========================
+// CEK SUPPORT BLUETOOTH
+// ==========================
+function isBluetoothSupported() {
+
+    if (!navigator.bluetooth) {
+
+        showError(
+            '❌ Browser tidak support Bluetooth'
+        );
+
+        return false;
+    }
+
+    return true;
+}
 
 // ==========================
 // CONNECT BLUETOOTH
 // ==========================
 async function connectPrinterBluetooth() {
+
     try {
-        bluetoothDevice = await navigator.bluetooth.requestDevice({
+
+        // cek support browser
+        if (!isBluetoothSupported()) {
+            return false;
+        }
+
+        // cek android
+        const isAndroid =
+        /Android/i.test(navigator.userAgent);
+
+        if (isAndroid) {
+
+            showSuccess(
+                '📱 Pastikan Bluetooth & Lokasi aktif'
+            );
+        }
+
+        bluetoothDevice =
+        await navigator.bluetooth.requestDevice({
+
             acceptAllDevices: true,
+
             optionalServices: [SERVICE_UUID]
         });
 
-        const server = await bluetoothDevice.gatt.connect();
-        const service = await server.getPrimaryService(SERVICE_UUID);
-        printerCharacteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
+        if (!bluetoothDevice) {
+
+            showError(
+                '❌ Device printer tidak dipilih'
+            );
+
+            return false;
+        }
+
+        const server =
+        await bluetoothDevice.gatt.connect();
+
+        const service =
+        await server.getPrimaryService(
+            SERVICE_UUID
+        );
+
+        printerCharacteristic =
+        await service.getCharacteristic(
+            CHARACTERISTIC_UUID
+        );
+
+        showSuccess(
+            '✅ Printer berhasil terhubung'
+        );
 
         return true;
 
     } catch (err) {
+
         console.error(err);
-        alert('Gagal connect printer');
+
+        // Android biasanya ini
+        if (
+            err.message.includes('User cancelled')
+        ) {
+
+            showError(
+                '❌ Pemilihan printer dibatalkan'
+            );
+
+        } else {
+
+            showError(
+                '❌ Gagal connect printer'
+            );
+        }
+
         return false;
     }
 }
 
-  // ==========================
-  // SEND DATA
-  // ==========================
-  async function sendToPrinter(data) {
-      if (!printerCharacteristic) {
-          const ok = await connectPrinterBluetooth();
-          if (!ok) return false;
-      }
+// ==========================
+// SEND DATA
+// ==========================
+async function sendToPrinter(data) {
 
-      try {
-          const chunkSize = 100;
+    if (!printerCharacteristic) {
 
-          for (let i = 0; i < data.length; i += chunkSize) {
-              const chunk = data.slice(i, i + chunkSize);
+        const ok =
+        await connectPrinterBluetooth();
 
-              await printerCharacteristic.writeValue(chunk);
-              await new Promise(r => setTimeout(r, 60));
-          }
+        if (!ok) {
+            throw new Error(
+                'Printer tidak terhubung'
+            );
+        }
+    }
 
-          return true;
+    try {
 
-      } catch (err) {
-          console.error(err);
-          return false;
-      }
-  }
-  // ==========================
-  // SMALL TEXT
-  // ==========================
-  async function printSmallText(text, align = 'left') {
-      const alignCode =
-          align === 'center' ? 0x01 :
-          align === 'right' ? 0x02 :
-          0x00;
+        const chunkSize = 100;
 
-      // align
-      await sendToPrinter(
-          new Uint8Array([0x1B, 0x61, alignCode])
-      );
+        for (
+            let i = 0;
+            i < data.length;
+            i += chunkSize
+        ) {
 
-      // font kecil (Font B)
-      await sendToPrinter(
-          new Uint8Array([0x1B, 0x4D, 0x01])
-      );
+            const chunk =
+            data.slice(i, i + chunkSize);
 
-      // line spacing rapat
-      await sendToPrinter(
-          new Uint8Array([0x1B, 0x33, 24])
-      );
+            await printerCharacteristic.writeValue(
+                chunk
+            );
 
-      const encoder = new TextEncoder();
+            await new Promise(
+                r => setTimeout(r, 60)
+            );
+        }
 
-      await sendToPrinter(
-          encoder.encode(text + "\n")
-      );
+        return true;
 
-      // reset font normal
-      await sendToPrinter(
-          new Uint8Array([0x1B, 0x4D, 0x00])
-      );
+    } catch (err) {
 
-      // reset line spacing normal
-      await sendToPrinter(
-          new Uint8Array([0x1B, 0x32])
-      );
-  }
+        console.error(err);
 
-  // ==========================
-  // PRINT TEXT
-  // ==========================
-  async function printText(text, align = 'left') {
-
-      const alignCode =
-          align === 'center' ? 0x01 :
-          align === 'right' ? 0x02 :
-          0x00;
-
-      // set align
-      await sendToPrinter(
-          new Uint8Array([0x1B, 0x61, alignCode])
-      );
-
-      const encoder = new TextEncoder();
-
-      return sendToPrinter(
-          encoder.encode(text + "\n")
-      );
-  }
+        throw err;
+    }
+}
 
 // ==========================
-// PRINT BARCODE CODE128
+// PRINT SMALL TEXT
+// ==========================
+async function printSmallText(
+    text,
+    align = 'left'
+) {
+
+    const alignCode =
+        align === 'center' ? 0x01 :
+        align === 'right' ? 0x02 :
+        0x00;
+
+    await sendToPrinter(
+        new Uint8Array([0x1B, 0x61, alignCode])
+    );
+
+    // font kecil
+    await sendToPrinter(
+        new Uint8Array([0x1B, 0x4D, 0x01])
+    );
+
+    // line rapat
+    await sendToPrinter(
+        new Uint8Array([0x1B, 0x33, 24])
+    );
+
+    const encoder = new TextEncoder();
+
+    await sendToPrinter(
+        encoder.encode(text + "\n")
+    );
+
+    // reset font
+    await sendToPrinter(
+        new Uint8Array([0x1B, 0x4D, 0x00])
+    );
+
+    // reset spacing
+    await sendToPrinter(
+        new Uint8Array([0x1B, 0x32])
+    );
+}
+
+// ==========================
+// PRINT TEXT
+// ==========================
+async function printText(
+    text,
+    align = 'left'
+) {
+
+    const alignCode =
+        align === 'center' ? 0x01 :
+        align === 'right' ? 0x02 :
+        0x00;
+
+    await sendToPrinter(
+        new Uint8Array([0x1B, 0x61, alignCode])
+    );
+
+    const encoder = new TextEncoder();
+
+    return sendToPrinter(
+        encoder.encode(text + "\n")
+    );
+}
+
+// ==========================
+// PRINT BARCODE
 // ==========================
 async function printBarcode(barcodeText) {
 
     try {
 
-        // buat canvas sementara
-        const canvas = document.createElement("canvas");
+        const canvas =
+        document.createElement("canvas");
 
-        // generate barcode
         JsBarcode(canvas, barcodeText, {
 
             format: "CODE128",
 
             displayValue: true,
 
-            // kualitas barcode
             width: 3,
             height: 80,
 
-            // margin supaya scanner gampang baca
             margin: 6,
 
-            // text barcode
             fontSize: 16,
             textMargin: 2,
 
-            // warna
             lineColor: "#000000",
             background: "#FFFFFF",
 
-            // anti blur
             flat: true
         });
 
-        // ambil context
-        const ctx = canvas.getContext("2d");
+        const ctx =
+        canvas.getContext("2d");
 
-        // ambil image data
-        const imageData = ctx.getImageData(
+        const imageData =
+        ctx.getImageData(
             0,
             0,
             canvas.width,
             canvas.height
         );
 
-        const pixels = imageData.data;
+        const pixels =
+        imageData.data;
 
-        const width = canvas.width;
-        const height = canvas.height;
+        const width =
+        canvas.width;
 
-        // center align
-        await sendToPrinter(
-            new Uint8Array([0x1B, 0x61, 0x01])
-        );
+        const height =
+        canvas.height;
 
-        // hitung bytes
-        const bytesPerRow = Math.ceil(width / 8);
+        const bytesPerRow =
+        Math.ceil(width / 8);
 
         const imageBytes = [];
 
-        // ESC/POS raster bitmap header
         imageBytes.push(
             0x1D,
             0x76,
@@ -1131,31 +1245,42 @@ async function printBarcode(barcodeText) {
             Math.floor(height / 256)
         );
 
-        // convert pixel ke monochrome bitmap
         for (let y = 0; y < height; y++) {
 
-            for (let x = 0; x < bytesPerRow; x++) {
+            for (
+                let x = 0;
+                x < bytesPerRow;
+                x++
+            ) {
 
                 let byte = 0;
 
-                for (let bit = 0; bit < 8; bit++) {
+                for (
+                    let bit = 0;
+                    bit < 8;
+                    bit++
+                ) {
 
-                    const px = x * 8 + bit;
+                    const px =
+                    x * 8 + bit;
 
                     if (px < width) {
 
-                        const i = (y * width + px) * 4;
+                        const i =
+                        (y * width + px) * 4;
 
                         const r = pixels[i];
                         const g = pixels[i + 1];
                         const b = pixels[i + 2];
 
-                        const gray = (r + g + b) / 3;
+                        const gray =
+                        (r + g + b) / 3;
 
-                        // threshold hitam
                         if (gray < 160) {
 
-                            byte |= (1 << (7 - bit));
+                            byte |= (
+                                1 << (7 - bit)
+                            );
                         }
                     }
                 }
@@ -1164,37 +1289,32 @@ async function printBarcode(barcodeText) {
             }
         }
 
-        // ==========================
-        // RESET PRINTER
-        // ==========================
+        // reset printer
         await sendToPrinter(
             new Uint8Array([0x1B, 0x40])
         );
 
-        // ==========================
-        // DARKNESS / DENSITY
-        // ==========================
+        // darkness
         await sendToPrinter(
             new Uint8Array([0x1D, 0x7C, 0x01])
         );
 
-        // ==========================
-        // ALIGN CENTER
-        // ==========================
+        // center
         await sendToPrinter(
             new Uint8Array([0x1B, 0x61, 0x01])
         );
 
-        // ==========================
-        // PRINT BARCODE IMAGE
-        // ==========================
+        // print image
         await sendToPrinter(
-          new Uint8Array(imageBytes)
+            new Uint8Array(imageBytes)
         );
 
-          await new Promise(r => setTimeout(r, 300));
+        // tunggu printer render
+        await new Promise(
+            r => setTimeout(r, 300)
+        );
 
-        // sedikit feed
+        // feed sedikit
         await sendToPrinter(
             new Uint8Array([0x0A])
         );
@@ -1205,182 +1325,243 @@ async function printBarcode(barcodeText) {
 
         console.error(err);
 
-        alert("❌ Gagal print barcode");
+        showError("❌ Gagal print barcode");
 
         return false;
     }
 }
 
-  // ==========================
-  // FORMAT LOT
-  // ==========================
-  function formatLot(arr) {
-      if (!Array.isArray(arr) || arr.length === 0) {
-          return "-";
-      }
-      return arr.join(", ");
-  }
+// ==========================
+// EVENT PRINT
+// ==========================
+document.addEventListener(
+    "click",
+    async function (e) {
 
-  // ==========================
-  // FORMAT SIZE / QTY
-  // ==========================
-  function formatSizeQty(size, qty) {
-      if (!size || !qty) return "-";
+    const btn =
+    e.target.closest(".btnPrintRow");
 
-      const sizeArr = String(size).split(",");
-      const qtyArr = String(qty).split(",");
+    if (!btn) return;
 
-      let result = [];
+    try {
 
-      for (let i = 0; i < sizeArr.length; i++) {
-          const s = sizeArr[i] ? sizeArr[i].trim() : "";
-          const q = qtyArr[i] ? qtyArr[i].trim() : "";
+        const createdBy =
+        btn.dataset.created_by || "-";
 
-          if (s && q) {
-              result.push(`${s}/${q}`);
-          }
-      }
+        const createdAt =
+        btn.dataset.created_at || "-";
 
-      return result.join(", ");
-  }
+        const jobOrder =
+        btn.dataset.joborder || "-";
 
-  // ==========================
-  // GANTI EVENT PRINT FULL
-  // ==========================
-  document.addEventListener("click", async function (e) {
+        const poCode =
+        btn.dataset.po_code || "-";
 
-      const btn = e.target.closest(".btnPrintRow");
-      if (!btn) return;
+        const poItem =
+        btn.dataset.poitem || "-";
 
-      const createdBy = btn.dataset.created_by || "-";
-      const createdAt = btn.dataset.created_at || "-";
+        const ncvs =
+        btn.dataset.ncvs || "-";
 
-      const jobOrder = btn.dataset.joborder || "-";
-      const poCode = btn.dataset.po_code || "-";
-      const poItem = btn.dataset.poitem || "-";
+        const bucket =
+        btn.dataset.bucket || "-";
 
-      const ncvs = btn.dataset.ncvs || "-";
-      const bucket = btn.dataset.bucket || "-";
-      const style = btn.dataset.style || "-";
-      const model = btn.dataset.model || "-";
+        const style =
+        btn.dataset.style || "-";
 
-      const nmKomponen = btn.dataset.nm_komponen_in || "-";
+        const model =
+        btn.dataset.model || "-";
 
-      const size = btn.dataset.size || "-";
-      const qtyCut = btn.dataset.qty_cut || "-";
-      const totalQty = btn.dataset.total_qty || "-";
+        const nmKomponen =
+        btn.dataset.nm_komponen_in || "-";
 
-      const barcode = btn.dataset.barcode || "";
+        const size =
+        btn.dataset.size || "-";
 
-      const lot = JSON.parse(btn.dataset.lot || "[]");
+        const totalQty =
+        btn.dataset.total_qty || "-";
 
-      if (!barcode) {
-          alert("Barcode kosong");
-          return;
-      }
+        const barcode =
+        btn.dataset.barcode || "";
 
-      // format lot
-      const lotText =
-          Array.isArray(lot) && lot.length
-              ? lot.join(", ")
-              : "-";
+        const lot =
+        JSON.parse(
+            btn.dataset.lot || "[]"
+        );
 
-      // size + qty
-      const sizeQtyText = `${size} `;
+        if (!barcode) {
 
-      // ==========================
-      // PRINT TEXT
-      // ==========================
-      await printSmallText(
-          `${createdBy} - ${createdAt}`
-      );
+            showError("Barcode kosong");
 
-      await printSmallText("");
+            return;
+        }
 
-      await printSmallText(
-          `${model}`
-      );
+        const lotText =
+        Array.isArray(lot) && lot.length
+            ? lot.join(", ")
+            : "-";
 
+        // ==========================
+        // PRINT TEXT
+        // ==========================
+        await printSmallText(
+            `${createdBy} - ${createdAt}`
+        );
 
-      await printSmallText(`NCVS      : ${ncvs}`);
-      await printSmallText(`Job order : ${jobOrder}`);
-      await printSmallText(`Bucket    : ${bucket}`);
-      await printSmallText(`PO-PO Item: ${poCode} - ${poItem}`);
-      await printSmallText(`Style     : ${style}`);
-      await printSmallText(`Komp      : ${nmKomponen}`);
-      await printSmallText(`Lot       : ${lotText}`);
-      await printSmallText(`Size/Qty  : ${sizeQtyText}`);
-      await printSmallText(`Total Qty : ${totalQty}`);
+        await printSmallText("");
 
-      await printSmallText("");
+        await printSmallText(`${model}`);
 
-      // ==========================
-      // PRINT BARCODE
-      // ==========================
-      const ok = await printBarcode(barcode);
+        await printSmallText(
+            `NCVS      : ${ncvs}`
+        );
 
-      if (!ok) {
+        await printSmallText(
+            `Job order : ${jobOrder}`
+        );
 
-          alert("❌ Gagal print barcode");
+        await printSmallText(
+            `Bucket    : ${bucket}`
+        );
 
-          return;
-      }
+        await printSmallText(
+            `PO-PO Item: ${poCode} - ${poItem}`
+        );
 
-      // jarak bawah barcode
-      await printText("");
-      await printText("");
+        await printSmallText(
+            `Style     : ${style}`
+        );
 
-      // feed akhir
-      // await printText('\n\n');
+        await printSmallText(
+            `Komp      : ${nmKomponen}`
+        );
 
-      // ==========================
-      // UPDATE COUNT PRINT
-      // ==========================
-      try {
+        await printSmallText(
+            `Lot       : ${lotText}`
+        );
 
-          const response =
-          await fetch('./../config/update_count_barcode.php', {
+        await printSmallText(
+            `Size/Qty  : ${size}`
+        );
 
-              method: 'POST',
+        await printSmallText(
+            `Total Qty : ${totalQty}`
+        );
 
-              headers: {
-                  'Content-Type': 'application/x-www-form-urlencoded'
-              },
+        await printSmallText("");
 
-              body:
-                  'barcode=' + encodeURIComponent(barcode)
+        // ==========================
+        // PRINT BARCODE
+        // ==========================
+        const ok =
+        await printBarcode(barcode);
 
-          });
+        if (!ok) {
+            return;
+        }
 
-          const data =
-          await response.json();
+        // feed bawah
+        await printText("");
 
-          console.log(data);
+        // ==========================
+        // UPDATE COUNT
+        // ==========================
+        try {
 
-          if (data.status) {
+            const response =
+            await fetch(
+                './../config/update_count_barcode.php',
+                {
 
-              console.log('✅ Count print berhasil diupdate');
+                    method: 'POST',
 
-          } else {
+                    headers: {
+                        'Content-Type':
+                        'application/x-www-form-urlencoded'
+                    },
 
-              console.error(data.message);
+                    body:
+                    'barcode=' +
+                    encodeURIComponent(barcode)
+                }
+            );
 
-              alert(data.message);
-          }
+            const data =
+            await response.json();
 
-      } catch(err) {
+            if (!data.status) {
 
-          console.error(err);
+                showError(data.message);
+            }
 
-          alert('Gagal update count barcode');
-      }
+        } catch(err) {
 
-      alert("✅ Print berhasil");
-  });
+            console.error(err);
 
-  </script>
+            showError(
+                'Gagal update count barcode'
+            );
+        }
+
+        showSuccess("✅ Print berhasil");
+
+    } catch (err) {
+
+        console.error(err);
+
+        showError(
+            "❌ Printer tidak terhubung"
+        );
+    }
+});
+
+</script>
 
   <?php include_once __DIR__ . '/../includes/notification.php'; ?>
+  <!-- Notification print Struk -->
+  <script>
+    // ==========================
+    // TOAST SUCCESS
+    // ==========================
+    function showSuccess(message) {
+
+        const toastEl =
+            document.getElementById('toastSuccess');
+
+        const toastMsg =
+            document.getElementById('toastSuccessMsg');
+
+        toastMsg.innerText = message;
+
+        const toast =
+            new bootstrap.Toast(toastEl, {
+                delay: 3000
+            });
+
+        toast.show();
+    }
+
+    // ==========================
+    // TOAST ERROR
+    // ==========================
+    function showError(message) {
+
+        const toastEl =
+            document.getElementById('toastError');
+
+        const toastMsg =
+            document.getElementById('toastErrorMsg');
+
+        toastMsg.innerText = message;
+
+        const toast =
+            new bootstrap.Toast(toastEl, {
+                delay: 5000
+            });
+
+        toast.show();
+    }
+  </script>
 
   <script>
     document.addEventListener('DOMContentLoaded', function() {
