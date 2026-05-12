@@ -299,6 +299,7 @@ $username = $_SESSION['username'];
                     <th class="text-center">PO Item</th>
                     <th class="text-center">Model</th>
                     <th class="text-center">Style</th>
+                    <th class="text-center">Qty Order</th>
                   </tr>
                 </thead>
               </table>
@@ -455,6 +456,9 @@ $username = $_SESSION['username'];
             },
             {
               data: "style"
+            },
+            {
+              data: "Qty_Order"
             }
           ]
         });

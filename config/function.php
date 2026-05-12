@@ -2519,7 +2519,7 @@ if (isset($_POST['action']) && $_POST['action'] == 'create-barcode') {
     }
 
     $batch_format = str_pad($batch_increment, 3, '0', STR_PAD_LEFT);
-    $batch_transaksi = "B-{$ncvs}-{$date}-{$batch_format}";
+    $batch_transaksi = "B-{$ncvs}{$date}{$batch_format}";
 
     // GENERATE BARCODE START
     $qBarcode = mysqli_query($conn, "
@@ -2545,7 +2545,7 @@ if (isset($_POST['action']) && $_POST['action'] == 'create-barcode') {
 
             // BARCODE PER LOT × KOMPONEN
             $barcode_format = str_pad($increment, 3, '0', STR_PAD_LEFT);
-            $barcode = "{$ncvs}-{$date}-{$barcode_format}";
+            $barcode = "{$ncvs}{$date}{$barcode_format}";
             $increment++;
 
             $is_main = isset($k['is_main']) ? (int)$k['is_main'] : 0;
