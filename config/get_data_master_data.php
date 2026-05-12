@@ -85,7 +85,8 @@ SELECT
     MAX(m.po_item) AS po_item,
     MAX(m.style) AS style,
     MAX(m.model) AS model,
-    MAX(m.status_lot) AS status_lot
+    MAX(m.status_lot) AS status_lot,
+    SUM(m.qty) AS Qty_Order
 " . $sql . "
 GROUP BY m.job_order
 ORDER BY m.job_order ASC, m.ncvs ASC
