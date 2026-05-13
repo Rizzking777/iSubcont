@@ -24,6 +24,17 @@ if ($result_roles->num_rows > 0) {
   }
 }
 
+// ambil semua ncvs
+$sql_ncvs = "SELECT id_ncvs, ncvs FROM tbl_ncvs WHERE is_deleted = '0' ORDER BY ncvs ASC";
+$result_ncvs = $conn->query($sql_ncvs);
+
+$ncvs = [];
+if ($result_ncvs->num_rows > 0) {
+  while ($row = $result_ncvs->fetch_assoc()) {
+    $ncvs[] = $row;
+  }
+}
+
 ?>
 
 <style>
@@ -142,6 +153,20 @@ if ($result_roles->num_rows > 0) {
                   <input type="text" name="nik_user" id="nik_user" class="form-control" placeholder="Input NIK" required>
                 </div>
                 <div class="col-md-6">
+                  <label for="id_card" class="form-label">ID Card</label>
+                  <input type="password" name="id_card" id="id_card" class="form-control" placeholder="Input ID Card">
+                </div>
+
+                <div class="col-md-6">
+                  <label for="ncvs" class="form-label">NCVS</label>
+                  <select name="ncvs" id="ncvs" class="form-select">
+                    <option value="">Pilih ncvs</option>
+                    <?php foreach ($ncvs as $ncvs2): ?>
+                      <option value="<?= $ncvs2['ncvs'] ?>"><?= htmlspecialchars($ncvs2['ncvs']) ?></option>
+                    <?php endforeach; ?>
+                  </select>
+                </div>
+                <div class="col-md-6">
                   <label for="role_id" class="form-label">Role</label>
                   <select name="role_id" id="role_id" class="form-select" required>
                     <option value="">Pilih role</option>
@@ -195,6 +220,7 @@ if ($result_roles->num_rows > 0) {
                       <th class="text-center">#</th>
                       <th class="text-center">Username</th>
                       <th class="text-center">NIK</th>
+                      <th class="text-center">NCVS</th>
                       <th class="text-center">Role</th>
                       <th class="text-center">Status</th>
                       <th class="text-center">Last Login</th>
@@ -209,6 +235,7 @@ if ($result_roles->num_rows > 0) {
                         <td><?= $i ?></td>
                         <td><?= $row["username"]; ?></td>
                         <td><?= $row["nik_user"]; ?></td>
+                        <td><?= $row["ncvs"]; ?></td>
                         <td><?= $row["role_name"]; ?></td>
                         <td>
                           <?php if ($row["is_deleted"] == 0) : ?>
@@ -232,7 +259,9 @@ if ($result_roles->num_rows > 0) {
                                   data-id="<?= $row['id_user']; ?>"
                                   data-username="<?= $row['username']; ?>"
                                   data-nik="<?= $row['nik_user']; ?>"
-                                  data-role_id="<?= $row['role_id']; ?>">
+                                  data-role_id="<?= $row['role_id']; ?>"
+                                  data-id_card="<?= $row['id_card']; ?>"
+                                  data-ncvs="<?= $row['ncvs']; ?>">
                                   <i class="bi bi-pencil me-2"></i> Edit
                                 </a>
                                 <form action="./../config/function.php" method="post" onsubmit="return confirm('Yakin ingin hapus user ini?');">
