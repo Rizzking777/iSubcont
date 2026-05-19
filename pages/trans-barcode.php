@@ -32,20 +32,26 @@ $username = $_SESSION['username'];
     }
   }
 
-  .select2-container {
-    width: 100% !important;
+  .card {
+    border: none !important;
+    border-radius: 16px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
   }
 
-  .select2-selection {
-    min-height: 38px;
-    /* biar seragam sama form-control bootstrap */
-    display: flex;
-    align-items: center;
+  .form-control,
+  .select2-container--default .select2-selection--single {
+    height: 40px !important;
+    border-radius: 10px !important;
+    border: 1px solid #dbe2ea !important;
+  }
+
+  .btn {
+    border-radius: 10px !important;
+    padding: 8px 18px;
   }
 
   #addKomponenBtn {
     margin-top: 0px;
-    /* atau sesuai kebutuhan */
     margin-bottom: 5px;
   }
 

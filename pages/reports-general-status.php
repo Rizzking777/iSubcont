@@ -32,73 +32,195 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
     }
   }
 
-  .select2-container {
-    width: 100% !important;
+  .card {
+    border: none !important;
+    border-radius: 16px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
   }
 
-  .select2-selection {
-    min-height: 38px;
-    /* biar seragam sama form-control bootstrap */
+  .form-control,
+  .select2-container--default .select2-selection--single {
+    height: 40px !important;
+    border-radius: 10px !important;
+    border: 1px solid #dbe2ea !important;
+  }
+
+  .btn {
+    border-radius: 10px !important;
+    padding: 8px 18px;
+  }
+
+  .daterangepicker .drp-calendar.left {
+    border-right: none !important;
+  }
+
+  .daterangepicker .drp-calendar.right {
+    display: none !important;
+  }
+
+  .daterangepicker {
+    width: auto !important;
+  }
+
+  .dataTables_empty {
+    text-align: center !important;
+    vertical-align: middle !important;
+    padding: 40px !important;
+    font-size: 14px;
+    color: #6c757d;
+  }
+
+  .dataTables_processing {
+    border: none !important;
+    background: white !important;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    border-radius: 10px;
+    padding: 20px !important;
+  }
+
+  .sticky-col {
+    position: sticky;
+    z-index: 5;
+    box-shadow: 2px 0 6px rgba(0, 0, 0, 0.04);
+  }
+
+  #example1 thead th {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+
+  .sticky-1 {
+    left: 0;
+    min-width: 120px;
+  }
+
+  .sticky-2 {
+    left: 120px;
+    min-width: 120px;
+  }
+
+  .sticky-3 {
+    left: 240px;
+    min-width: 120px;
+  }
+
+  .sticky-4 {
+    left: 240px;
+    min-width: 120px;
+  }
+
+  .sticky-5 {
+    left: 240px;
+    min-width: 120px;
+  }
+
+  .balance-positive {
+    color: #15803d;
+    font-weight: 700;
+  }
+
+  .balance-negative {
+    color: #dc2626;
+    font-weight: 700;
+  }
+
+  #example1 thead th {
+    text-align: center !important;
+    vertical-align: middle !important;
+  }
+
+  #example1 tbody td {
+    text-align: center !important;
+    vertical-align: middle !important;
+  }
+
+  #example1 th,
+  #example1 td {
+    text-align: center !important;
+    vertical-align: middle !important;
+  }
+
+  .dataTables_scrollHead table thead tr:first-child th {
+    text-align: center !important;
+  }
+
+  .dataTables_scrollHead table thead tr:nth-child(2) th {
+    text-align: center !important;
+  }
+
+  .dataTables_scrollHead th {
+    text-align: center !important;
+    vertical-align: middle !important;
+  }
+
+  .dataTables_wrapper .row:first-child {
+    margin-bottom: 16px !important;
+    align-items: center !important;
+  }
+
+  .dt-buttons {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .dt-buttons .btn {
+    height: 40px;
     display: flex;
     align-items: center;
-  }
-
-  #addKomponenBtn {
-    margin-top: 0px;
-    /* atau sesuai kebutuhan */
-    margin-bottom: 5px;
-  }
-
-  .komponen-row .form-label {
-    display: block;
-  }
-
-  .komponen-row .form-control {
-    width: 100%;
-  }
-
-  .qr-center {
-    text-align: center;
-    margin-top: 10px;
-  }
-
-  .match-height {
-    height: calc(1.5em + 0.75rem + 2px);
-    /* Cocokkan dengan .form-control Bootstrap */
-    display: flex;
     justify-content: center;
-    align-items: center;
+    padding: 0 18px !important;
+    margin: 0 !important;
   }
 
-  @media print {
-    @page {
-      size: 50mm auto;
-      /* Lebar 50mm, tinggi otomatis */
-      margin: 0;
-      /* Hilangkan margin default browser */
-    }
+  .dataTables_length {
+    margin-bottom: 0 !important;
+  }
 
-    body {
-      width: 50mm;
-      font-size: 10px;
-      /* Bisa kecilkan font supaya pas */
-    }
+  .dataTables_length label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 0 !important;
+  }
 
-    /* Hanya print konten modal */
-    body * {
-      visibility: hidden;
-    }
+  .dataTables_length select {
+    height: 40px !important;
+    border-radius: 10px !important;
+    padding: 4px 10px !important;
+  }
 
-    #barcodeContent<?= $row['id_trans']; ?>,
-    #barcodeContent<?= $row['id_trans']; ?>* {
-      visibility: visible;
-    }
+  .table-wrapper {
+    padding-top: 18px !important;
+  }
 
-    #barcodeContent<?= $row['id_trans']; ?> {
-      position: absolute;
-      left: 0;
-      top: 0;
-    }
+  .dataTables_length select {
+    min-width: 75px !important;
+    height: 40px !important;
+    padding: 4px 36px 4px 12px !important;
+    border-radius: 10px !important;
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
+    background-position:
+      right 12px center !important;
+  }
+
+  .dataTables_length {
+    position: relative;
+  }
+
+  .dataTables_length::after {
+    content: '\F282';
+    font-family: bootstrap-icons;
+    position: absolute;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+    font-size: 12px;
+    color: #64748b;
   }
 </style>
 
@@ -150,6 +272,8 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.css">
+
 </head>
 
 <body>
@@ -169,34 +293,134 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
       </h1>
     </div>
 
-    <div class="card mb-3">
+    <div class="card border-0 shadow-sm mb-4 fade-in">
+      <div class="card-body p-4">
+        <form id="filterForm">
 
-      <div class="card-body" style="margin-top: 15px;">
-        <form id="filterForm" class="row">
-          <div class="col-md-3 mb-2">
-            <label class="form-label fw-bold">Bucket <span class="text-danger">*</span></label>
-            <select id="bucket" name="bucket" class="form-control select2-remote"></select>
-          </div>
-          <div class="col-md-3 mb-2">
-            <label class="form-label fw-bold">NCVS</label>
-            <select id="ncvs" name="ncvs" class="form-control select2-remote"></select>
-          </div>
-          <div class="col-md-3 mb-2">
-            <label class="form-label fw-bold">PO Code</label>
-            <select id="po_code" name="po_code" class="form-control select2-remote"></select>
-          </div>
-          <div class="col-md-3 mb-2">
-            <label class="form-label fw-bold">Job Order</label>
-            <select id="job_order" name="job_order" class="form-control select2-remote"></select>
+          <!-- ROW 1 -->
+          <div class="row g-3">
+
+            <!-- DATE -->
+            <div class="col-md-3">
+              <label class="form-label fw-semibold">
+                Date Range
+              </label>
+
+              <input
+                type="text"
+                id="date_range"
+                name="date_range"
+                class="form-control"
+                placeholder="Select date range">
+            </div>
+
+            <!-- BUCKET -->
+            <div class="col-md-3">
+              <label class="form-label fw-semibold">
+                Bucket
+                <span class="text-danger">*</span>
+              </label>
+
+              <select
+                id="bucket"
+                name="bucket"
+                class="form-control select2-remote">
+              </select>
+            </div>
+
+            <!-- PO CODE -->
+            <div class="col-md-3">
+              <label class="form-label fw-semibold">
+                PO Code
+              </label>
+
+              <select
+                id="po_code"
+                name="po_code"
+                class="form-control select2-remote">
+              </select>
+            </div>
+
+            <!-- PO ITEM -->
+            <div class="col-md-3">
+              <label class="form-label fw-semibold">
+                PO Item
+              </label>
+
+              <select
+                id="po_item"
+                name="po_item"
+                class="form-control select2-remote">
+              </select>
+            </div>
           </div>
 
+          <!-- ROW 2 -->
+          <div class="row g-3 mt-1">
+
+            <!-- NCVS -->
+            <div class="col-md-3">
+              <label class="form-label fw-semibold">
+                NCVS
+              </label>
+
+              <select
+                id="ncvs"
+                name="ncvs"
+                class="form-control select2-remote">
+              </select>
+            </div>
+
+            <!-- MODEL -->
+            <div class="col-md-3">
+              <label class="form-label fw-semibold">
+                Model
+              </label>
+
+              <select
+                id="model"
+                name="model"
+                class="form-control select2-remote">
+              </select>
+            </div>
+
+            <!-- STYLE -->
+            <div class="col-md-3">
+              <label class="form-label fw-semibold">
+                Style
+              </label>
+
+              <select
+                id="style"
+                name="style"
+                class="form-control select2-remote">
+              </select>
+            </div>
+
+            <!-- VENDOR -->
+            <div class="col-md-3">
+              <label class="form-label fw-semibold">
+                Vendor
+              </label>
+
+              <select
+                id="vendor"
+                name="vendor"
+                class="form-control select2-remote">
+              </select>
+            </div>
+
+          </div>
+
+          <!-- ROW 3 -->
           <div class="col-md-12 mt-3">
             <button type="button" id="resetBtn" class="btn btn-secondary"> <i class="bi bi-arrow-counterclockwise"></i> Reset</button>
             <button type="button" id="searchBtn" class="btn btn-success" disabled><i class="bi bi-search"></i> Search</button>
           </div>
-        </form>
-      </div>
 
+        </form>
+
+      </div>
     </div>
 
     <section class="section">
@@ -204,37 +428,113 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
         <div class="col-lg-12">
           <div class="card">
 
-            <div class="card-body" style="margin-top: 10px;">
+            <div class="card-body table-wrapper">
 
-              <table id="example1" class="table table-bordered table-striped text-center align-middle nowrap" style="width:100%">
-                <thead class="table-light">
+              <table
+                id="example1"
+
+                class="
+                    table
+                    table-bordered
+                    table-striped
+                    text-center
+                    align-middle
+                    nowrap
+                  "
+
+                style="
+                    width:100%;
+                    min-width:3000px;
+                  ">
+                <thead>
+
+                  <!-- HEADER 1 -->
                   <tr>
-                    <th class="text-center">Job Order</th>
-                    <th class="text-center">NCVS</th>
-                    <th class="text-center">Komponen</th>
-                    <th class="text-center">Bucket</th>
-                    <th class="text-center">PO Code</th>
-                    <th class="text-center">PO Item</th>
-                    <th class="text-center">Model</th>
-                    <th class="text-center">Style</th>
-                    <th class="text-center">Total Order</th>
-                    <th class="text-center">In WH</th>
-                    <th class="text-center">Bal In WH</th>
-                    <th class="text-center">Out to Vendor</th>
-                    <th class="text-center">Bal Out to Vendor</th>
-                    <th class="text-center">Incoming WH</th>
-                    <th class="text-center">Bal Incoming WH</th>
-                    <th class="text-center">Out to Prod</th>
-                    <th class="text-center">Bal Out to Prod</th>
+
+                    <th rowspan="2" class="sticky-col sticky-1">NCVS</th>
+                    <th rowspan="2" class="sticky-col sticky-2">Bucket</th>
+                    <th rowspan="2" class="sticky-col sticky-3">PO Code</th>
+                    <th rowspan="2" class="sticky-col sticky-4">PO Item</th>
+                    <th rowspan="2">Model</th>
+                    <th rowspan="2">Style</th>
+                    <th rowspan="2">Vendor</th>
+                    <th rowspan="2" class="sticky-col sticky-5">Total Order</th>
+
+                    <th colspan="4">
+                      SM Cutting
+                    </th>
+
+                    <th colspan="4">
+                      SM Subcont
+                    </th>
+
+                    <th colspan="4">
+                      WH Subcont
+                    </th>
+
+                    <th colspan="4">
+                      Vendor
+                    </th>
+
+                    <th colspan="4">
+                      Return WH
+                    </th>
+
+                    <th colspan="4">
+                      Return SM
+                    </th>
+
                   </tr>
+
+                  <!-- HEADER 2 -->
+                  <tr>
+
+                    <th>In</th>
+                    <th>Balance</th>
+
+                    <th>Out</th>
+                    <th>Balance</th>
+
+                    <th>In SM</th>
+                    <th>Balance</th>
+
+                    <th>Out SM</th>
+                    <th>Balance</th>
+
+                    <th>In WH</th>
+                    <th>Balance</th>
+
+                    <th>Out WH</th>
+                    <th>Balance</th>
+
+                    <th>In Vendor</th>
+                    <th>Balance</th>
+
+                    <th>Out Vendor</th>
+                    <th>Balance</th>
+
+                    <th>Return WH</th>
+                    <th>Balance</th>
+
+                    <th>Transfer to SM</th>
+                    <th>Balance</th>
+
+                    <th>Return SM</th>
+                    <th>Balance</th>
+
+                    <th>Transfer to NCVS</th>
+                    <th>Balance</th>
+
+                  </tr>
+
                 </thead>
+                <tbody></tbody>
               </table>
 
             </div>
             <!-- End Table with stripped rows -->
           </div>
         </div>
-      </div>
       </div>
     </section>
 
@@ -268,7 +568,7 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
 
   <!-- DataTables core -->
   <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
-  <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap4.min.js"></script>
+  <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
 
   <!-- Responsive extension -->
   <script src="https://cdn.datatables.net/responsive/2.5.0/js/dataTables.responsive.min.js"></script>
@@ -276,13 +576,16 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
 
   <!-- Buttons extension -->
   <script src="https://cdn.datatables.net/buttons/2.4.1/js/dataTables.buttons.min.js"></script>
-  <script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.bootstrap4.min.js"></script>
+  <script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.bootstrap5.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
   <script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.html5.min.js"></script>
   <script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.print.min.js"></script>
   <script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.colVis.min.js"></script>
+
+  <script src="https://cdn.jsdelivr.net/momentjs/latest/moment.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.min.js"></script>
 
   <?php include_once __DIR__ . '/../includes/notification.php'; ?>
 
@@ -300,10 +603,14 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
 
   <script>
     $(document).ready(function() {
-      // ================================
-      // Select2 dengan AJAX (untuk filter)
-      // ================================
-      function initSelect2(id, action, placeholder) {
+
+      // INIT SELECT2 AJAX
+      function initSelect2(
+        id,
+        action,
+        placeholder
+      ) {
+
         $(id).select2({
           width: "100%",
           placeholder: placeholder,
@@ -314,173 +621,736 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
             type: "POST",
             dataType: "json",
             delay: 250,
+
             data: function(params) {
+
               return {
                 action: action,
                 search: params.term,
+                date_range: $("#date_range").val(),
                 bucket: $("#bucket").val(),
                 ncvs: $("#ncvs").val(),
                 po_code: $("#po_code").val(),
-                job_order: $("#job_order").val()
+                po_item: $("#po_item").val(),
+                style: $("#style").val(),
+                model: $("#model").val(),
+                vendor: $("#vendor").val()
               };
             },
+
             processResults: function(data) {
+
               return {
                 results: data.results || []
               };
             }
           }
         });
+
+        // AUTO FOCUS
+        $(id).on(
+          'select2:open',
+
+          function() {
+
+            setTimeout(() => {
+
+              document
+                .querySelector(
+                  '.select2-container--open .select2-search__field'
+                )
+
+                ?.focus();
+
+            }, 0);
+          }
+        );
       }
 
-      // Init semua filter
-      initSelect2("#bucket", "searchBucket", "Bucket");
-      initSelect2("#ncvs", "searchNCVS", "NCVS");
-      initSelect2("#po_code", "searchPOCode", "PO Code");
-      initSelect2("#job_order", "searchJobOrder", "Job Order");
+      // INIT FILTER
+      initSelect2(
+        "#bucket",
+        "searchBucket",
+        "Bucket"
+      );
 
-      // ================================
-      // DataTables
-      // ================================
-      $(document).ready(function() {
-        var table = $("#example1").DataTable({
-          processing: true,
-          serverSide: true,
-          searching: false,
-          deferLoading: 0,
-          scrollX: true, // ✅ Scroll horizontal
-          scrollY: '60vh', // ✅ Scroll vertical
-          scrollCollapse: true, // biar rapi saat sedikit data
-          responsive: false, // ✅ Responsive mode aktif
-          ajax: {
-            url: "./../config/get_data_gen_status.php",
-            type: "POST",
-            data: function(d) {
-              d.bucket = $("#bucket").val();
-              d.ncvs = $("#ncvs").val();
-              d.po_code = $("#po_code").val();
-              d.job_order = $("#job_order").val();
+      initSelect2(
+        "#ncvs",
+        "searchNCVS",
+        "NCVS"
+      );
+
+      initSelect2(
+        "#po_code",
+        "searchPOCode",
+        "PO Code"
+      );
+
+      initSelect2(
+        "#po_item",
+        "searchPOItem",
+        "PO Item"
+      );
+
+      initSelect2(
+        "#style",
+        "searchStyle",
+        "Style"
+      );
+
+      initSelect2(
+        "#model",
+        "searchModel",
+        "Model"
+      );
+
+      initSelect2(
+        "#vendor",
+        "searchVendor",
+        "Vendor"
+      );
+
+      // ENABLE SEARCH BUTTON
+      function toggleSearchBtn() {
+
+        if ($("#bucket").val()) {
+
+          $("#searchBtn")
+            .prop("disabled", false);
+
+        } else {
+
+          $("#searchBtn")
+            .prop("disabled", true);
+        }
+      }
+
+      $("#bucket").on(
+        "change",
+
+        function() {
+
+          toggleSearchBtn();
+        }
+      );
+
+      // DATE RANGE
+      $('#date_range').daterangepicker({
+        autoUpdateInput: false,
+        autoApply: true,
+        linkedCalendars: true,
+        showDropdowns: true,
+        opens: 'left',
+        locale: {
+          cancelLabel: 'Clear',
+          format: 'DD MMM YYYY'
+        }
+      });
+
+      $('#date_range').on(
+        'apply.daterangepicker',
+
+        function(ev, picker) {
+
+          $(this).val(
+
+            picker.startDate.format(
+              'DD MMM YYYY'
+            ) +
+
+            ' - ' +
+
+            picker.endDate.format(
+              'DD MMM YYYY'
+            )
+          );
+        }
+      );
+
+      $('#date_range').on(
+        'cancel.daterangepicker',
+
+        function() {
+
+          $(this).val('');
+        }
+      );
+
+      $('#date_range').on(
+        'focus',
+
+        function() {
+
+          $(this).click();
+        }
+      );
+
+      function renderBalance(data) {
+
+        return `
+    <span class="
+      ${
+        data < 0
+        ? 'balance-negative'
+        : 'balance-positive'
+      }
+    ">
+      ${data}
+    </span>
+  `;
+      }
+
+      // DATATABLE
+      const table = $('#example1').DataTable({
+
+        processing: true,
+        dom: "<'row align-items-center'<'col-md-6 d-flex align-items-center gap-2'lB><'col-md-6 text-end'f>>" +
+
+          "rt" +
+
+          "<'row mt-3 align-items-center'<'col-md-6'i><'col-md-6 text-end'p>>",
+
+        serverSide: false,
+        searching: false,
+        paging: true,
+        ordering: false,
+        info: true,
+        scrollX: true,
+        autoWidth: false,
+        responsive: false,
+        destroy: true,
+        data: [],
+        columnDefs: [{
+          targets: "_all",
+          className: "text-center align-middle"
+        }],
+
+        language: {
+
+          emptyTable: `
+        Pilih filter lalu klik Search.`,
+
+          processing: `
+            <div class="py-3">
+              <div class="spinner-border text-primary"></div>
+              <div class="mt-2">
+                Loading data...
+              </div>
+            </div>`
+        },
+
+        columns: [
+
+          // NCVS
+          {
+            data: 'ncvs',
+            className: 'sticky-col sticky-1'
+          },
+
+          // BUCKET
+          {
+            data: 'bucket',
+            className: 'sticky-col sticky-2'
+          },
+
+          // PO CODE
+          {
+            data: 'po_code',
+            className: 'sticky-col sticky-3'
+          },
+
+          // PO ITEM
+          {
+            data: 'po_item',
+            className: 'sticky-col sticky-4'
+          },
+
+          // MODEL
+          {
+            data: 'model'
+          },
+
+          // STYLE
+          {
+            data: 'style'
+          },
+
+          // VENDOR
+          {
+            data: 'vendor'
+          },
+
+          // TOTAL ORDER
+          {
+            data: 'total_order',
+            className: 'sticky-col sticky-5 total-order'
+          },
+
+          // SM CUTTING - IN
+          {
+            data: 'sm_cutting_in'
+          },
+
+          // SM CUTTING - BALANCE
+          {
+            data: 'sm_cutting_balance',
+
+            render: function(data) {
+              return renderBalance(data);
             }
           },
-          columns: [{
-              data: "job_order"
-            },
-            {
-              data: "ncvs"
-            },
-            {
-              data: "nama_komponen"
-            },
-            {
-              data: "bucket"
-            },
-            {
-              data: "po_code"
-            },
-            {
-              data: "po_item"
-            },
-            {
-              data: "model"
-            },
-            {
-              data: "style"
-            },
-            {
-              data: "total_order"
-            },
-            {
-              data: "scan_in"
-            },
-            {
-              data: "balance_in",
-              render: function(data, type, row) {
-                let bgColor = '';
-                if (data < 0) bgColor = 'background-color: #f8d7da'; // merah soft
-                else if (data == 0) bgColor = 'background-color: #d4edda'; // hijau soft
 
-                return `<div style="${bgColor}; color:black; font-weight:bold; padding:2px 4px;">${data}</div>`;
-              }
-            },
-            {
-              data: "wh_to_vendor"
-            },
-            {
-              data: "balance_wh_to_vendor",
-              render: function(data, type, row) {
-                let bgColor = '';
-                if (data < 0) bgColor = 'background-color: #f8d7da'; // merah soft
-                else if (data == 0) bgColor = 'background-color: #d4edda'; // hijau soft
+          // SM CUTTING - OUT
+          {
+            data: 'sm_cutting_out'
+          },
 
-                return `<div style="${bgColor}; color:black; font-weight:bold; padding:2px 4px;">${data}</div>`;
-              }
-            },
-            {
-              data: "incoming"
-            },
-            {
-              data: "balance_incoming",
-              render: function(data, type, row) {
-                let bgColor = '';
-                if (data < 0) bgColor = 'background-color: #f8d7da'; // merah soft
-                else if (data == 0) bgColor = 'background-color: #d4edda'; // hijau soft
+          // SM CUTTING - OUT BALANCE
+          {
+            data: 'sm_cutting_out_balance',
 
-                return `<div style="${bgColor}; color:black; font-weight:bold; padding:2px 4px;">${data}</div>`;
-              }
-            },
-            {
-              data: "scan_out"
-            },
-            {
-              data: "balance_out",
-              render: function(data, type, row) {
-                let bgColor = '';
-                if (data < 0) bgColor = 'background-color: #f8d7da'; // merah soft
-                else if (data == 0) bgColor = 'background-color: #d4edda'; // hijau soft
-
-                return `<div style="${bgColor}; color:black; font-weight:bold; padding:2px 4px;">${data}</div>`;
-              }
+            render: function(data) {
+              return renderBalance(data);
             }
-          ]
-        });
+          },
 
-        // Awal tabel kosong
-        table.clear().draw();
+          // SM SUBCONT - IN
+          {
+            data: 'in_sm'
+          },
 
-        // Disable Search kalau bucket kosong
-        function toggleSearchBtn() {
-          if ($("#bucket").val()) {
-            $("#searchBtn").prop("disabled", false);
-          } else {
-            $("#searchBtn").prop("disabled", true);
+          // SM SUBCONT - BALANCE
+          {
+            data: 'balance_in_sm',
+
+            render: function(data) {
+              return renderBalance(data);
+            }
+          },
+
+          // SM SUBCONT - OUT
+          {
+            data: 'out_sm'
+          },
+
+          // SM SUBCONT - OUT BALANCE
+          {
+            data: 'balance_out_sm',
+
+            render: function(data) {
+              return renderBalance(data);
+            }
+          },
+
+          // WH SUBCONT - IN
+          {
+            data: 'in_wh'
+          },
+
+          // WH SUBCONT - BALANCE
+          {
+            data: 'balance_in_wh',
+
+            render: function(data) {
+              return renderBalance(data);
+            }
+          },
+
+          // WH SUBCONT - OUT
+          {
+            data: 'out_wh'
+          },
+
+          // WH SUBCONT - OUT BALANCE
+          {
+            data: 'balance_out_wh',
+
+            render: function(data) {
+              return renderBalance(data);
+            }
+          },
+
+          // VENDOR - IN
+          {
+            data: 'in_vendor'
+          },
+
+          // VENDOR - BALANCE
+          {
+            data: 'balance_in_vendor',
+
+            render: function(data) {
+              return renderBalance(data);
+            }
+          },
+
+          // VENDOR - OUT
+          {
+            data: 'out_vendor'
+          },
+
+          // VENDOR - OUT BALANCE
+          {
+            data: 'balance_out_vendor',
+
+            render: function(data) {
+              return renderBalance(data);
+            }
+          },
+
+          // RETURN WH - IN
+          {
+            data: 'return_wh'
+          },
+
+          // RETURN WH - BALANCE
+          {
+            data: 'balance_return_wh',
+
+            render: function(data) {
+              return renderBalance(data);
+            }
+          },
+
+          // RETURN WH - TRANSFER SM
+          {
+            data: 'transfer_sm'
+          },
+
+          // RETURN WH - BALANCE
+          {
+            data: 'balance_transfer_sm',
+
+            render: function(data) {
+              return renderBalance(data);
+            }
+          },
+
+          // RETURN SM - IN
+          {
+            data: 'return_sm'
+          },
+
+          // RETURN SM - BALANCE
+          {
+            data: 'balance_return_sm',
+
+            render: function(data) {
+              return renderBalance(data);
+            }
+          },
+
+          // RETURN SM - OUT PROD
+          {
+            data: 'transfer_ncvs'
+          },
+
+          // RETURN SM - BALANCE
+          {
+            data: 'balance_transfer_ncvs',
+
+            render: function(data) {
+              return renderBalance(data);
+            }
           }
-        }
 
-        // Cek saat select bucket berubah
-        $("#bucket").on("change", function() {
-          toggleSearchBtn();
-        });
+        ],
 
-        // Klik Search
-        $("#searchBtn").on("click", function() {
-          if (!$("#bucket").val()) {
-            alert("Harap pilih Bucket terlebih dahulu!");
-            return;
+
+        buttons: [
+
+          {
+
+            extend: 'excelHtml5',
+            enabled: false,
+
+            text: `
+      <i class="bi bi-file-earmark-excel"></i>
+      Export
+    `,
+
+            className: 'btn btn-success',
+            title: null,
+            filename: 'General Status Report',
+            exportOptions: {
+              columns: ':visible',
+              stripHtml: true
+            },
+
+            customize: function(xlsx) {
+
+              const sheet =
+                xlsx.xl.worksheets['sheet1.xml'];
+
+              const rows =
+                $('sheetData row', sheet);
+
+              // SHIFT ALL ROW DOWN
+              rows.each(function() {
+
+                const row = $(this);
+
+                const r =
+                  parseInt(
+                    row.attr('r')
+                  );
+
+                row.attr(
+                  'r',
+                  r + 1
+                );
+
+                row.find('c').each(function() {
+
+                  const cell = $(this);
+                  const cellRef =
+                    cell.attr('r');
+                  const col =
+                    cellRef.replace(/[0-9]/g, '');
+                  const rowNum =
+                    parseInt(
+                      cellRef.replace(/[A-Z]/g, '')
+                    );
+
+                  cell.attr(
+                    'r',
+                    col + (rowNum + 1)
+                  );
+
+                });
+
+              });
+
+              // ADD CUSTOM HEADER ROW
+              const headerRow = `
+                <row r="1">
+
+                <c t="inlineStr" r="A1"><is><t>NCVS</t></is></c>
+                <c t="inlineStr" r="B1"><is><t>Bucket</t></is></c>
+                <c t="inlineStr" r="C1"><is><t>PO Code</t></is></c>
+                <c t="inlineStr" r="D1"><is><t>PO Item</t></is></c>
+                <c t="inlineStr" r="E1"><is><t>Model</t></is></c>
+                <c t="inlineStr" r="F1"><is><t>Style</t></is></c>
+                <c t="inlineStr" r="G1"><is><t>Vendor</t></is></c>
+                <c t="inlineStr" r="H1"><is><t>Total Order</t></is></c>
+
+                <c t="inlineStr" r="I1"><is><t>SM Cutting</t></is></c>
+                <c t="inlineStr" r="M1"><is><t>SM Subcont</t></is></c>
+                <c t="inlineStr" r="Q1"><is><t>WH Subcont</t></is></c>
+                <c t="inlineStr" r="U1"><is><t>Vendor</t></is></c>
+                <c t="inlineStr" r="Y1"><is><t>Return WH</t></is></c>
+                <c t="inlineStr" r="AC1"><is><t>Return SM</t></is></c>
+
+                </row>
+                `;
+
+              sheet.childNodes[0]
+                .childNodes[1]
+                .innerHTML =
+                headerRow +
+                sheet.childNodes[0]
+                .childNodes[1]
+                .innerHTML;
+
+              // MERGE
+              let mergeCells =
+                $('mergeCells', sheet);
+
+              if (!mergeCells.length) {
+
+                mergeCells =
+                  $('<mergeCells count="0"/>')
+                  .appendTo(sheet);
+              }
+
+              mergeCells.append(`
+
+                <mergeCell ref="I1:L1"/>
+                <mergeCell ref="M1:P1"/>
+                <mergeCell ref="Q1:T1"/>
+                <mergeCell ref="U1:X1"/>
+                <mergeCell ref="Y1:AB1"/>
+                <mergeCell ref="AC1:AF1"/>
+
+                `);
+
+              mergeCells.attr(
+                'count',
+                mergeCells.children().length
+              );
+
+              // AUTO WIDTH
+              $('col', sheet).each(function() {
+
+                $(this).attr(
+                  'width',
+                  18
+                );
+
+              });
+
+            }
+
           }
-          table.ajax.reload();
-        });
 
-        // Klik Reset
-        $("#resetBtn").on("click", function() {
-          $("#filterForm")[0].reset();
-          $(".select2-remote").val(null).trigger("change");
-          table.clear().draw();
-          toggleSearchBtn();
-        });
+        ],
 
-        // Jalankan sekali pas awal load
-        toggleSearchBtn();
       });
+
+      // SEARCH
+      $('#searchBtn').on(
+        'click',
+
+        function() {
+
+          table.clear().draw();
+
+          $('#example1 tbody').html(`
+
+            <tr>
+
+              <td colspan="999"
+                  class="text-center py-5">
+
+                <div class="py-4">
+
+                  <div class="spinner-border text-primary"></div>
+
+                  <div class="mt-3">
+                    Loading data...
+                  </div>
+
+                </div>
+
+              </td>
+
+            </tr>
+
+           `);
+
+          table.settings()[0].ajax = {
+            url: './../config/get_general_status.php',
+            type: 'POST',
+
+            data: function(d) {
+
+              d.date_range =
+                $('#date_range').val();
+
+              d.bucket =
+                $('#bucket').val();
+
+              d.po_code =
+                $('#po_code').val();
+
+              d.po_item =
+                $('#po_item').val();
+
+              d.ncvs =
+                $('#ncvs').val();
+
+              d.model =
+                $('#model').val();
+
+              d.style =
+                $('#style').val();
+
+              d.vendor =
+                $('#vendor').val();
+            },
+
+            dataSrc: function(json) {
+
+              table.button(0).enable(
+                json.data &&
+                json.data.length > 0
+              );
+
+              // NO DATA
+              if (
+                !json.data ||
+                json.data.length === 0
+              ) {
+
+                setTimeout(() => {
+
+                  $('#example1 tbody').html(`
+
+              <tr>
+
+                <td colspan="999"
+                    class="text-center py-5">
+                      No data found
+                </td>
+
+              </tr>
+
+            `);
+
+                }, 100);
+
+                return [];
+              }
+
+              return json.data;
+            },
+
+            error: function() {
+
+              $('#example1 tbody').html(`
+
+          <tr>
+
+            <td colspan="999"
+                class="text-center py-5">
+                  Failed to load data
+            </td>
+
+          </tr>
+
+        `);
+            }
+          };
+
+          table.ajax.reload();
+        }
+      );
+
+      // RESET
+      $('#resetBtn').on(
+        'click',
+
+        function() {
+
+          table.button(0).disable();
+
+          $('#filterForm')[0].reset();
+
+          $('.select2-remote')
+            .val(null)
+            .trigger('change');
+
+          $('#searchBtn')
+            .prop('disabled', true);
+
+          table.clear().draw();
+
+          $('#example1 tbody').html(`
+
+      <tr>
+
+        <td colspan="999"
+            class="text-center py-5">
+              Pilih filter lalu klik Search.
+            
+        </td>
+
+      </tr>
+
+    `);
+        }
+      );
+
     });
   </script>
 
