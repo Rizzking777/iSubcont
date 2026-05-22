@@ -31,6 +31,187 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
       width: 0%;
     }
   }
+
+  /* ===================================== */
+  /* PAGE */
+  /* ===================================== */
+
+  body {
+    background: #f8fafc;
+  }
+
+  /* ===================================== */
+  /* TITLE */
+  /* ===================================== */
+
+  .dashboard-title {
+    background: #f0e6d2;
+    padding: 12px 20px;
+    border-radius: 14px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, .05);
+  }
+
+  .dashboard-title h1 {
+    margin: 0;
+    font-size: 28px;
+    font-weight: 700;
+    color: #0f172a;
+  }
+
+  /* ===================================== */
+  /* CARD */
+  /* ===================================== */
+
+  .dashboard-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 18px;
+    padding: 18px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, .04);
+    transition: all .2s ease;
+  }
+
+  .dashboard-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, .06);
+  }
+
+  /* ===================================== */
+  /* SECTION HEADER */
+  /* ===================================== */
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 20px;
+    font-size: 16px;
+    font-weight: 600;
+    color: #0f172a;
+  }
+
+  .section-header i {
+    color: #334155;
+  }
+
+  /* ===================================== */
+  /* SUB CARD */
+  /* ===================================== */
+
+  .sub-card {
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 20px;
+    background: #fcfcfd;
+    min-height: 320px;
+
+    display: flex;
+    align-items: center;
+  }
+
+  /* ===================================== */
+  /* TITLE */
+  /* ===================================== */
+
+  .sub-title {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 24px;
+    color: #0f172a;
+  }
+
+  .chart-title {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 10px;
+    color: #0f172a;
+  }
+
+  /* ===================================== */
+  /* METRIC GROUP */
+  /* ===================================== */
+
+  .metric-group {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    width: 100%;
+  }
+
+  .metric-group-full {
+    height: 280px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  /* ===================================== */
+  /* METRIC */
+  /* ===================================== */
+
+  .metric-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 24px;
+  }
+
+  .metric-label {
+    width: 80px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #334155;
+  }
+
+  .metric-value {
+    min-width: 55px;
+    font-size: 18px;
+    font-weight: 700;
+    color: #0f172a;
+  }
+
+  /* ===================================== */
+  /* PROGRESS */
+  /* ===================================== */
+
+  .progress-custom {
+    flex: 1;
+    height: 38px;
+    background: #e2e8f0;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, .05);
+  }
+
+  .progress-custom .progress-bar {
+    border-radius: 10px;
+    box-shadow: inset 0 -1px 0 rgba(0, 0, 0, .08);
+  }
+
+  /* ===================================== */
+  /* COLORS */
+  /* ===================================== */
+
+  .bg-in {
+    background: #9bc47c !important;
+  }
+
+  .bg-out {
+    background: #e6a775 !important;
+  }
+
+  .bg-inventory {
+    background: #357ABD !important;
+  }
+
+  /* ===================================== */
+  /* CHART */
+  /* ===================================== */
+
+  .chart-container {
+    height: 280px;
+  }
 </style>
 
 <!DOCTYPE html>
@@ -78,8 +259,9 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
   <link rel="stylesheet" href="https://cdn.datatables.net/responsive/2.5.0/css/responsive.bootstrap5.min.css">
 
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
-
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+  <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
 
 </head>
 
@@ -101,13 +283,285 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
     </div>
 
     <section class="section">
-      <div class="row mb-3">
-        <div class="col-md-4">
+
+      <div class="row g-3">
+
+        <!-- ===================================== -->
+        <!-- LEFT SIDE -->
+        <!-- ===================================== -->
+
+        <div class="col-lg-4">
+
+          <div class="dashboard-card h-100">
+
+            <!-- HEADER -->
+            <div class="section-header">
+              <i class="bi bi-grid"></i>
+              <span>Cutting Overview</span>
+            </div>
+
+            <!-- SUB CARD -->
+            <div class="sub-card mb-4">
+
+              <div class="metric-group">
+
+                <div class="sub-title">
+                  Supermarket Cutting 1 Area
+                </div>
+
+                <!-- IN -->
+                <div class="metric-row">
+
+                  <div class="metric-label">
+                    In
+                  </div>
+
+                  <div class="progress progress-custom">
+                    <div class="progress-bar bg-in" style="width: 85%"></div>
+                  </div>
+
+                  <div class="metric-value">
+                    3000
+                  </div>
+
+                </div>
+
+                <!-- OUT -->
+                <div class="metric-row">
+
+                  <div class="metric-label">
+                    Out
+                  </div>
+
+                  <div class="progress progress-custom">
+                    <div class="progress-bar bg-out" style="width: 70%"></div>
+                  </div>
+
+                  <div class="metric-value">
+                    2000
+                  </div>
+
+                </div>
+
+                <!-- INVENTORY -->
+                <div class="metric-row mb-0">
+
+                  <div class="metric-label">
+                    Inventory
+                  </div>
+
+                  <div class="progress progress-custom">
+                    <div class="progress-bar bg-inventory" style="width: 55%"></div>
+                  </div>
+
+                  <div class="metric-value">
+                    1000
+                  </div>
+
+                </div>
+
+              </div>
+
+            </div>
+
+            <!-- CHART -->
+            <div>
+
+              <div class="chart-title">
+                Detail Inventory Per-Line
+              </div>
+
+              <div id="chartCutting" class="chart-container"></div>
+
+            </div>
+
+          </div>
 
         </div>
+
+        <!-- ===================================== -->
+        <!-- RIGHT SIDE -->
+        <!-- ===================================== -->
+
+        <div class="col-lg-8">
+
+          <!-- PRE PROCESS -->
+          <div class="dashboard-card mb-3">
+
+            <div class="section-header">
+              <i class="bi bi-grid"></i>
+              <span>Supermarket Subcont Overview</span>
+            </div>
+
+            <div class="row align-items-center">
+
+              <!-- LEFT -->
+              <div class="col-lg-5">
+
+                <div class="metric-group metric-group-full">
+
+                  <div class="sub-title">
+                    Pre Process Vendor
+                  </div>
+
+                  <!-- IN -->
+                  <div class="metric-row">
+
+                    <div class="metric-label">
+                      In
+                    </div>
+
+                    <div class="progress progress-custom">
+                      <div class="progress-bar bg-in" style="width: 85%"></div>
+                    </div>
+
+                    <div class="metric-value">
+                      3000
+                    </div>
+
+                  </div>
+
+                  <!-- OUT -->
+                  <div class="metric-row">
+
+                    <div class="metric-label">
+                      Out
+                    </div>
+
+                    <div class="progress progress-custom">
+                      <div class="progress-bar bg-out" style="width: 70%"></div>
+                    </div>
+
+                    <div class="metric-value">
+                      2000
+                    </div>
+
+                  </div>
+
+                  <!-- INVENTORY -->
+                  <div class="metric-row mb-0">
+
+                    <div class="metric-label">
+                      Inventory
+                    </div>
+
+                    <div class="progress progress-custom">
+                      <div class="progress-bar bg-inventory" style="width: 55%"></div>
+                    </div>
+
+                    <div class="metric-value">
+                      1000
+                    </div>
+
+                  </div>
+
+                </div>
+
+              </div>
+
+              <!-- RIGHT -->
+              <div class="col-lg-7">
+
+                <div class="chart-title">
+                  Detail Inventory Per-Line
+                </div>
+
+                <div id="chartPreVendor" class="chart-container"></div>
+
+              </div>
+
+            </div>
+
+          </div>
+
+          <!-- AFTER PROCESS -->
+          <div class="dashboard-card">
+
+            <div class="row align-items-center">
+
+              <!-- LEFT -->
+              <div class="col-lg-5">
+
+                <div class="metric-group metric-group-full">
+
+                  <div class="sub-title">
+                    After Process Vendor
+                  </div>
+
+                  <!-- IN -->
+                  <div class="metric-row">
+
+                    <div class="metric-label">
+                      In
+                    </div>
+
+                    <div class="progress progress-custom">
+                      <div class="progress-bar bg-in" style="width: 85%"></div>
+                    </div>
+
+                    <div class="metric-value">
+                      3000
+                    </div>
+
+                  </div>
+
+                  <!-- OUT -->
+                  <div class="metric-row">
+
+                    <div class="metric-label">
+                      Out
+                    </div>
+
+                    <div class="progress progress-custom">
+                      <div class="progress-bar bg-out" style="width: 70%"></div>
+                    </div>
+
+                    <div class="metric-value">
+                      2000
+                    </div>
+
+                  </div>
+
+                  <!-- INVENTORY -->
+                  <div class="metric-row mb-0">
+
+                    <div class="metric-label">
+                      Inventory
+                    </div>
+
+                    <div class="progress progress-custom">
+                      <div class="progress-bar bg-inventory" style="width: 55%"></div>
+                    </div>
+
+                    <div class="metric-value">
+                      1000
+                    </div>
+
+                  </div>
+
+                </div>
+
+              </div>
+
+              <!-- RIGHT -->
+              <div class="col-lg-7">
+
+                <div class="chart-title">
+                  Detail Inventory Per-Line
+                </div>
+
+                <div id="chartAfterVendor" class="chart-container"></div>
+
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
+
       </div>
 
-      <div id="cardContainer" class="d-flex flex-wrap gap-3"></div>
     </section>
 
   </main><!-- End #main -->
@@ -168,6 +622,83 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
         toast.show();
       }
     });
+  </script>
+
+  <script>
+    /* ===================================== */
+    /* CHART OPTIONS */
+    /* ===================================== */
+
+    var chartOptions = {
+
+      chart: {
+        type: 'bar',
+        height: 280,
+        toolbar: {
+          show: false
+        }
+      },
+
+      series: [{
+        name: 'Inventory',
+        data: [3613, 7977, 4511, 6611, 2329, 1208, 7966]
+      }],
+
+      xaxis: {
+        categories: ['103', '105', '108', '110', '112', '114', '116']
+      },
+
+      colors: ['#5f84ad'],
+
+      plotOptions: {
+        bar: {
+          borderRadius: 6,
+          columnWidth: '55%'
+        }
+      },
+
+      dataLabels: {
+        enabled: true,
+        style: {
+          fontSize: '12px',
+          fontWeight: 600
+        }
+      },
+
+      grid: {
+        borderColor: '#e2e8f0'
+      },
+
+      stroke: {
+        show: false
+      }
+
+    };
+
+    /* ===================================== */
+    /* INIT CHART */
+    /* ===================================== */
+
+    var chartCutting = new ApexCharts(
+      document.querySelector("#chartCutting"),
+      chartOptions
+    );
+
+    chartCutting.render();
+
+    var chartPreVendor = new ApexCharts(
+      document.querySelector("#chartPreVendor"),
+      chartOptions
+    );
+
+    chartPreVendor.render();
+
+    var chartAfterVendor = new ApexCharts(
+      document.querySelector("#chartAfterVendor"),
+      chartOptions
+    );
+
+    chartAfterVendor.render();
   </script>
 
 </body>
