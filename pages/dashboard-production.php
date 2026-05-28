@@ -32,17 +32,9 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
     }
   }
 
-  /* ===================================== */
-  /* PAGE */
-  /* ===================================== */
-
   body {
     background: #f8fafc;
   }
-
-  /* ===================================== */
-  /* TITLE */
-  /* ===================================== */
 
   .dashboard-title {
     background: #f0e6d2;
@@ -59,10 +51,6 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
     color: #0f172a;
   }
 
-  /* ===================================== */
-  /* CARD */
-  /* ===================================== */
-
   .dashboard-card {
     background: #ffffff;
     border: 1px solid #e2e8f0;
@@ -76,10 +64,6 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
     transform: translateY(-2px);
     box-shadow: 0 8px 20px rgba(0, 0, 0, .06);
   }
-
-  /* ===================================== */
-  /* SECTION HEADER */
-  /* ===================================== */
 
   .section-header {
     display: flex;
@@ -95,24 +79,15 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
     color: #334155;
   }
 
-  /* ===================================== */
-  /* SUB CARD */
-  /* ===================================== */
-
   .sub-card {
     border: 1px solid #e2e8f0;
     border-radius: 16px;
     padding: 20px;
     background: #fcfcfd;
     min-height: 320px;
-
     display: flex;
     align-items: center;
   }
-
-  /* ===================================== */
-  /* TITLE */
-  /* ===================================== */
 
   .sub-title {
     font-size: 15px;
@@ -128,10 +103,6 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
     color: #0f172a;
   }
 
-  /* ===================================== */
-  /* METRIC GROUP */
-  /* ===================================== */
-
   .metric-group {
     display: flex;
     flex-direction: column;
@@ -145,10 +116,6 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
     flex-direction: column;
     justify-content: center;
   }
-
-  /* ===================================== */
-  /* METRIC */
-  /* ===================================== */
 
   .metric-row {
     display: flex;
@@ -165,15 +132,12 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
   }
 
   .metric-value {
-    min-width: 55px;
-    font-size: 18px;
+    min-width: 75px;
+    font-size: 22px;
     font-weight: 700;
+    letter-spacing: -.5px;
     color: #0f172a;
   }
-
-  /* ===================================== */
-  /* PROGRESS */
-  /* ===================================== */
 
   .progress-custom {
     flex: 1;
@@ -187,11 +151,13 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
   .progress-custom .progress-bar {
     border-radius: 10px;
     box-shadow: inset 0 -1px 0 rgba(0, 0, 0, .08);
+    transition: all .25s ease;
   }
 
-  /* ===================================== */
-  /* COLORS */
-  /* ===================================== */
+  .progress-custom:hover .progress-bar {
+    filter: brightness(1.08);
+    transform: scaleY(1.08);
+  }
 
   .bg-in {
     background: #9bc47c !important;
@@ -205,12 +171,136 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
     background: #357ABD !important;
   }
 
-  /* ===================================== */
-  /* CHART */
-  /* ===================================== */
-
   .chart-container {
     height: 280px;
+  }
+
+  .tooltip-inner {
+    background: #0f172a;
+    color: #ffffff;
+    font-size: 12px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-weight: 500;
+  }
+
+  .tooltip.bs-tooltip-top .tooltip-arrow::before {
+    border-top-color: #0f172a;
+  }
+
+  .chart-scroll {
+    overflow-x: auto;
+    overflow-y: hidden;
+    width: 100%;
+  }
+
+  .dashboard-card {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .dashboard-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 4px;
+    background: linear-gradient(to right,
+        #5f84ad,
+        #7aa37a);
+  }
+
+  .progress-bar {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .progress-bar::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -40%;
+    width: 40%;
+    height: 100%;
+    background: rgba(255, 255, 255, .18);
+    transform: skewX(-20deg);
+  }
+
+  /* MODAL  */
+  .dashboard-detail-modal {
+    border: 0;
+    border-radius: 20px;
+  }
+
+  .dashboard-modal-header {
+    border-bottom: 1px solid #e2e8f0;
+    padding: 20px 24px;
+  }
+
+  .dashboard-modal-footer {
+    border-top: 1px solid #e2e8f0;
+    padding: 16px 24px;
+  }
+
+  .dashboard-modal-subtitle {
+    font-size: 13px;
+    color: #64748b;
+    margin-top: 2px;
+  }
+
+  .dashboard-detail-table thead th {
+    background: #f8fafc;
+    border-bottom: 1px solid #e2e8f0;
+    color: #334155;
+    font-size: 13px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .dashboard-detail-table tbody td {
+    font-size: 13px;
+    color: #475569;
+    vertical-align: middle;
+    white-space: nowrap;
+  }
+
+  .dashboard-detail-table tbody tr:hover {
+    background: #f8fafc;
+  }
+
+  .btn-export {
+    background: #2f8a9e;
+    color: #ffffff;
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-weight: 600;
+  }
+
+  .btn-export:hover {
+    background: #256d7d;
+    color: #ffffff;
+  }
+
+  /* DATATABLE */
+
+  .dashboard-detail-table {
+    width: 100% !important;
+  }
+
+  .dashboard-detail-table th,
+  .dashboard-detail-table td {
+    white-space: nowrap;
+    vertical-align: middle;
+  }
+
+  .dataTables_scrollHeadInner,
+  .dataTables_scrollHeadInner table {
+    width: 100% !important;
+  }
+
+  table.dataTable {
+    width: 100% !important;
   }
 </style>
 
@@ -286,12 +376,8 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
 
       <div class="row g-3">
 
-        <!-- ===================================== -->
         <!-- LEFT SIDE -->
-        <!-- ===================================== -->
-
         <div class="col-lg-4">
-
           <div class="dashboard-card h-100">
 
             <!-- HEADER -->
@@ -306,7 +392,7 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
               <div class="metric-group">
 
                 <div class="sub-title">
-                  Supermarket Cutting 1 Area
+                  Output Cutting Subcont
                 </div>
 
                 <!-- IN -->
@@ -316,12 +402,22 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
                     In
                   </div>
 
-                  <div class="progress progress-custom">
-                    <div class="progress-bar bg-in" style="width: 85%"></div>
+                  <div
+                    class="progress progress-custom clickable-card"
+                    data-bs-toggle="tooltip"
+                    data-bs-placement="top"
+                    id="tooltipIn"
+                    data-section="cutting"
+                    data-type="in"
+                    title="">
+                    <div
+                      id="barIn"
+                      class="progress-bar bg-in"
+                      style="width: 0%"></div>
                   </div>
 
-                  <div class="metric-value">
-                    3000
+                  <div id="totalIn" class="metric-value">
+                    0
                   </div>
 
                 </div>
@@ -333,12 +429,22 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
                     Out
                   </div>
 
-                  <div class="progress progress-custom">
-                    <div class="progress-bar bg-out" style="width: 70%"></div>
+                  <div
+                    class="progress progress-custom clickable-card"
+                    data-bs-toggle="tooltip"
+                    data-bs-placement="top"
+                    id="tooltipOut"
+                    data-section="cutting"
+                    data-type="out"
+                    title="">
+                    <div
+                      id="barOut"
+                      class="progress-bar bg-out"
+                      style="width: 0%"></div>
                   </div>
 
-                  <div class="metric-value">
-                    2000
+                  <div id="totalOut" class="metric-value">
+                    0
                   </div>
 
                 </div>
@@ -350,12 +456,22 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
                     Inventory
                   </div>
 
-                  <div class="progress progress-custom">
-                    <div class="progress-bar bg-inventory" style="width: 55%"></div>
+                  <div
+                    class="progress progress-custom clickable-card"
+                    data-bs-toggle="tooltip"
+                    data-bs-placement="top"
+                    id="tooltipInventory"
+                    data-section="cutting"
+                    data-type="inventory"
+                    title="">
+                    <div
+                      id="barInventory"
+                      class="progress-bar bg-inventory"
+                      style="width: 0%"></div>
                   </div>
 
-                  <div class="metric-value">
-                    1000
+                  <div id="totalInventory" class="metric-value">
+                    0
                   </div>
 
                 </div>
@@ -371,7 +487,11 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
                 Detail Inventory Per-Line
               </div>
 
-              <div id="chartCutting" class="chart-container"></div>
+              <div class="chart-scroll">
+
+                <div id="chartCutting" class="chart-container"></div>
+
+              </div>
 
             </div>
 
@@ -379,9 +499,7 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
 
         </div>
 
-        <!-- ===================================== -->
         <!-- RIGHT SIDE -->
-        <!-- ===================================== -->
 
         <div class="col-lg-8">
 
@@ -398,59 +516,105 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
               <!-- LEFT -->
               <div class="col-lg-5">
 
-                <div class="metric-group metric-group-full">
+                <div class="sub-card mb-3">
 
-                  <div class="sub-title">
-                    Pre Process Vendor
-                  </div>
+                  <div class="metric-group metric-group-full">
 
-                  <!-- IN -->
-                  <div class="metric-row">
-
-                    <div class="metric-label">
-                      In
+                    <div class="sub-title">
+                      Ready to Warehouse Subcont
                     </div>
 
-                    <div class="progress progress-custom">
-                      <div class="progress-bar bg-in" style="width: 85%"></div>
+                    <!-- IN -->
+                    <div class="metric-row">
+
+                      <div class="metric-label">
+                        In
+                      </div>
+
+                      <div
+                        id="tooltipPreVendorIn"
+                        class="progress progress-custom clickable-card"
+                        data-bs-toggle="tooltip"
+                        data-bs-placement="top"
+                        data-section="pre_vendor"
+                        data-type="in"
+                        title="">
+
+                        <div
+                          id="barPreVendorIn"
+                          class="progress-bar bg-in"
+                          style="width: 0%"></div>
+
+                      </div>
+
+                      <div
+                        id="totalPreVendorIn"
+                        class="metric-value">
+                        0
+                      </div>
+
                     </div>
 
-                    <div class="metric-value">
-                      3000
+                    <!-- OUT -->
+                    <div class="metric-row">
+
+                      <div class="metric-label">
+                        Out
+                      </div>
+
+                      <div
+                        id="tooltipPreVendorOut"
+                        class="progress progress-custom clickable-card"
+                        data-bs-toggle="tooltip"
+                        data-bs-placement="top"
+                        data-section="pre_vendor"
+                        data-type="out"
+                        title="">
+
+                        <div
+                          id="barPreVendorOut"
+                          class="progress-bar bg-out"
+                          style="width: 0%"></div>
+
+                      </div>
+
+                      <div
+                        id="totalPreVendorOut"
+                        class="metric-value">
+                        0
+                      </div>
+
                     </div>
 
-                  </div>
+                    <!-- INVENTORY -->
+                    <div class="metric-row mb-0">
 
-                  <!-- OUT -->
-                  <div class="metric-row">
+                      <div class="metric-label">
+                        Inventory
+                      </div>
 
-                    <div class="metric-label">
-                      Out
-                    </div>
+                      <div
+                        id="tooltipPreVendorInventory"
+                        class="progress progress-custom clickable-card"
+                        data-bs-toggle="tooltip"
+                        data-bs-placement="top"
+                        data-section="pre_vendor"
+                        data-type="inventory"
+                        title="">
 
-                    <div class="progress progress-custom">
-                      <div class="progress-bar bg-out" style="width: 70%"></div>
-                    </div>
+                        <div
+                          id="barPreVendorInventory"
+                          class="progress-bar bg-inventory"
+                          style="width: 0%"></div>
 
-                    <div class="metric-value">
-                      2000
-                    </div>
+                      </div>
 
-                  </div>
+                      <div
+                        id="totalPreVendorInventory"
+                        class="metric-value">
+                        0
+                      </div>
 
-                  <!-- INVENTORY -->
-                  <div class="metric-row mb-0">
-
-                    <div class="metric-label">
-                      Inventory
-                    </div>
-
-                    <div class="progress progress-custom">
-                      <div class="progress-bar bg-inventory" style="width: 55%"></div>
-                    </div>
-
-                    <div class="metric-value">
-                      1000
                     </div>
 
                   </div>
@@ -466,7 +630,13 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
                   Detail Inventory Per-Line
                 </div>
 
-                <div id="chartPreVendor" class="chart-container"></div>
+                <div class="chart-scroll">
+
+                  <div
+                    id="chartPreVendor"
+                    class="chart-container"></div>
+
+                </div>
 
               </div>
 
@@ -482,59 +652,105 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
               <!-- LEFT -->
               <div class="col-lg-5">
 
-                <div class="metric-group metric-group-full">
+                <div class="sub-card">
 
-                  <div class="sub-title">
-                    After Process Vendor
-                  </div>
+                  <div class="metric-group metric-group-full">
 
-                  <!-- IN -->
-                  <div class="metric-row">
-
-                    <div class="metric-label">
-                      In
+                    <div class="sub-title">
+                      Return from Warehouse Subcont
                     </div>
 
-                    <div class="progress progress-custom">
-                      <div class="progress-bar bg-in" style="width: 85%"></div>
+                    <!-- IN -->
+                    <div class="metric-row">
+
+                      <div class="metric-label">
+                        In
+                      </div>
+
+                      <div
+                        id="tooltipAfterVendorIn"
+                        class="progress progress-custom clickable-card"
+                        data-bs-toggle="tooltip"
+                        data-bs-placement="top"
+                        data-section="after_vendor"
+                        data-type="in"
+                        title="">
+
+                        <div
+                          id="barAfterVendorIn"
+                          class="progress-bar bg-in"
+                          style="width: 0%"></div>
+
+                      </div>
+
+                      <div
+                        id="totalAfterVendorIn"
+                        class="metric-value">
+                        0
+                      </div>
+
                     </div>
 
-                    <div class="metric-value">
-                      3000
+                    <!-- OUT -->
+                    <div class="metric-row">
+
+                      <div class="metric-label">
+                        Out
+                      </div>
+
+                      <div
+                        id="tooltipAfterVendorOut"
+                        class="progress progress-custom clickable-card"
+                        data-bs-toggle="tooltip"
+                        data-bs-placement="top"
+                        data-section="after_vendor"
+                        data-type="out"
+                        title="">
+
+                        <div
+                          id="barAfterVendorOut"
+                          class="progress-bar bg-out"
+                          style="width: 0%"></div>
+
+                      </div>
+
+                      <div
+                        id="totalAfterVendorOut"
+                        class="metric-value">
+                        0
+                      </div>
+
                     </div>
 
-                  </div>
+                    <!-- INVENTORY -->
+                    <div class="metric-row mb-0">
 
-                  <!-- OUT -->
-                  <div class="metric-row">
+                      <div class="metric-label">
+                        Inventory
+                      </div>
 
-                    <div class="metric-label">
-                      Out
-                    </div>
+                      <div
+                        id="tooltipAfterVendorInventory"
+                        class="progress progress-custom clickable-card"
+                        data-bs-toggle="tooltip"
+                        data-bs-placement="top"
+                        data-section="after_vendor"
+                        data-type="inventory"
+                        title="">
 
-                    <div class="progress progress-custom">
-                      <div class="progress-bar bg-out" style="width: 70%"></div>
-                    </div>
+                        <div
+                          id="barAfterVendorInventory"
+                          class="progress-bar bg-inventory"
+                          style="width: 0%"></div>
 
-                    <div class="metric-value">
-                      2000
-                    </div>
+                      </div>
 
-                  </div>
+                      <div
+                        id="totalAfterVendorInventory"
+                        class="metric-value">
+                        0
+                      </div>
 
-                  <!-- INVENTORY -->
-                  <div class="metric-row mb-0">
-
-                    <div class="metric-label">
-                      Inventory
-                    </div>
-
-                    <div class="progress progress-custom">
-                      <div class="progress-bar bg-inventory" style="width: 55%"></div>
-                    </div>
-
-                    <div class="metric-value">
-                      1000
                     </div>
 
                   </div>
@@ -550,7 +766,13 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
                   Detail Inventory Per-Line
                 </div>
 
-                <div id="chartAfterVendor" class="chart-container"></div>
+                <div class="chart-scroll">
+
+                  <div
+                    id="chartAfterVendor"
+                    class="chart-container"></div>
+
+                </div>
 
               </div>
 
@@ -563,6 +785,87 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
       </div>
 
     </section>
+
+    <!-- DETAIL MODAL -->
+
+    <div
+      class="modal fade"
+      id="dashboardDetailModal"
+      tabindex="-1">
+
+      <div class="modal-dialog modal-xl modal-dialog-scrollable">
+
+        <div class="modal-content dashboard-detail-modal">
+
+          <!-- HEADER -->
+          <div class="modal-header dashboard-modal-header">
+
+            <div>
+
+              <h4
+                id="dashboardModalTitle"
+                class="modal-title">
+                Detail Dashboard
+              </h4>
+            </div>
+
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"></button>
+
+          </div>
+
+          <!-- BODY -->
+          <div class="modal-body">
+
+            <div class="table-responsive">
+
+              <table
+                id="dashboardDetailTable"
+                class="
+                table
+                dashboard-detail-table
+                align-middle
+              ">
+              </table>
+
+            </div>
+
+          </div>
+
+          <!-- FOOTER -->
+          <div class="modal-footer dashboard-modal-footer">
+
+            <button
+              type="button"
+
+              class="
+                  btn
+                  btn-secondary
+                  px-4
+                "
+
+              data-bs-dismiss="modal">
+
+              Close
+            </button>
+
+            <button
+              type="button"
+              id="btnExportDashboardDetail"
+              class="btn btn-success">
+              <i class="bi bi-file-earmark-excel"></i>
+              Export
+            </button>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
 
   </main><!-- End #main -->
 
@@ -625,80 +928,984 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
   </script>
 
   <script>
-    /* ===================================== */
-    /* CHART OPTIONS */
-    /* ===================================== */
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
 
-    var chartOptions = {
+    var tooltipList = tooltipTriggerList.map(function(tooltipTriggerEl) {
+      return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+  </script>
 
-      chart: {
-        type: 'bar',
-        height: 280,
-        toolbar: {
-          show: false
-        }
-      },
+  <script>
+    var dashboardCharts = {};
+    const chartColor = {
 
-      series: [{
-        name: 'Inventory',
-        data: [3613, 7977, 4511, 6611, 2329, 1208, 7966]
-      }],
-
-      xaxis: {
-        categories: ['103', '105', '108', '110', '112', '114', '116']
-      },
-
-      colors: ['#5f84ad'],
-
-      plotOptions: {
-        bar: {
-          borderRadius: 6,
-          columnWidth: '55%'
-        }
-      },
-
-      dataLabels: {
-        enabled: true,
-        style: {
-          fontSize: '12px',
-          fontWeight: 600
-        }
-      },
-
-      grid: {
-        borderColor: '#e2e8f0'
-      },
-
-      stroke: {
-        show: false
-      }
+      cutting: '#5f84ad',
+      preVendor: '#5f84ad',
+      afterVendor: '#5f84ad'
 
     };
 
-    /* ===================================== */
-    /* INIT CHART */
-    /* ===================================== */
+    $(document).ready(function() {
+      loadDashboard();
 
-    var chartCutting = new ApexCharts(
-      document.querySelector("#chartCutting"),
-      chartOptions
+      /* AUTO REFRESH */
+      setInterval(function() {
+        loadDashboard();
+      }, 60000);
+
+    });
+
+    function loadDashboard() {
+
+      $.ajax({
+        url: './../config/get_production_dashboard.php',
+        type: 'GET',
+        dataType: 'json',
+
+        success: function(response) {
+          console.log(response);
+          renderCuttingOverview(response);
+          renderCuttingChart(response);
+          renderPreVendorOverview(response);
+          renderPreVendorChart(response);
+          renderAfterVendorOverview(response);
+          renderAfterVendorChart(response);
+          initTooltip();
+        },
+
+        error: function(xhr) {
+          console.log(xhr.responseText);
+        }
+
+      });
+
+    }
+
+    function initTooltip() {
+
+      $('[data-bs-toggle="tooltip"]').tooltip('dispose');
+
+      var tooltipTriggerList = [].slice.call(
+        document.querySelectorAll('[data-bs-toggle="tooltip"]')
+      );
+
+      tooltipTriggerList.map(function(tooltipTriggerEl) {
+
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+
+      });
+
+    }
+
+    function renderCuttingOverview(response) {
+
+      let data = response.cutting.summary;
+      let totalIn = data.in ?? 0;
+      let totalOut = data.out ?? 0;
+      let totalInventory = data.inventory ?? 0;
+
+      let maxValue = Math.max(
+        totalIn,
+        totalOut,
+        totalInventory,
+        1
+      );
+
+      let inPercent =
+        (totalIn / maxValue) * 100;
+
+      let outPercent =
+        (totalOut / maxValue) * 100;
+
+      let inventoryPercent =
+        (totalInventory / maxValue) * 100;
+
+      $('#totalIn')
+        .text(totalIn.toLocaleString());
+
+      $('#totalOut')
+        .text(totalOut.toLocaleString());
+
+      $('#totalInventory')
+        .text(totalInventory.toLocaleString());
+
+      $('#barIn')
+        .css('width', inPercent + '%');
+
+      $('#barOut')
+        .css('width', outPercent + '%');
+
+      $('#barInventory')
+        .css('width', inventoryPercent + '%');
+
+      $('#tooltipIn')
+        .attr(
+          'data-bs-original-title',
+          'In : ' +
+          totalIn.toLocaleString() + ' Prs'
+        )
+        .attr(
+          'data-value',
+          totalIn
+        );
+
+      $('#tooltipOut')
+        .attr(
+          'data-bs-original-title',
+          'Out : ' +
+          totalOut.toLocaleString() + ' Prs'
+        )
+        .attr(
+          'data-value',
+          totalOut
+        );
+
+      $('#tooltipInventory')
+        .attr(
+          'data-bs-original-title',
+          'Inventory : ' +
+          totalInventory.toLocaleString() + ' Prs'
+        )
+        .attr(
+          'data-value',
+          totalInventory
+        );
+
+    }
+
+    function renderCuttingChart(response) {
+
+      let categories =
+        response.cutting.chart.categories ?? [];
+
+      let seriesData =
+        response.cutting.chart.series ?? [];
+
+      let dynamicChartWidth =
+        categories.length * 70;
+
+      dynamicChartWidth = Math.max(
+        dynamicChartWidth,
+        350
+      );
+
+      if (dashboardCharts.chartCutting) {
+
+        dashboardCharts.chartCutting.destroy();
+
+      }
+
+      var chartOptions = {
+
+        chart: {
+
+          type: 'bar',
+          height: 280,
+          width: dynamicChartWidth,
+
+          toolbar: {
+            show: false
+          },
+
+          animations: {
+            enabled: true,
+            easing: 'easeinout',
+            speed: 700
+          },
+
+          events: {
+
+            dataPointSelection: function(
+              event,
+              chartContext,
+              config
+            ) {
+
+              let selectedNcvs =
+                categories[
+                  config.dataPointIndex
+                ];
+
+              /* VALUE */
+              let selectedValue =
+                seriesData[
+                  config.dataPointIndex
+                ];
+
+              /* PREVENT ZERO CLICK */
+              if (selectedValue <= 0) {
+                return;
+              }
+
+              /* OPEN DETAIL */
+              openDashboardDetail({
+                section: 'cutting',
+                type: 'inventory',
+                ncvs: selectedNcvs
+
+              });
+            }
+          }
+        },
+
+        legend: {
+          show: false
+        },
+
+        series: [{
+          name: 'Inventory',
+          data: seriesData
+        }],
+
+        xaxis: {
+          categories: categories
+        },
+
+        colors: [
+          chartColor.cutting
+        ],
+
+        plotOptions: {
+          bar: {
+            borderRadius: 6,
+            columnWidth: '35%'
+          }
+        },
+
+        tooltip: {
+
+          theme: 'light',
+
+          y: {
+            formatter: function(val) {
+              return val.toLocaleString() + ' prs';
+
+            }
+          }
+        },
+
+        dataLabels: {
+          enabled: true
+        },
+
+        grid: {
+          borderColor: '#e2e8f0'
+        }
+
+      };
+
+      dashboardCharts.chartCutting =
+        new ApexCharts(
+          document.querySelector("#chartCutting"),
+          chartOptions
+        );
+
+      dashboardCharts.chartCutting.render();
+
+    }
+
+    function renderPreVendorOverview(response) {
+
+      let data = response.pre_vendor.summary;
+      let totalIn = data.in ?? 0;
+      let totalOut = data.out ?? 0;
+      let totalInventory = data.inventory ?? 0;
+
+      let maxValue = Math.max(
+        totalIn,
+        totalOut,
+        totalInventory,
+        1
+      );
+
+      let inPercent =
+        (totalIn / maxValue) * 100;
+
+      let outPercent =
+        (totalOut / maxValue) * 100;
+
+      let inventoryPercent =
+        (totalInventory / maxValue) * 100;
+
+      $('#totalPreVendorIn')
+        .text(totalIn.toLocaleString());
+
+      $('#totalPreVendorOut')
+        .text(totalOut.toLocaleString());
+
+      $('#totalPreVendorInventory')
+        .text(totalInventory.toLocaleString());
+
+      $('#barPreVendorIn')
+        .css('width', inPercent + '%');
+
+      $('#barPreVendorOut')
+        .css('width', outPercent + '%');
+
+      $('#barPreVendorInventory')
+        .css('width', inventoryPercent + '%');
+
+      $('#tooltipPreVendorIn')
+        .attr(
+          'data-bs-original-title',
+          'In : ' +
+          totalIn.toLocaleString() +
+          ' Prs'
+        )
+        .attr(
+          'data-value',
+          totalIn
+        );
+
+      $('#tooltipPreVendorOut')
+        .attr(
+          'data-bs-original-title',
+          'Out : ' +
+          totalOut.toLocaleString() +
+          ' Prs'
+        )
+        .attr(
+          'data-value',
+          totalOut
+        );
+
+      $('#tooltipPreVendorInventory')
+        .attr(
+          'data-bs-original-title',
+          'Inventory : ' +
+          totalInventory.toLocaleString() +
+          ' Prs'
+        )
+        .attr(
+          'data-value',
+          totalInventory
+        );
+
+    }
+
+    function renderPreVendorChart(response) {
+
+      let categories =
+        response.pre_vendor.chart.categories ?? [];
+
+      let seriesData =
+        response.pre_vendor.chart.series ?? [];
+
+      let dynamicChartWidth =
+        categories.length * 70;
+
+      dynamicChartWidth = Math.max(
+        dynamicChartWidth,
+        350
+      );
+
+      if (dashboardCharts.chartPreVendor) {
+
+        dashboardCharts.chartPreVendor.destroy();
+
+      }
+
+      var chartOptions = {
+
+        chart: {
+
+          type: 'bar',
+
+          height: 280,
+
+          width: dynamicChartWidth,
+
+          toolbar: {
+            show: false
+          },
+
+          animations: {
+            enabled: true,
+            easing: 'easeinout',
+            speed: 700
+          },
+
+          events: {
+
+            dataPointSelection: function(
+              event,
+              chartContext,
+              config
+            ) {
+
+              let selectedNcvs =
+                categories[
+                  config.dataPointIndex
+                ];
+
+              let selectedValue =
+                seriesData[
+                  config.dataPointIndex
+                ];
+
+              if (selectedValue <= 0) {
+                return;
+              }
+
+              openDashboardDetail({
+
+                section: 'pre_vendor',
+
+                type: 'inventory',
+
+                ncvs: selectedNcvs
+
+              });
+
+            }
+
+          }
+
+        },
+
+        legend: {
+          show: false
+        },
+
+        series: [{
+          name: 'Inventory',
+          data: seriesData
+        }],
+
+        xaxis: {
+          categories: categories
+        },
+
+        colors: [
+          chartColor.preVendor
+        ],
+
+        plotOptions: {
+          bar: {
+            borderRadius: 6,
+            columnWidth: '35%'
+          }
+        },
+
+        tooltip: {
+
+          theme: 'light',
+
+          y: {
+            formatter: function(val) {
+
+              return val.toLocaleString() + ' prs';
+
+            }
+          }
+        },
+
+        dataLabels: {
+          enabled: true
+        },
+
+        grid: {
+          borderColor: '#e2e8f0'
+        }
+
+      };
+
+      dashboardCharts.chartPreVendor =
+        new ApexCharts(
+          document.querySelector("#chartPreVendor"),
+          chartOptions
+        );
+
+      dashboardCharts.chartPreVendor.render();
+
+    }
+
+    function renderAfterVendorOverview(response) {
+
+      let data =
+        response.after_vendor.summary;
+      let totalIn = data.in ?? 0;
+      let totalOut = data.out ?? 0;
+      let totalInventory =
+        data.inventory ?? 0;
+      let maxValue = Math.max(
+        totalIn,
+        totalOut,
+        totalInventory,
+        1
+      );
+
+      let inPercent =
+        (totalIn / maxValue) * 100;
+
+      let outPercent =
+        (totalOut / maxValue) * 100;
+
+      let inventoryPercent =
+        (totalInventory / maxValue) * 100;
+
+      $('#totalAfterVendorIn')
+        .text(totalIn.toLocaleString());
+
+      $('#totalAfterVendorOut')
+        .text(totalOut.toLocaleString());
+
+      $('#totalAfterVendorInventory')
+        .text(totalInventory.toLocaleString());
+
+      $('#barAfterVendorIn')
+        .css('width', inPercent + '%');
+
+      $('#barAfterVendorOut')
+        .css('width', outPercent + '%');
+
+      $('#barAfterVendorInventory')
+        .css(
+          'width',
+          inventoryPercent + '%'
+        );
+
+      $('#tooltipAfterVendorIn')
+        .attr(
+          'data-bs-original-title',
+          'In : ' +
+          totalIn.toLocaleString() +
+          ' Pairs'
+        )
+        .attr(
+          'data-value',
+          totalIn
+        );
+
+      $('#tooltipAfterVendorOut')
+        .attr(
+          'data-bs-original-title',
+          'Out : ' +
+          totalOut.toLocaleString() +
+          ' Pairs'
+        )
+        .attr(
+          'data-value',
+          totalOut
+        );
+
+      $('#tooltipAfterVendorInventory')
+        .attr(
+          'data-bs-original-title',
+          'Inventory : ' +
+          totalInventory.toLocaleString() +
+          ' Pairs'
+        )
+        .attr(
+          'data-value',
+          totalInventory
+        );
+
+    }
+
+
+    function renderAfterVendorChart(response) {
+
+      let categories =
+        response.after_vendor.chart.categories ?? [];
+      let seriesData =
+        response.after_vendor.chart.series ?? [];
+      let dynamicChartWidth =
+        categories.length * 70;
+
+      dynamicChartWidth = Math.max(
+        dynamicChartWidth,
+        350
+      );
+
+      if (dashboardCharts.chartAfterVendor) {
+
+        dashboardCharts.chartAfterVendor.destroy();
+
+      }
+
+      var chartOptions = {
+
+        chart: {
+
+          type: 'bar',
+
+          height: 280,
+
+          width: dynamicChartWidth,
+
+          toolbar: {
+            show: false
+          },
+
+          animations: {
+            enabled: true,
+            easing: 'easeinout',
+            speed: 700
+          },
+
+          events: {
+
+            dataPointSelection: function(
+              event,
+              chartContext,
+              config
+            ) {
+
+              let selectedNcvs =
+                categories[
+                  config.dataPointIndex
+                ];
+
+              let selectedValue =
+                seriesData[
+                  config.dataPointIndex
+                ];
+
+              /* PREVENT 0 CLICK */
+
+              if (selectedValue <= 0) {
+                return;
+              }
+
+              openDashboardDetail({
+
+                section: 'after_vendor',
+                type: 'inventory',
+                ncvs: selectedNcvs
+
+              });
+
+            }
+
+          }
+
+        },
+
+        legend: {
+          show: false
+        },
+
+        series: [{
+          name: 'Inventory',
+          data: seriesData
+        }],
+
+        xaxis: {
+          categories: categories
+        },
+
+        colors: [
+          chartColor.afterVendor
+        ],
+
+        plotOptions: {
+          bar: {
+            borderRadius: 6,
+            columnWidth: '35%'
+          }
+        },
+
+        tooltip: {
+
+          theme: 'light',
+
+          y: {
+            formatter: function(val) {
+              return val.toLocaleString() + ' Qty';
+
+            }
+          }
+        },
+
+        dataLabels: {
+          enabled: true
+        },
+
+        grid: {
+          borderColor: '#e2e8f0'
+        }
+
+      };
+
+      dashboardCharts.chartAfterVendor =
+        new ApexCharts(
+          document.querySelector("#chartAfterVendor"),
+          chartOptions
+        );
+
+      dashboardCharts.chartAfterVendor.render();
+
+    }
+
+    /* OPEN MODAL */
+
+    $(document).on(
+      'click',
+      '.progress-custom',
+      function() {
+
+        let value =
+          parseInt(
+            $(this).attr('data-value')
+          ) || 0;
+
+        /* PREVENT ZERO CLICK */
+
+        if (value <= 0) {
+          return;
+        }
+
+        let type =
+          $(this).data('type');
+
+        let section =
+          $(this).data('section');
+
+        openDashboardDetail({
+          section: section,
+          type: type
+        });
+
+      }
     );
 
-    chartCutting.render();
+    function openDashboardDetail(params) {
 
-    var chartPreVendor = new ApexCharts(
-      document.querySelector("#chartPreVendor"),
-      chartOptions
+      currentDetailParams = params;
+
+      $.ajax({
+
+        url: './../config/get_production_dashboard_detail.php',
+
+        type: 'GET',
+
+        dataType: 'json',
+
+        data: params,
+
+        success: function(response) {
+
+          console.log(response);
+
+          renderDashboardDetailTable(
+            response
+          );
+
+          $('#dashboardModalTitle')
+            .text('Detail Production Dashboard Monitoring');
+
+          $('#dashboardModalSubtitle')
+            .text(
+              params.section
+              .replaceAll('_', ' ')
+              .toUpperCase()
+            );
+
+          $('#dashboardDetailModal')
+            .modal('show');
+
+        }
+
+      });
+
+    }
+
+    /* RENDER DETAIL TABLE */
+
+    function renderDashboardDetailTable(response) {
+
+      /* DESTROY DATATABLE */
+
+      if ($.fn.DataTable.isDataTable(
+          '#dashboardDetailTable'
+        )) {
+
+        $('#dashboardDetailTable')
+          .DataTable()
+          .destroy();
+
+      }
+
+      /* DATA */
+
+      let sizes = response.sizes ?? [];
+      let rows = response.rows ?? [];
+
+      /* HEADER */
+
+      let headerHtml = `
+
+        <tr>
+            <th>NCVS</th>
+            <th>Bucket</th>
+            <th>Style</th>
+            <th>Model</th>
+            <th>PO</th>
+            <th>PO Item</th>
+            <th>Component</th>
+    `;
+
+      /* SIZE HEADER */
+      sizes.forEach(function(size) {
+
+        headerHtml += `
+            <th>${size}</th>
+        `;
+
+      });
+
+      /* TOTAL HEADER */
+
+      headerHtml += `
+
+            <th>Total</th>
+
+        </tr>
+
+    `;
+
+      /* BODY */
+      let bodyHtml = '';
+
+      rows.forEach(function(row) {
+
+        let totalQty = 0;
+
+        bodyHtml += `
+
+            <tr>
+
+                <td>${row.ncvs ?? ''}</td>
+                <td>${row.bucket ?? ''}</td>
+                <td>${row.style ?? ''}</td>
+                <td>${row.model ?? ''}</td>
+                <td>${row.po ?? ''}</td>
+                <td>${row.po_item ?? ''}</td>
+                <td>${row.component ?? ''}</td>
+
+        `;
+
+        /* SIZE QTY */
+        sizes.forEach(function(size) {
+
+          let qty =
+            row.sizes[size] ?? 0;
+
+          totalQty += qty;
+
+          /* EMPTY STYLE */
+          let qtyDisplay =
+            qty > 0 ? qty : '0';
+
+          let tdClass =
+            qty > 0 ?
+            '' :
+            'empty-size';
+
+          bodyHtml += `
+
+                <td class="${tdClass}">
+                    ${qtyDisplay}
+                </td>
+
+            `;
+
+        });
+
+        /* TOTAL */
+        bodyHtml += `
+
+                <td class="fw-bold">
+                    ${totalQty}
+                </td>
+
+            </tr>
+
+        `;
+
+      });
+
+      /* RENDER FULL TABLE */
+      $('#dashboardDetailTable')
+        .html(
+
+          `
+
+        <thead>
+            ${headerHtml}
+        </thead>
+
+        <tbody>
+            ${bodyHtml}
+        </tbody>
+
+        `
+
+        );
+
+      /* INIT DATATABLE */
+
+      setTimeout(function() {
+
+        let table =
+          $('#dashboardDetailTable')
+          .DataTable({
+
+            pageLength: 10,
+
+            lengthMenu: [
+
+              [10, 15, 20, 50, 100, -1],
+
+              [10, 15, 20, 50, 100, 'All']
+
+            ],
+
+            responsive: false,
+            ordering: false,
+            searching: true,
+            paging: true,
+            info: true,
+            autoWidth: true,
+            language: {
+              search: '',
+              searchPlaceholder: 'Search...'
+            }
+
+          });
+
+        /* ADJUST */
+
+        table.columns.adjust();
+
+      }, 100);
+
+    }
+
+    /* EXPORT DETAIL */
+
+    $(document).on(
+      'click',
+      '#btnExportDashboardDetail',
+      function() {
+
+        let query =
+          $.param(
+            currentDetailParams
+          );
+
+        window.open(
+
+          './../config/export_production_dashboard_detail.php?' +
+          query,
+
+          '_blank'
+
+        );
+
+      }
     );
-
-    chartPreVendor.render();
-
-    var chartAfterVendor = new ApexCharts(
-      document.querySelector("#chartAfterVendor"),
-      chartOptions
-    );
-
-    chartAfterVendor.render();
   </script>
 
 </body>
