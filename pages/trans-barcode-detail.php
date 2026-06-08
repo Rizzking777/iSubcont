@@ -234,6 +234,39 @@ usort($officialSizes, function ($a, $b) {
     margin-top: 6px;
     color: #0d6efd;
   }
+
+  #tableStrukBarcode th,
+  #tableStrukBarcode td {
+    white-space: nowrap;
+    vertical-align: middle;
+  }
+
+  #tableStrukBarcode_wrapper .dataTables_length,
+  #tableStrukBarcode_wrapper .dataTables_filter {
+    margin-bottom: 14px;
+  }
+
+  #tableStrukBarcode_wrapper .dataTables_filter input {
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 6px 10px;
+    margin-left: 8px;
+  }
+
+  #tableStrukBarcode_wrapper .dataTables_length select {
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 5px 8px;
+  }
+
+  #tableStrukBarcode_wrapper .dataTables_paginate {
+    margin-top: 12px;
+  }
+
+  #tableStrukBarcode_wrapper .dataTables_length,
+  #tableStrukBarcode_wrapper .dataTables_filter {
+    margin-bottom: 14px;
+  }
 </style>
 
 <!DOCTYPE html>
@@ -464,7 +497,6 @@ usort($officialSizes, function ($a, $b) {
           </div>
         </div>
       </div>
-      </div>
     </section>
 
     <div class="modal fade" id="modalKonfirmasi" tabindex="-1">
@@ -592,85 +624,70 @@ usort($officialSizes, function ($a, $b) {
     <div class="card shadow-sm mt-4" id="section-struk">
 
       <div
-        class="
-        card-header
-        d-flex
-        justify-content-between
-        align-items-center
-    "
-
+        class="card-header d-flex justify-content-between align-items-center"
         style="
-        background-color:#f0e6d2;
-        color:#1f2937;
-        padding:14px 20px;
-        border-bottom:1px solid #e5dcc7;
-    ">
+      background-color:#f0e6d2;
+      color:#1f2937;
+      padding:14px 20px;
+      border-bottom:1px solid #e5dcc7;
+      ">
 
         <h5
           class="mb-0"
-
           style="
         font-weight:700;
         font-family:'Roboto', sans-serif;
         font-size:1.2rem;
-    ">
+      ">
           <i class="bi bi-receipt"></i>
           Preview Print Barcode
         </h5>
 
-        <!-- <button
-                class="btn btn-light btn-sm"
-                onclick="window.print()"
-            >
-                <i class="bi bi-printer"></i>
-                Print
-            </button> -->
-
       </div>
 
-      <div class="card-body">
+      <div class="card-body pt-3 px-3 pb-2">
 
-        <div class="table-responsive">
+        <table
+          id="tableStrukBarcode"
+          class="
+        table
+        table-bordered
+        table-hover
+        align-middle
+        text-nowrap
+        w-100
+      ">
 
-          <table class="table table-bordered table-hover align-middle text-nowrap">
+          <thead class="table-light text-center">
 
-            <thead class="table-light text-center">
+            <tr>
+              <th>No</th>
+              <th>Bucket</th>
+              <th>PO Code</th>
+              <th>PO Item</th>
+              <th>Model</th>
+              <th>Style</th>
+              <th>NCVS</th>
+              <th>Lot</th>
+              <th>Size</th>
+              <th>Qty</th>
+              <th>Komponen</th>
+              <th>User</th>
+              <th>Created At</th>
+              <th>Action</th>
+            </tr>
 
-              <tr>
-                <th>No</th>
-                <th>Bucket</th>
-                <th>PO Code</th>
-                <th>PO Item</th>
-                <th>Model</th>
-                <th>Style</th>
-                <th>NCVS</th>
-                <th>Lot</th>
-                <th>Size</th>
-                <th>Qty</th>
-                <th>Komponen</th>
-                <th>User</th>
-                <th>Created At</th>
-                <!-- <th>Barcode</th> -->
-                <th>Action</th>
-              </tr>
+          </thead>
 
-            </thead>
+          <tbody id="tbody-struk">
+            <!-- AUTO JS -->
+          </tbody>
 
-            <tbody id="tbody-struk">
-
-              <!-- AUTO JS -->
-
-            </tbody>
-
-          </table>
-
-        </div>
+        </table>
 
       </div>
 
     </div>
-
-
 
   </main><!-- End #main -->
 
@@ -756,213 +773,435 @@ usort($officialSizes, function ($a, $b) {
   <!-- ========================= -->
 
   <script>
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener(
+      'DOMContentLoaded',
+      function() {
 
-      // ambil job order
-      const el = document.getElementById('job-order-data');
+        /* ===================================== */
+        /* GET JOB ORDER */
+        /* ===================================== */
 
-      if (!el) {
+        const jobOrderElement =
+          document.getElementById(
+            'job-order-data'
+          );
 
-        console.error('Element job-order-data tidak ditemukan');
+        if (!jobOrderElement) {
 
-        return;
-      }
+          console.error(
+            'Element job-order-data tidak ditemukan'
+          );
 
-      const job = el.dataset.job;
+          return;
+        }
 
-      console.log('JOB ORDER =', job);
+        const jobOrder =
+          jobOrderElement.dataset.job;
 
-      if (!job || job.trim() === '') {
+        console.log(
+          'JOB ORDER =',
+          jobOrder
+        );
 
-        alert('Job Order tidak ditemukan');
+        if (
+          !jobOrder ||
+          jobOrder.trim() === ''
+        ) {
 
-        return;
-      }
+          alert(
+            'Job Order tidak ditemukan'
+          );
 
-      // endpoint php
-      const url =
-        './../config/get-transaksi.php?job_order=' +
-        encodeURIComponent(job);
+          return;
+        }
 
-      console.log('FETCH =>', url);
+        /* ===================================== */
+        /* FETCH ENDPOINT */
+        /* ===================================== */
 
-      fetch(url)
+        const url =
+          './../config/get-transaksi.php?job_order=' +
+          encodeURIComponent(
+            jobOrder
+          );
 
-        .then(response => {
+        console.log(
+          'FETCH =>',
+          url
+        );
 
-          if (!response.ok) {
-            throw new Error('Response server gagal');
-          }
+        fetch(url)
 
-          return response.json();
-        })
+          .then(function(response) {
 
-        .then(res => {
+            if (!response.ok) {
 
-          console.log('RESULT:', res);
+              throw new Error(
+                'Response server gagal'
+              );
+            }
 
-          const tbody =
-            document.getElementById('tbody-struk');
+            return response.json();
 
-          tbody.innerHTML = '';
+          })
 
-          // jika kosong
-          if (!Array.isArray(res) || res.length === 0) {
+          .then(function(response) {
 
-            tbody.innerHTML = `
-                <tr>
-                    <td colspan="15"
-                        class="text-center text-danger">
-                        Data transaksi tidak ditemukan
-                    </td>
-                </tr>
-            `;
+            console.log(
+              'RESULT:',
+              response
+            );
 
-            return;
-          }
+            renderTransactionTable(
+              response
+            );
 
-          // render table
-          res.forEach((row, index) => {
+          })
 
-            tbody.innerHTML += `
+          .catch(function(error) {
 
-                <tr>
+            console.error(error);
 
-                    <td class="text-center">
-                        ${index + 1}
-                    </td>
+            destroyTransactionDataTable();
 
-                    <td>${row.bucket ?? ''}</td>
+            document
+              .getElementById(
+                'tbody-struk'
+              )
+              .innerHTML = `
 
-                    <td>${row.po_code ?? ''}</td>
+              <tr>
 
-                    <td>${row.po_item ?? ''}</td>
-
-                    <td>${row.model ?? ''}</td>
-
-                    <td>${row.style ?? ''}</td>
-
-                    <td>${row.ncvs ?? ''}</td>
-
-                    <td class="text-center">
-                        ${row.lot ?? ''}
-                    </td>
-
-                    <td>
-                        ${row.size_detail ?? ''}
-                    </td>
-
-                    <td class="text-center fw-bold text-success">
-                        ${row.total_qty ?? ''}
-                    </td>
-
-                    <td>
-                        ${
-                            row.is_main_komponen == 1
-                                ? `${row.nm_komponen_in ?? ''} *`
-                                : `${row.nm_komponen_in ?? ''}`
-                        }
-                    </td>
-
-                    <td>
-                        ${row.transac_by ?? ''}
-                    </td>
-
-                    <td>
-                        ${row.created_at ?? ''}
-                    </td>
-
-                    <!--- <td class="text-center">
-
-                        <div class="small fw-bold mt-1">
-                            ${row.barcode ?? ''}
-                        </div>
-
-                    </td> !--->
-
-                    <td class="text-center">
-
-                    <button
-                        class="btn btn-sm ${
-                            row.qty_smsubcont_fr_cut != null &&
-                            row.count_barcode != null
-                                ? 'btn-secondary'
-                                : 'btn-primary'
-                        } btnPrintRow"
-
-                        ${
-                            row.qty_smsubcont_fr_cut != null &&
-                            row.count_barcode != null
-                                ? 'disabled'
-                                : ''
-                        }
-
-                        data-joborder="${row.job_order ?? ''}"
-                        data-bucket="${row.bucket ?? ''}"
-
-                        data-po_code="${row.po_code ?? ''}"
-                        data-poitem="${row.po_item ?? ''}"
-
-                        data-model="${row.model ?? ''}"
-                        data-style="${row.style ?? ''}"
-                        data-ncvs="${row.ncvs ?? ''}"
-
-                        data-created_by="${row.transac_by ?? ''}"
-                        data-created_at="${row.created_at ?? ''}"
-
-                        data-nm_komponen_in="${
-                            row.is_main_komponen == 1
-                                ? `${row.nm_komponen_in ?? ''} *`
-                                : `${row.nm_komponen_in ?? ''}`
-                        }"
-
-                        data-size="${row.size_detail ?? ''}"
-                        data-total_qty="${row.total_qty ?? ''}"
-
-                        data-lot='${JSON.stringify([row.lot ?? ""])}'
-
-                        data-barcode="${row.barcode ?? ''}"
-                    >
-                        <i class="bi bi-printer"></i>
-
-                        ${
-                            row.qty_smsubcont_fr_cut != null &&
-                            row.count_barcode != null
-                                ? 'Sudah Scan'
-                                : 'Print'
-                        }
-                    </button>
-
+                <td
+                  colspan="14"
+                  class="text-center text-danger py-4"
+                >
+                  Gagal mengambil data transaksi
                 </td>
 
-                </tr>
+              </tr>
 
             `;
+
           });
 
+      }
+    );
 
+    /* ===================================== */
+    /* RENDER TABLE */
+    /* ===================================== */
 
-        })
+    function renderTransactionTable(rows) {
 
-        .catch(error => {
+      const tbody =
+        document.getElementById(
+          'tbody-struk'
+        );
 
-          console.error(error);
+      /* ===================================== */
+      /* DESTROY OLD DATATABLE */
+      /* ===================================== */
 
-          document.getElementById('tbody-struk')
-            .innerHTML = `
+      destroyTransactionDataTable();
+
+      tbody.innerHTML = '';
+
+      /* ===================================== */
+      /* EMPTY STATE */
+      /* ===================================== */
+
+      if (
+        !Array.isArray(rows) ||
+        rows.length === 0
+      ) {
+
+        tbody.innerHTML = `
+
+        <tr>
+
+          <td
+            colspan="14"
+            class="text-center text-danger py-4"
+          >
+            Data transaksi tidak ditemukan
+          </td>
+
+        </tr>
+
+      `;
+
+        return;
+      }
+
+      /* ===================================== */
+      /* BUILD ROW */
+      /* ===================================== */
+
+      const rowHtml =
+        rows.map(
+          function(row, index) {
+
+            const isScanned =
+              row.qty_smsubcont_fr_cut != null &&
+              row.count_barcode != null;
+
+            const componentName =
+              String(
+                row.nm_komponen_in ?? ''
+              ) +
+              (
+                Number(
+                  row.is_main_komponen
+                ) === 1 ?
+                ' *' :
+                ''
+              );
+
+            const lotData =
+              JSON.stringify([
+                row.lot ?? ''
+              ]);
+
+            return `
+
             <tr>
-                <td colspan="15"
-                    class="text-center text-danger">
-                    Gagal mengambil data transaksi
-                </td>
+
+              <td class="text-center">
+                ${index + 1}
+              </td>
+
+              <td>
+                ${escapeHtml(row.bucket)}
+              </td>
+
+              <td>
+                ${escapeHtml(row.po_code)}
+              </td>
+
+              <td>
+                ${escapeHtml(row.po_item)}
+              </td>
+
+              <td>
+                ${escapeHtml(row.model)}
+              </td>
+
+              <td>
+                ${escapeHtml(row.style)}
+              </td>
+
+              <td>
+                ${escapeHtml(row.ncvs)}
+              </td>
+
+              <td class="text-center">
+                ${escapeHtml(row.lot)}
+              </td>
+
+              <td>
+                ${escapeHtml(row.size_detail)}
+              </td>
+
+              <td class="text-center fw-bold text-success">
+                ${escapeHtml(row.total_qty)}
+              </td>
+
+              <td>
+                ${escapeHtml(componentName)}
+              </td>
+
+              <td>
+                ${escapeHtml(row.transac_by)}
+              </td>
+
+              <td>
+                ${escapeHtml(row.created_at)}
+              </td>
+
+              <td class="text-center">
+
+                <button
+                  type="button"
+
+                  class="
+                    btn
+                    btn-sm
+                    ${isScanned
+                      ? 'btn-secondary'
+                      : 'btn-primary'
+                    }
+                    btnPrintRow
+                  "
+
+                  ${isScanned
+                    ? 'disabled'
+                    : ''
+                  }
+
+                  data-joborder="${escapeHtml(row.job_order)}"
+                  data-bucket="${escapeHtml(row.bucket)}"
+
+                  data-po_code="${escapeHtml(row.po_code)}"
+                  data-poitem="${escapeHtml(row.po_item)}"
+
+                  data-model="${escapeHtml(row.model)}"
+                  data-style="${escapeHtml(row.style)}"
+                  data-ncvs="${escapeHtml(row.ncvs)}"
+
+                  data-created_by="${escapeHtml(row.transac_by)}"
+                  data-created_at="${escapeHtml(row.created_at)}"
+
+                  data-nm_komponen_in="${escapeHtml(componentName)}"
+
+                  data-size="${escapeHtml(row.size_detail)}"
+                  data-total_qty="${escapeHtml(row.total_qty)}"
+
+                  data-lot='${escapeHtml(lotData)}'
+
+                  data-barcode="${escapeHtml(row.barcode)}"
+                >
+
+                  <i class="bi bi-printer"></i>
+
+                  ${isScanned
+                    ? 'Sudah Scan'
+                    : 'Print'
+                  }
+
+                </button>
+
+              </td>
+
             </tr>
-        `;
+
+          `;
+
+          }
+        )
+        .join('');
+
+      tbody.innerHTML =
+        rowHtml;
+
+      /* ===================================== */
+      /* INIT DATATABLE */
+      /* ===================================== */
+
+      initTransactionDataTable();
+
+    }
+
+    /* ===================================== */
+    /* INIT DATATABLE */
+    /* ===================================== */
+
+    function initTransactionDataTable() {
+
+      $('#tableStrukBarcode')
+        .DataTable({
+
+          pageLength: 10,
+
+          lengthMenu: [
+            [10, 20, 25],
+            [10, 20, 25]
+          ],
+
+          searching: true,
+
+          paging: true,
+
+          ordering: false,
+
+          info: true,
+
+          responsive: false,
+
+          autoWidth: false,
+
+          scrollX: true,
+
+          language: {
+
+            search: '',
+
+            searchPlaceholder: 'Search data...',
+
+            lengthMenu: 'Show _MENU_ entries',
+
+            info: 'Showing _START_ to _END_ of _TOTAL_ data',
+
+            infoEmpty: 'Showing 0 data',
+
+            zeroRecords: 'Data tidak ditemukan',
+
+            paginate: {
+
+              previous: 'Previous',
+
+              next: 'Next'
+
+            }
+
+          }
+
         });
 
-    });
+    }
+
+    /* ===================================== */
+    /* DESTROY DATATABLE */
+    /* ===================================== */
+
+    function destroyTransactionDataTable() {
+
+      if (
+        $.fn.DataTable.isDataTable(
+          '#tableStrukBarcode'
+        )
+      ) {
+
+        $('#tableStrukBarcode')
+          .DataTable()
+          .destroy();
+
+      }
+
+    }
+
+    /* ===================================== */
+    /* ESCAPE HTML */
+    /* ===================================== */
+
+    function escapeHtml(value) {
+
+      return String(
+          value ?? ''
+        )
+        .replace(
+          /&/g,
+          '&amp;'
+        )
+        .replace(
+          /</g,
+          '&lt;'
+        )
+        .replace(
+          />/g,
+          '&gt;'
+        )
+        .replace(
+          /"/g,
+          '&quot;'
+        )
+        .replace(
+          /'/g,
+          '&#039;'
+        );
+
+    }
   </script>
-
-
 
   <!-- Modul print -->
   <script>
