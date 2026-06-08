@@ -39,141 +39,75 @@ if (!empty($ncvs)) {
     ";
 }
 
-/* CUTTING */
-if ($section == 'cutting') {
+if ($section == 'ready_transfer') {
 
-    /* IN */
-    if ($type == 'in') {
+    if ($type == 'receive') {
+
         $where = "
-            qty_cut_to_smsubcont > 0
+            qty_whsubcont_fr_smsubcont > 0
         ";
+
         $qtyFormula = "
             IFNULL(
-                qty_cut_to_smsubcont,
+                qty_whsubcont_fr_smsubcont,
                 0
             )
         ";
-    }
-
-    /* OUT */ 
-    else if ($type == 'out') {
+    } else if ($type == 'transfer') {
 
         $where = "
-            qty_smsubcont_fr_cut > 0
+            qty_whsubcont_to_vendor > 0
         ";
+
         $qtyFormula = "
             IFNULL(
-                qty_smsubcont_fr_cut,
+                qty_whsubcont_to_vendor,
                 0
             )
         ";
-    }
-
-    /* INVENTORY */
-    else if ($type == 'inventory') {
+    } else if ($type == 'inventory') {
 
         $where = "
+
             (
                 IFNULL(
-                    qty_cut_to_smsubcont,
+                    qty_whsubcont_fr_smsubcont,
                     0
                 )
                 -
                 IFNULL(
-                    qty_smsubcont_fr_cut,
+                    qty_whsubcont_to_vendor,
                     0
                 )
 
             ) > 0
+
         ";
 
         $qtyFormula = "
+
             (
                 IFNULL(
-                    qty_cut_to_smsubcont,
+                    qty_whsubcont_fr_smsubcont,
                     0
                 )
                 -
                 IFNULL(
-                    qty_smsubcont_fr_cut,
+                    qty_whsubcont_to_vendor,
                     0
                 )
             )
+
         ";
     }
 }
 
-/* PRE VENDOR */
-if ($section == 'pre_vendor') {
+if ($section == 'return_vendor') {
 
-    /* IN */
-    if ($type == 'in') {
-        $where = "
-            qty_smsubcont_fr_cut > 0
-        ";
-
-        $qtyFormula = "
-            IFNULL(
-                qty_smsubcont_fr_cut,
-                0
-            )
-        ";
-    }
-
-    /* OUT */
-    else if ($type == 'out') {
-
-        $where = "
-            qty_smsubcont_to_whsubcont > 0
-        ";
-
-        $qtyFormula = "
-
-            IFNULL(
-                qty_smsubcont_to_whsubcont,
-                0
-            )
-
-        ";
-    }
-    
-    /* INVENTORY */
-    else if ($type == 'inventory') {
-
-        $where = "
-            (
-                IFNULL(
-                    qty_smsubcont_fr_cut,
-                    0
-                )
-                -
-                IFNULL(
-                    qty_smsubcont_to_whsubcont,
-                    0
-                )
-            ) > 0
-        ";
-
-        $qtyFormula = "
-            (
-                IFNULL(
-                    qty_smsubcont_fr_cut,
-                    0
-                )
-                -
-                IFNULL(
-                    qty_smsubcont_to_whsubcont,
-                    0
-                )
-            )
-        ";
-    }
-}
-
-/* AFTER VENDOR */
-if ($section == 'after_vendor') {
-
+    /* ===================================== */
     /* MAIN COMPONENT ONLY */
+    /* ===================================== */
+
     $mainComponentWhere = "
         AND is_main_komponen = 1
     ";
@@ -192,69 +126,62 @@ if ($section == 'after_vendor') {
 
     ";
 
-    /* IN */
-    if ($type == 'in') {
+    if ($type == 'receive') {
 
         $where = "
-            qty_smsubcont_fr_whsubcont > 0
+            qty_whsubcont_fr_vendor > 0
         ";
 
         $qtyFormula = "
-
             IFNULL(
-                qty_smsubcont_fr_whsubcont,
+                qty_whsubcont_fr_vendor,
                 0
             )
-
         ";
-    }
-
-    /* OUT */
-    else if ($type == 'out') {
+    } else if ($type == 'send_prod') {
 
         $where = "
-            qty_smsubcont_to_prod > 0
+            qty_whsubcont_to_smsubcont > 0
         ";
 
         $qtyFormula = "
-
             IFNULL(
-                qty_smsubcont_to_prod,
+                qty_whsubcont_to_smsubcont,
                 0
             )
-
         ";
-    }
-
-    /* INVENTORY */
-    else if ($type == 'inventory') {
+    } else if ($type == 'inventory') {
 
         $where = "
+
             (
                 IFNULL(
-                    qty_smsubcont_fr_whsubcont,
+                    qty_whsubcont_fr_vendor,
                     0
                 )
                 -
                 IFNULL(
-                    qty_smsubcont_to_prod,
+                    qty_whsubcont_to_smsubcont,
                     0
                 )
             ) > 0
+
         ";
 
         $qtyFormula = "
+
             (
                 IFNULL(
-                    qty_smsubcont_fr_whsubcont,
+                    qty_whsubcont_fr_vendor,
                     0
                 )
                 -
                 IFNULL(
-                    qty_smsubcont_to_prod,
+                    qty_whsubcont_to_smsubcont,
                     0
                 )
             )
+
         ";
     }
 }

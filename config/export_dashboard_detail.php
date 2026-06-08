@@ -8,17 +8,21 @@ error_reporting(E_ALL);
 require_once "function.php";
 
 /* PARAM */
-
 $section = $_GET['section'] ?? '';
 $type = $_GET['type'] ?? '';
 $ncvs = $_GET['ncvs'] ?? '';
 
 /* DEFAULT */
-
 $where = "1=1";
 $qtyFormula = "0";
 $mainComponentWhere = "";
 $ncvsWhere = "";
+$componentField = "
+    COALESCE(
+        nm_komponen_in,
+        '-'
+    )
+";
 
 /* NCVS FILTER */
 
@@ -51,8 +55,7 @@ if ($section == 'cutting') {
         ";
     }
 
-    /* OUT */ 
-    else if ($type == 'out') {
+    /* OUT */ else if ($type == 'out') {
         $where = "
             qty_smsubcont_fr_cut > 0
         ";
@@ -65,8 +68,7 @@ if ($section == 'cutting') {
         ";
     }
 
-    /* INVENTORY */
-    else if ($type == 'inventory') {
+    /* INVENTORY */ else if ($type == 'inventory') {
         $where = "
             (
                 IFNULL(
@@ -118,8 +120,7 @@ if ($section == 'pre_vendor') {
         ";
     }
 
-    /* OUT */
-    else if ($type == 'out') {
+    /* OUT */ else if ($type == 'out') {
         $where = "
             qty_smsubcont_to_whsubcont > 0
         ";
@@ -131,9 +132,7 @@ if ($section == 'pre_vendor') {
         ";
     }
 
-    
-    /* INVENTORY */
-    else if ($type == 'inventory') {
+    /* INVENTORY */ else if ($type == 'inventory') {
         $where = "
             (
                 IFNULL(
@@ -168,6 +167,16 @@ if ($section == 'pre_vendor') {
 /* AFTER VENDOR */
 if ($section == 'after_vendor') {
 
+    $componentField = "
+
+        COALESCE(
+            nm_komponen_out,
+            nm_komponen_in,
+            '-'
+        )
+
+    ";
+
     /* MAIN COMPONENT ONLY */
     $mainComponentWhere = "
         AND is_main_komponen = 1
@@ -186,8 +195,7 @@ if ($section == 'after_vendor') {
         ";
     }
 
-    /* OUT */ 
-    else if ($type == 'out') {
+    /* OUT */ else if ($type == 'out') {
 
         $where = "
             qty_smsubcont_to_prod > 0
@@ -200,8 +208,7 @@ if ($section == 'after_vendor') {
         ";
     }
 
-    /* INVENTORY */
-    else if ($type == 'inventory') {
+    /* INVENTORY */ else if ($type == 'inventory') {
         $where = "
             (
                 IFNULL(
@@ -232,6 +239,164 @@ if ($section == 'after_vendor') {
     }
 }
 
+/* READY TRANSFER */
+
+if ($section == 'ready_transfer') {
+
+    if ($type == 'receive') {
+
+        $where = "
+            qty_whsubcont_fr_smsubcont > 0
+        ";
+
+        $qtyFormula = "
+            IFNULL(
+                qty_whsubcont_fr_smsubcont,
+                0
+            )
+        ";
+    } else if ($type == 'transfer') {
+
+        $where = "
+            qty_whsubcont_to_vendor > 0
+        ";
+
+        $qtyFormula = "
+            IFNULL(
+                qty_whsubcont_to_vendor,
+                0
+            )
+        ";
+    } else if ($type == 'inventory') {
+
+        $where = "
+
+            (
+                IFNULL(
+                    qty_whsubcont_fr_smsubcont,
+                    0
+                )
+
+                -
+
+                IFNULL(
+                    qty_whsubcont_to_vendor,
+                    0
+                )
+
+            ) > 0
+
+        ";
+
+        $qtyFormula = "
+
+            (
+
+                IFNULL(
+                    qty_whsubcont_fr_smsubcont,
+                    0
+                )
+
+                -
+
+                IFNULL(
+                    qty_whsubcont_to_vendor,
+                    0
+                )
+
+            )
+
+        ";
+    }
+}
+
+/* RETURN VENDOR */
+
+if ($section == 'return_vendor') {
+
+    $componentField = "
+
+        COALESCE(
+            nm_komponen_out,
+            nm_komponen_in,
+            '-'
+        )
+
+    ";
+
+    /* MAIN COMPONENT ONLY */
+    $mainComponentWhere = "
+        AND is_main_komponen = 1
+    ";
+
+    if ($type == 'receive') {
+
+        $where = "
+            qty_whsubcont_fr_vendor > 0
+        ";
+
+        $qtyFormula = "
+            IFNULL(
+                qty_whsubcont_fr_vendor,
+                0
+            )
+        ";
+    } else if ($type == 'send_prod') {
+
+        $where = "
+            qty_whsubcont_to_smsubcont > 0
+        ";
+
+        $qtyFormula = "
+            IFNULL(
+                qty_whsubcont_to_smsubcont,
+                0
+            )
+        ";
+    } else if ($type == 'inventory') {
+
+        $where = "
+
+            (
+
+                IFNULL(
+                    qty_whsubcont_fr_vendor,
+                    0
+                )
+
+                -
+
+                IFNULL(
+                    qty_whsubcont_to_smsubcont,
+                    0
+                )
+
+            ) > 0
+
+        ";
+
+        $qtyFormula = "
+
+            (
+
+                IFNULL(
+                    qty_whsubcont_fr_vendor,
+                    0
+                )
+
+                -
+
+                IFNULL(
+                    qty_whsubcont_to_smsubcont,
+                    0
+                )
+
+            )
+
+        ";
+    }
+}
+
 /* QUERY */
 
 $sql = "
@@ -242,7 +407,7 @@ $sql = "
         model,
         po_code,
         po_item,
-        nm_komponen_in AS component,
+        $componentField AS component,
         size,
         SUM(
             $qtyFormula
@@ -259,7 +424,7 @@ $sql = "
         model,
         po_code,
         po_item,
-        nm_komponen_in,
+        component,
         size
     ORDER BY
         ncvs ASC
@@ -350,8 +515,12 @@ header(
     "Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 );
 
+$fileName = strtoupper($section)
+    . "_"
+    . strtoupper($type);
+
 header(
-    "Content-Disposition: attachment; filename=Dashboard_Detail.xlsx"
+    "Content-Disposition: attachment; filename={$fileName}.xlsx"
 );
 
 /* TABLE */

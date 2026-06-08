@@ -139,6 +139,7 @@ if (count($where) > 0) {
 $sql = "
 
 SELECT
+
     job_order,
     ncvs,
     bucket,
@@ -148,151 +149,156 @@ SELECT
     style,
     nm_vendor AS vendor,
 
-    SUM(qty_plan)
+    SUM(IFNULL(qty_plan,0))
         AS total_order,
 
-    -- SM CUTTING
-    SUM(qty_cut_to_smsubcont)
+    /* ===================================== */
+    /* SM CUTTING */
+    /* ===================================== */
+
+    SUM(IFNULL(qty_cut_to_smsubcont,0))
         AS sm_cutting_in,
 
     (
-        SUM(qty_cut_to_smsubcont)
+        SUM(IFNULL(qty_cut_to_smsubcont,0))
         -
-        SUM(qty_plan)
+        SUM(IFNULL(qty_plan,0))
     )
+        AS sm_cutting_balance,
 
-    AS sm_cutting_balance,
+    SUM(IFNULL(qty_smsubcont_fr_cut,0))
+        AS sm_cutting_out,
 
     (
-        SUM(qty_smsubcont_fr_cut)
-        
-    )
-
-    AS sm_cutting_out,
-
-    
-    (
-        SUM(qty_smsubcont_fr_cut)
+        SUM(IFNULL(qty_smsubcont_fr_cut,0))
         -
-        SUM(qty_cut_to_smsubcont)
-    )    
+        SUM(IFNULL(qty_cut_to_smsubcont,0))
+    )
+        AS sm_cutting_out_balance,
 
-    AS sm_cutting_out_balance,
+    /* ===================================== */
+    /* SM SUBCONT */
+    /* ===================================== */
 
-    -- SM SUBCONT
-    SUM(qty_smsubcont_fr_cut)
+    SUM(IFNULL(qty_smsubcont_fr_cut,0))
         AS in_sm,
 
     (
-        SUM(qty_smsubcont_fr_cut)
+        SUM(IFNULL(qty_smsubcont_fr_cut,0))
         -
-        SUM(qty_plan)
+        SUM(IFNULL(qty_plan,0))
     )
+        AS balance_in_sm,
 
-    AS balance_in_sm,
-
-    SUM(qty_smsubcont_to_whsubcont)
+    SUM(IFNULL(qty_smsubcont_to_whsubcont,0))
         AS out_sm,
 
     (
-        SUM(qty_smsubcont_to_whsubcont)
+        SUM(IFNULL(qty_smsubcont_to_whsubcont,0))
         -
-        SUM(qty_plan)
+        SUM(IFNULL(qty_plan,0))
     )
+        AS balance_out_sm,
 
-    AS balance_out_sm,
+    /* ===================================== */
+    /* WH SUBCONT */
+    /* ===================================== */
 
-    -- WH SUBCONT
-    SUM(qty_whsubcont_fr_smsubcont)
+    SUM(IFNULL(qty_whsubcont_fr_smsubcont,0))
         AS in_wh,
 
     (
-        SUM(qty_whsubcont_fr_smsubcont)
+        SUM(IFNULL(qty_whsubcont_fr_smsubcont,0))
         -
-        SUM(qty_plan)
+        SUM(IFNULL(qty_plan,0))
     )
+        AS balance_in_wh,
 
-    AS balance_in_wh,
-
-    SUM(qty_whsubcont_to_vendor)
+    SUM(IFNULL(qty_whsubcont_to_vendor,0))
         AS out_wh,
 
     (
-        SUM(qty_whsubcont_to_vendor)
+        SUM(IFNULL(qty_whsubcont_to_vendor,0))
         -
-        SUM(qty_plan)
+        SUM(IFNULL(qty_plan,0))
     )
+        AS balance_out_wh,
 
-    AS balance_out_wh,
+    /* ===================================== */
+    /* VENDOR */
+    /* ===================================== */
 
-    -- VENDOR
-    SUM(qty_vendor_fr_whsubcont)
+    SUM(IFNULL(qty_vendor_fr_whsubcont,0))
         AS in_vendor,
 
     (
-        SUM(qty_vendor_fr_whsubcont)
+        SUM(IFNULL(qty_vendor_fr_whsubcont,0))
         -
-        SUM(qty_plan)
+        SUM(IFNULL(qty_plan,0))
     )
+        AS balance_in_vendor,
 
-    AS balance_in_vendor,
-
-    SUM(qty_vendor_to_whsubcont)
+    SUM(IFNULL(qty_vendor_to_whsubcont,0))
         AS out_vendor,
 
     (
-        SUM(qty_vendor_to_whsubcont)
+        SUM(IFNULL(qty_vendor_to_whsubcont,0))
         -
-        SUM(qty_plan)
+        SUM(IFNULL(qty_plan,0))
     )
+        AS balance_out_vendor,
 
-    AS balance_out_vendor,
+    /* ===================================== */
+    /* RETURN WH */
+    /* ===================================== */
 
-    -- RETURN WH
-    SUM(qty_whsubcont_fr_vendor)
+    SUM(IFNULL(qty_whsubcont_fr_vendor,0))
         AS return_wh,
 
     (
-        SUM(qty_whsubcont_fr_vendor)
+        SUM(IFNULL(qty_whsubcont_fr_vendor,0))
         -
-        SUM(qty_plan)
+        SUM(IFNULL(qty_plan,0))
     )
+        AS balance_return_wh,
 
-    AS balance_return_wh,
-
-    SUM(qty_whsubcont_to_smsubcont)
+    SUM(IFNULL(qty_whsubcont_to_smsubcont,0))
         AS transfer_sm,
 
     (
-        SUM(qty_whsubcont_to_smsubcont)
+        SUM(IFNULL(qty_whsubcont_to_smsubcont,0))
         -
-        SUM(qty_plan)
+        SUM(IFNULL(qty_plan,0))
     )
+        AS balance_transfer_sm,
 
-    AS balance_transfer_sm,
+    /* ===================================== */
+    /* RETURN SM */
+    /* ===================================== */
 
-    -- RETURN SM
-    SUM(qty_smsubcont_fr_whsubcont)
+    SUM(IFNULL(qty_smsubcont_fr_whsubcont,0))
         AS return_sm,
 
     (
-        SUM(qty_smsubcont_fr_whsubcont)
+        SUM(IFNULL(qty_smsubcont_fr_whsubcont,0))
         -
-        SUM(qty_plan)
+        SUM(IFNULL(qty_plan,0))
     )
+        AS balance_return_sm,
 
-    AS balance_return_sm,
+    /* ===================================== */
+    /* TRANSFER NCVS */
+    /* ===================================== */
 
-    SUM(qty_smsubcont_to_prod)
+    SUM(IFNULL(qty_smsubcont_to_prod,0))
         AS transfer_ncvs,
 
     (
-        SUM(qty_smsubcont_to_prod)
+        SUM(IFNULL(qty_smsubcont_to_prod,0))
         -
-        SUM(qty_plan)
+        SUM(IFNULL(qty_plan,0))
     )
-
-    AS balance_transfer_ncvs
+        AS balance_transfer_ncvs
 
 FROM tbl_transaksi
 

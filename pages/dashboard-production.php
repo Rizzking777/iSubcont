@@ -1897,7 +1897,7 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
 
         window.open(
 
-          './../config/export_production_dashboard_detail.php?' +
+          './../config/export_dashboard_detail.php?' +
           query,
 
           '_blank'
