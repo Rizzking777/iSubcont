@@ -2527,18 +2527,18 @@ if (isset($_POST['action']) && $_POST['action'] == 'create-barcode') {
 
     if ($row = mysqli_fetch_assoc($qBatch)) {
 
-    // ambil 3 digit terakhir batch
-    $lastIncrement = (int) substr($row['batch_transaksi'], -3);
+        // ambil 3 digit terakhir batch
+        $lastIncrement = (int) substr($row['batch_transaksi'], -3);
 
-    // increment
-    $batch_increment = $lastIncrement + 1;
+        // increment
+        $batch_increment = $lastIncrement + 1;
     }
 
     $batch_format = str_pad($batch_increment, 3, '0', STR_PAD_LEFT);
     $batch_transaksi = "B-{$ncvs}{$date}{$batch_format}";
 
     // GENERATE BARCODE START
-        $qBarcode = mysqli_query($conn, "
+    $qBarcode = mysqli_query($conn, "
             SELECT barcode 
             FROM tbl_transaksi
             WHERE ncvs = '$ncvs'
@@ -2547,44 +2547,45 @@ if (isset($_POST['action']) && $_POST['action'] == 'create-barcode') {
             LIMIT 1
         ");
 
-        $increment = 1;
+    $increment = 1;
 
-        if ($row = mysqli_fetch_assoc($qBarcode)) {
+    if ($row = mysqli_fetch_assoc($qBarcode)) {
 
-            // ambil 3 digit terakhir barcode
-            $lastIncrement = (int) substr($row['barcode'], -3);
+        // ambil 3 digit terakhir barcode
+        $lastIncrement = (int) substr($row['barcode'], -3);
 
-            // next increment
-            $increment = $lastIncrement + 1;
-        }
+        // next increment
+        $increment = $lastIncrement + 1;
+    }
 
     // LOOP CORE 
     foreach ($detail as $lot => $sizes) {
 
         foreach ($komponen as $k) {
 
-            // BARCODE PER LOT × KOMPONEN
-            $barcode_format = str_pad($increment, 3, '0', STR_PAD_LEFT);
-            $barcode = "{$ncvs}{$date}{$barcode_format}";
-            $increment++;
-
-            $is_main = isset($k['is_main']) ? (int)$k['is_main'] : 0;
+            $is_main =
+                isset($k['is_main'])
+                ? (int)$k['is_main']
+                : 0;
 
             foreach ($sizes as $size => $qty) {
 
-                //CHECK DUPLICATE
+                /* ===================================== */
+                /* CHECK DUPLICATE */
+                /* ===================================== */
+
                 $check = mysqli_query($conn, "
-                    SELECT id_trans 
-                    FROM tbl_transaksi
-                    WHERE 
-                        status_lot = '{$global['lot_code']}'
-                        AND job_order = '{$global['job_order']}'
-                        AND lot = '$lot'
-                        AND size = '$size'
-                        AND id_komponen_in = '{$k['id_input']}'
-                        AND id_komponen_out = '{$k['id_output']}'
-                    LIMIT 1
-                ");
+                SELECT id_trans 
+                FROM tbl_transaksi
+                WHERE 
+                    status_lot = '{$global['lot_code']}'
+                    AND job_order = '{$global['job_order']}'
+                    AND lot = '$lot'
+                    AND size = '$size'
+                    AND id_komponen_in = '{$k['id_input']}'
+                    AND id_komponen_out = '{$k['id_output']}'
+                LIMIT 1
+            ");
 
                 if (mysqli_num_rows($check) > 0) {
 
@@ -2599,6 +2600,23 @@ if (isset($_POST['action']) && $_POST['action'] == 'create-barcode') {
 
                     continue;
                 }
+
+                /* ===================================== */
+                /* BARCODE PER LOT × KOMPONEN × SIZE */
+                /* ===================================== */
+
+                $barcode_format =
+                    str_pad(
+                        $increment,
+                        3,
+                        '0',
+                        STR_PAD_LEFT
+                    );
+
+                $barcode =
+                    "{$ncvs}{$date}{$barcode_format}";
+
+                $increment++;
 
                 // INSERT TRANSAKSI
                 $id_vendor = !empty($k['id_vendor']) ? "'{$k['id_vendor']}'" : "NULL";
@@ -5169,8 +5187,8 @@ if (
             "Transaksi berhasil diproses.";
         header(
             "Location: /isubcont/pages/trans-scan-out-smsubcont-to-prod.php" .
-            "?success=1" .
-            "&barcode=$barcode"
+                "?success=1" .
+                "&barcode=$barcode"
         );
 
         exit;
