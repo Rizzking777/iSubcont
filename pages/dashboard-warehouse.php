@@ -686,7 +686,9 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
                                     Vendor Monitoring
                                 </div>
 
-                                <!-- ACTIVE -->
+                                <!-- ===================================== -->
+                                <!-- ACTIVE VENDOR -->
+                                <!-- ===================================== -->
 
                                 <div class="border rounded-3 p-3 mb-3">
 
@@ -696,45 +698,53 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
 
                                     <div class="d-flex justify-content-between align-items-center">
 
-                                        <div class="metric-value">
-                                            12
+                                        <div
+                                            id="vendorActiveCount"
+                                            class="metric-value">
+                                            0
                                         </div>
 
-                                        <span class="badge bg-success">
-                                            Online
+                                        <span
+                                            id="vendorActiveBadge"
+                                            class="badge bg-secondary">
+                                            Idle
                                         </span>
 
                                     </div>
 
                                 </div>
 
-                                <!-- INVENTORY -->
+                                <!-- ===================================== -->
+                                <!-- INVENTORY AT VENDOR -->
+                                <!-- ===================================== -->
 
                                 <div class="border rounded-3 p-3 mb-3">
 
                                     <div class="small text-muted">
-                                        Inventory at Vendor
+                                        Outstanding at Vendor
                                     </div>
 
                                     <div class="d-flex justify-content-between align-items-center">
 
-                                        <div class="metric-value">
-                                            52,120
+                                        <div
+                                            id="vendorInventory"
+                                            class="metric-value">
+                                            0
                                         </div>
 
                                         <span
-                                            class="badge"
-                                            style="background:#e6a775;color:#000;">
-
-                                            On Process
-
+                                            id="vendorInventoryBadge"
+                                            class="badge bg-secondary">
+                                            Clear
                                         </span>
 
                                     </div>
 
                                 </div>
 
-                                <!-- ACHIEVEMENT -->
+                                <!-- ===================================== -->
+                                <!-- RETURN ACHIEVEMENT -->
+                                <!-- ===================================== -->
 
                                 <div class="border rounded-3 p-3 mb-3">
 
@@ -744,19 +754,25 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
 
                                     <div class="d-flex justify-content-between align-items-center">
 
-                                        <div class="metric-value">
-                                            88%
+                                        <div
+                                            id="vendorAchievement"
+                                            class="metric-value">
+                                            0%
                                         </div>
 
-                                        <span class="badge bg-success">
-                                            Good
+                                        <span
+                                            id="vendorAchievementBadge"
+                                            class="badge bg-secondary">
+                                            No Data
                                         </span>
 
                                     </div>
 
                                 </div>
 
-                                <!-- LEAD TIME -->
+                                <!-- ===================================== -->
+                                <!-- AVERAGE LEAD TIME -->
+                                <!-- ===================================== -->
 
                                 <div class="border rounded-3 p-3 mb-3">
 
@@ -766,19 +782,25 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
 
                                     <div class="d-flex justify-content-between align-items-center">
 
-                                        <div class="metric-value">
-                                            3.8 Days
+                                        <div
+                                            id="vendorLeadTime"
+                                            class="metric-value">
+                                            0 Days
                                         </div>
 
-                                        <span class="badge bg-primary">
-                                            Stable
+                                        <span
+                                            id="vendorLeadTimeBadge"
+                                            class="badge bg-secondary">
+                                            No Data
                                         </span>
 
                                     </div>
 
                                 </div>
 
-                                <!-- OVERDUE -->
+                                <!-- ===================================== -->
+                                <!-- OVERDUE VENDOR -->
+                                <!-- ===================================== -->
 
                                 <div class="border rounded-3 p-3">
 
@@ -788,12 +810,16 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
 
                                     <div class="d-flex justify-content-between align-items-center">
 
-                                        <div class="metric-value">
-                                            2
+                                        <div
+                                            id="vendorOverdueCount"
+                                            class="metric-value">
+                                            0
                                         </div>
 
-                                        <span class="badge bg-warning text-dark">
-                                            Attention
+                                        <span
+                                            id="vendorOverdueBadge"
+                                            class="badge bg-success">
+                                            Clear
                                         </span>
 
                                     </div>
@@ -807,8 +833,6 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
                     </div>
 
                 </div>
-
-            </div>
 
         </section>
 
@@ -1046,6 +1070,10 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
                         'return_vendor'
                     );
 
+                    renderVendorOverview(
+                        response.vendor_overview
+                    );
+
                     initTooltip();
 
                 },
@@ -1170,6 +1198,209 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
                 .attr(
                     'data-value',
                     inventory
+                );
+
+        }
+
+        /* ===================================== */
+        /* RENDER VENDOR OVERVIEW */
+        /* ===================================== */
+
+        function renderVendorOverview(data) {
+
+            data =
+                data ?? {};
+
+            let activeVendor =
+                parseInt(
+                    data.active_vendor
+                ) || 0;
+
+            let inventoryAtVendor =
+                parseInt(
+                    data.inventory_at_vendor
+                ) || 0;
+
+            let returnAchievement =
+                parseFloat(
+                    data.return_achievement
+                ) || 0;
+
+            let averageLeadTime =
+                parseFloat(
+                    data.average_lead_time
+                ) || 0;
+
+            let overdueVendor =
+                parseInt(
+                    data.overdue_vendor
+                ) || 0;
+
+            let slaDays =
+                parseInt(
+                    data.sla_days
+                ) || 4;
+
+            /* ===================================== */
+            /* VALUE */
+            /* ===================================== */
+
+            $('#vendorActiveCount')
+                .text(
+                    activeVendor.toLocaleString()
+                );
+
+            $('#vendorInventory')
+                .text(
+                    inventoryAtVendor.toLocaleString() +
+                    ' prs'
+                );
+
+            $('#vendorAchievement')
+                .text(
+                    returnAchievement.toLocaleString() +
+                    '%'
+                );
+
+            $('#vendorLeadTime')
+                .text(
+                    averageLeadTime.toLocaleString() +
+                    ' Days'
+                );
+
+            $('#vendorOverdueCount')
+                .text(
+                    overdueVendor.toLocaleString()
+                );
+
+            /* ===================================== */
+            /* ACTIVE VENDOR BADGE */
+            /* ===================================== */
+
+            updateBadge(
+                '#vendorActiveBadge',
+
+                activeVendor > 0 ?
+                'Online' :
+                'Idle',
+
+                activeVendor > 0 ?
+                'bg-success' :
+                'bg-secondary'
+            );
+
+            /* ===================================== */
+            /* INVENTORY BADGE */
+            /* ===================================== */
+
+            updateBadge(
+                '#vendorInventoryBadge',
+
+                inventoryAtVendor > 0 ?
+                'On Process' :
+                'Clear',
+
+                inventoryAtVendor > 0 ?
+                'bg-warning text-dark' :
+                'bg-success'
+            );
+
+            /* ===================================== */
+            /* ACHIEVEMENT BADGE */
+            /* ===================================== */
+
+            let achievementText =
+                'Attention';
+
+            let achievementClass =
+                'bg-danger';
+
+            if (
+                returnAchievement >= 90
+            ) {
+
+                achievementText =
+                    'Good';
+
+                achievementClass =
+                    'bg-success';
+
+            } else if (
+                returnAchievement >= 75
+            ) {
+
+                achievementText =
+                    'Monitor';
+
+                achievementClass =
+                    'bg-warning text-dark';
+
+            }
+
+            updateBadge(
+                '#vendorAchievementBadge',
+                achievementText,
+                achievementClass
+            );
+
+            /* ===================================== */
+            /* LEAD TIME BADGE */
+            /* ===================================== */
+
+            updateBadge(
+                '#vendorLeadTimeBadge',
+
+                averageLeadTime <= slaDays ?
+                'Stable' :
+                'Monitor',
+
+                averageLeadTime <= slaDays ?
+                'bg-primary' :
+                'bg-warning text-dark'
+            );
+
+            /* ===================================== */
+            /* OVERDUE BADGE */
+            /* ===================================== */
+
+            updateBadge(
+                '#vendorOverdueBadge',
+
+                overdueVendor > 0 ?
+                'Attention' :
+                'Clear',
+
+                overdueVendor > 0 ?
+                'bg-warning text-dark' :
+                'bg-success'
+            );
+
+        }
+
+        /* ===================================== */
+        /* UPDATE BADGE */
+        /* ===================================== */
+
+        function updateBadge(
+            selector,
+            text,
+            className
+        ) {
+
+            $(selector)
+                .removeClass(
+                    'bg-success ' +
+                    'bg-secondary ' +
+                    'bg-warning ' +
+                    'bg-danger ' +
+                    'bg-primary ' +
+                    'text-dark'
+                )
+                .addClass(
+                    className
+                )
+                .text(
+                    text
                 );
 
         }
