@@ -302,6 +302,48 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
     table.dataTable {
         width: 100% !important;
     }
+
+    .vendor-kpi-card {
+        cursor: pointer;
+        transition: all .2s ease;
+    }
+
+    .vendor-kpi-card:hover {
+        transform: translateY(-2px);
+        border-color: #006aff !important;
+        box-shadow: 0 6px 14px rgba(15, 23, 42, .08);
+    }
+
+    .vendor-kpi-table-scroll {
+        width: 100%;
+        overflow-x: auto;
+        overflow-y: hidden;
+    }
+
+    #vendorKpiDetailTable {
+        width: max-content;
+        min-width: 100%;
+    }
+
+    #vendorKpiDetailTable th,
+    #vendorKpiDetailTable td {
+        white-space: nowrap;
+        vertical-align: middle;
+    }
+
+    #vendorKpiDetailTable th {
+        font-weight: 700;
+    }
+
+    #vendorKpiDetailModal .dataTables_length,
+    #vendorKpiDetailModal .dataTables_filter {
+        margin-bottom: 12px;
+    }
+
+    #vendorKpiDetailModal .dataTables_info,
+    #vendorKpiDetailModal .dataTables_paginate {
+        margin-top: 12px;
+    }
 </style>
 
 <!DOCTYPE html>
@@ -690,7 +732,8 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
                                 <!-- ACTIVE VENDOR -->
                                 <!-- ===================================== -->
 
-                                <div class="border rounded-3 p-3 mb-3">
+                                <div class="border rounded-3 p-3 mb-3 vendor-kpi-card"
+                                    data-kpi="active_vendor">
 
                                     <div class="small text-muted">
                                         Active Vendor
@@ -718,7 +761,8 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
                                 <!-- INVENTORY AT VENDOR -->
                                 <!-- ===================================== -->
 
-                                <div class="border rounded-3 p-3 mb-3">
+                                <div class="border rounded-3 p-3 mb-3 vendor-kpi-card"
+                                    data-kpi="inventory_at_vendor">
 
                                     <div class="small text-muted">
                                         Outstanding at Vendor
@@ -746,7 +790,8 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
                                 <!-- RETURN ACHIEVEMENT -->
                                 <!-- ===================================== -->
 
-                                <div class="border rounded-3 p-3 mb-3">
+                                <div class="border rounded-3 p-3 mb-3 vendor-kpi-card"
+                                    data-kpi="return_achievement">
 
                                     <div class="small text-muted">
                                         Return Achievement
@@ -774,7 +819,8 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
                                 <!-- AVERAGE LEAD TIME -->
                                 <!-- ===================================== -->
 
-                                <div class="border rounded-3 p-3 mb-3">
+                                <div class="border rounded-3 p-3 mb-3 vendor-kpi-card"
+                                    data-kpi="average_lead_time">
 
                                     <div class="small text-muted">
                                         Average Lead Time
@@ -802,7 +848,8 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
                                 <!-- OVERDUE VENDOR -->
                                 <!-- ===================================== -->
 
-                                <div class="border rounded-3 p-3">
+                                <div class="border rounded-3 p-3 vendor-kpi-card"
+                                    data-kpi="overdue_vendor">
 
                                     <div class="small text-muted">
                                         Overdue Vendor
@@ -836,7 +883,7 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
 
         </section>
 
-        <!-- DETAIL MODAL -->
+        <!-- DETAIL MODAL DASHBOARD WAREHOUSE -->
 
         <div
             class="modal fade"
@@ -907,6 +954,114 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
                             class="btn btn-success">
                             <i class="bi bi-file-earmark-excel"></i>
                             Export
+                        </button>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <!-- VENDOR KPI DETAIL MODAL -->
+
+        <div
+            class="modal fade"
+            id="vendorKpiDetailModal"
+            tabindex="-1"
+            aria-hidden="true">
+
+            <div class="modal-dialog modal-xl modal-dialog-scrollable">
+
+                <div class="modal-content">
+
+                    <div class="modal-header">
+
+                        <div>
+
+                            <h5
+                                id="vendorKpiModalTitle"
+                                class="modal-title">
+                                Vendor Detail
+                            </h5>
+
+                            <div
+                                id="vendorKpiModalSubtitle"
+                                class="small text-muted mt-1">
+                            </div>
+
+                        </div>
+
+                        <button
+                            type="button"
+                            class="btn-close"
+                            data-bs-dismiss="modal">
+                        </button>
+
+                    </div>
+
+                    <div class="modal-body">
+
+                        <div
+                            id="vendorKpiLoading"
+                            class="text-center py-5 d-none">
+
+                            <div class="spinner-border text-primary"></div>
+
+                            <div class="mt-2 text-muted">
+                                Loading data...
+                            </div>
+
+                        </div>
+
+                        <div id="vendorKpiTableContainer">
+
+                            <div class="vendor-kpi-table-scroll">
+
+                                <table
+                                    id="vendorKpiDetailTable"
+                                    class="
+                                        table
+                                        table-bordered
+                                        table-hover
+                                        align-middle
+                                        text-nowrap
+                                        mb-0
+                                    ">
+
+                                    <thead id="vendorKpiTableHead"></thead>
+
+                                    <tbody id="vendorKpiTableBody"></tbody>
+
+                                </table>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                    <div class="modal-footer">
+
+                        <button
+                            type="button"
+                            class="btn btn-secondary px-4"
+                            data-bs-dismiss="modal">
+
+                            Close
+
+                        </button>
+
+                        <button
+                            type="button"
+                            id="btnExportVendorKpiDetail"
+                            class="btn btn-success px-4"
+                            disabled>
+
+                            <i class="bi bi-file-earmark-excel"></i>
+                            Export
+
                         </button>
 
                     </div>
@@ -2009,6 +2164,347 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
                     '_blank'
 
                 );
+
+            }
+        );
+    </script>
+
+    <script>
+        /* ===================================== */
+        /* VENDOR KPI DETAIL */
+        /* ===================================== */
+
+        $(document).on(
+            'click',
+            '.vendor-kpi-card',
+            function() {
+
+                const kpi =
+                    $(this).attr('data-kpi');
+
+                console.log(
+                    'KPI CLICKED =',
+                    kpi
+                );
+
+                if (!kpi) {
+
+                    console.error(
+                        'data-kpi tidak ditemukan pada card'
+                    );
+
+                    return;
+                }
+
+                openVendorKpiDetail(
+                    kpi
+                );
+
+            }
+        );
+
+        function openVendorKpiDetail(kpi) {
+
+            currentVendorKpi =
+                kpi;
+
+            const modalElement =
+                document.getElementById(
+                    'vendorKpiDetailModal'
+                );
+
+            const modal =
+                bootstrap.Modal.getOrCreateInstance(
+                    modalElement
+                );
+
+            $('#vendorKpiLoading')
+                .removeClass('d-none');
+
+            $('#vendorKpiTableContainer')
+                .addClass('d-none');
+
+            $('#btnExportVendorKpiDetail')
+                .prop(
+                    'disabled',
+                    true
+                );
+
+            modal.show();
+
+            $.ajax({
+
+                url: './../config/get_vendor_dashboard_detail.php',
+
+                type: 'GET',
+
+                dataType: 'json',
+
+                data: {
+                    kpi: kpi
+                },
+
+                success: function(response) {
+
+                    if (
+                        response.status !== 'success'
+                    ) {
+
+                        alert(
+                            response.message ??
+                            'Gagal mengambil data'
+                        );
+
+                        return;
+                    }
+
+                    const rows =
+                        response.rows ?? [];
+
+                    $('#vendorKpiModalTitle')
+                        .text(
+                            response.title ??
+                            'Vendor Detail'
+                        );
+
+                    $('#vendorKpiModalSubtitle')
+                        .text(
+                            response.subtitle ??
+                            ''
+                        );
+
+                    $('#btnExportVendorKpiDetail')
+                        .prop(
+                            'disabled',
+                            rows.length === 0
+                        );
+
+                    renderVendorKpiTable(
+                        response.columns ?? [],
+                        rows
+                    );
+
+                },
+
+                error: function(xhr) {
+
+                    console.error(
+                        xhr.responseText
+                    );
+
+                    alert(
+                        'Gagal mengambil detail vendor'
+                    );
+
+                },
+
+                complete: function() {
+
+                    $('#vendorKpiLoading')
+                        .addClass('d-none');
+
+                    $('#vendorKpiTableContainer')
+                        .removeClass('d-none');
+
+                }
+
+            });
+
+        }
+
+        /* ===================================== */
+        /* VENDOR KPI TABLE INSTANCE */
+        /* ===================================== */
+
+        let vendorKpiTable = null;
+        let currentVendorKpi = '';
+
+        /* ===================================== */
+        /* RENDER VENDOR KPI TABLE */
+        /* ===================================== */
+
+        function renderVendorKpiTable(
+            columns,
+            rows
+        ) {
+
+            if (
+                $.fn.DataTable.isDataTable(
+                    '#vendorKpiDetailTable'
+                )
+            ) {
+
+                $('#vendorKpiDetailTable')
+                    .DataTable()
+                    .destroy();
+
+            }
+
+            let headerHtml =
+                '<tr>';
+
+            columns.forEach(
+                function(column) {
+
+                    headerHtml += `
+        <th>
+          ${escapeHtml(column.label)}
+        </th>
+      `;
+
+                }
+            );
+
+            headerHtml +=
+                '</tr>';
+
+            $('#vendorKpiTableHead')
+                .html(
+                    headerHtml
+                );
+
+            let bodyHtml = '';
+
+            rows.forEach(
+                function(row) {
+
+                    bodyHtml +=
+                        '<tr>';
+
+                    columns.forEach(
+                        function(column) {
+
+                            const value =
+                                row[column.key] ??
+                                '';
+
+                            bodyHtml += `
+            <td>
+              ${escapeHtml(value)}
+            </td>
+          `;
+
+                        }
+                    );
+
+                    bodyHtml +=
+                        '</tr>';
+
+                }
+            );
+
+            $('#vendorKpiTableBody')
+                .html(
+                    bodyHtml
+                );
+
+            vendorKpiTable =
+                $('#vendorKpiDetailTable')
+                .DataTable({
+
+                    pageLength: 10,
+
+                    lengthMenu: [
+                        [10, 20, 25, 50, -1],
+                        [10, 20, 25, 50, 'All']
+                    ],
+
+                    searching: true,
+
+                    paging: true,
+
+                    ordering: false,
+
+                    info: true,
+
+                    responsive: false,
+
+                    autoWidth: false,
+
+                    language: {
+
+                        search: '',
+
+                        searchPlaceholder: 'Search...',
+
+                        zeroRecords: 'Data tidak ditemukan',
+
+                        info: 'Showing _START_ to _END_ of _TOTAL_ data',
+
+                        infoEmpty: 'Showing 0 data',
+
+                        paginate: {
+
+                            previous: 'Previous',
+
+                            next: 'Next'
+
+                        }
+
+                    }
+
+                });
+
+        }
+
+        /* ===================================== */
+        /* ESCAPE HTML */
+        /* ===================================== */
+
+        function escapeHtml(value) {
+
+            return String(
+                    value ?? ''
+                )
+                .replace(
+                    /&/g,
+                    '&amp;'
+                )
+                .replace(
+                    /</g,
+                    '&lt;'
+                )
+                .replace(
+                    />/g,
+                    '&gt;'
+                )
+                .replace(
+                    /"/g,
+                    '&quot;'
+                )
+                .replace(
+                    /'/g,
+                    '&#039;'
+                );
+
+        }
+
+        /* ===================================== */
+        /* EXPORT VENDOR KPI DETAIL */
+        /* ===================================== */
+
+        $(document).on(
+            'click',
+            '#btnExportVendorKpiDetail',
+            function() {
+
+                if (!currentVendorKpi) {
+
+                    alert(
+                        'KPI vendor tidak ditemukan'
+                    );
+
+                    return;
+                }
+
+                const query =
+                    $.param({
+                        kpi: currentVendorKpi
+                    });
+
+                window.location.href =
+                    './../config/export_vendor_detail.php?' +
+                    query;
 
             }
         );
