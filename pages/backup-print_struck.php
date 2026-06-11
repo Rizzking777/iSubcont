@@ -962,29 +962,14 @@ usort($officialSizes, function ($a, $b) {
       /* ===================================== */
       /* BUILD ROW */
       /* ===================================== */
-      // console.table(rows);
+
       const rowHtml =
         rows.map(
           function(row, index) {
 
-            console.log({
-              barcode: row.barcode,
-              qty_smsubcont_fr_cut: row.qty_smsubcont_fr_cut,
-              count_barcode: row.count_barcode
-            });
-
-            // const isScanned =
-            //   row.qty_smsubcont_fr_cut != null &&
-            //   Number(row.count_barcode || 0) > 0;
-
             const isScanned =
-            parseInt(row.count_barcode || 0) > 0;
-
-              // console.log(
-              //     row.barcode,
-              //     row.count_barcode,
-              //     isScanned
-              // );
+              row.qty_smsubcont_fr_cut != null &&
+              row.count_barcode != null;
 
             const componentName =
               String(
@@ -1009,15 +994,10 @@ usort($officialSizes, function ($a, $b) {
 
               <td class="text-center">
                 <input
-                type="checkbox"
-                class="row-checkbox"
-                data-barcode="${escapeHtml(row.barcode)}"
-                ${
-                    Number(row.count_barcode || 0) > 0
-                    ? 'disabled'
-                    : ''
-                }
-              >
+                  type="checkbox"
+                  class="row-checkbox"
+                  data-barcode="${escapeHtml(row.barcode)}"
+                >
               </td>
 
               <td class="text-center">
@@ -1113,7 +1093,6 @@ usort($officialSizes, function ($a, $b) {
                   data-lot='${escapeHtml(lotData)}'
 
                   data-barcode="${escapeHtml(row.barcode)}"
-                  data-count_barcode="${escapeHtml(row.count_barcode ?? 0)}"
                 >
 
                   <i class="bi bi-printer"></i>
@@ -1257,425 +1236,666 @@ usort($officialSizes, function ($a, $b) {
     }
   </script>
 
-  <!-- // ===========================
+  // ===========================
   // Event Select All
-  // =========================== -->
+  // ===========================
   <script>
-    // Saat checkbox "Select All" berubah
     $(document).on(
       'change',
       '#checkAll',
       function() {
 
-        $('.row-checkbox:not(:disabled)')
-          .prop(
-            'checked',
-            $(this).is(':checked')
-          );
-
-      }
-    );
-
-    // get data dari row untuk print
-    function getRowData(btn){
-
-    let lot = '';
-
-    try{
-
-        lot =
-            JSON.parse(
-                btn.attr('data-lot')
-            )[0];
-
-    }catch(e){
-
-        lot = '';
-    }
-
-    return {
-
-      job_order: btn.data('joborder'),
-      bucket: btn.data('bucket'),
-      po_code: btn.data('po_code'),
-      po_item: btn.data('poitem'),
-      model: btn.data('model'),
-      style: btn.data('style'),
-      ncvs: btn.data('ncvs'),
-      size: btn.data('size'),
-      qty: btn.data('total_qty'),
-      komponen: btn.data('nm_komponen_in'),
-      barcode: btn.data('barcode'),
-      lot: lot,
-
-      count_barcode: btn.data('count_barcode') || 0
-
-    };
-
-  }
-  </script>
-  
-
-  <!-- //============================
-  // Fungsi Print
-  //============================ -->
-  <script>
-    // Event print per row
-      $(document).on(
-      'click',
-      '.btnPrintRow',
-      function(){
-
-          printLabels([
-              getRowData(
-                  $(this)
-              )
-          ]);
-
-      }
-    );
-
-    // Print massal
-   $(document).on(
-    'click',
-    '#btnPrintAll',
-      function(){
-
-          const table =
-              $('#tableStrukBarcode')
-              .DataTable();
-
-          const rows=[];
-
-          table.$('.row-checkbox:checked')
-          .each(function(){
-
-              const btn =
-                  $(this)
-                  .closest('tr')
-                  .find('.btnPrintRow');
-
-              rows.push(
-                  getRowData(btn)
-              );
-
-          });
-
-          console.log(rows);
-
-          if(rows.length===0){
-
-              alert(
-                  'Pilih data terlebih dahulu'
-              );
-
-              return;
-          }
-
-          printLabels(rows);
-
-      }
-    );
-
-  // Print function (dummy)
-  function printLabels(rows){
-
-    const win =
-    window.open(
-        '',
-        '_blank'
-    );
-
-    win.rowsToUpdate = rows;
-
-    let htmlLabels='';
-
-    rows.forEach(function(row,index){
-
-        htmlLabels += `
-
-        <div class="label">
-
-            <div class="left">
-
-                <div class="line1">
-                    ${row.bucket} - ${row.ncvs}
-                </div>
-
-                <div class="line2">
-                    ${row.po_code} - ${row.po_item}
-                </div>
-
-                <div class="line3">
-                    ${row.style}
-                </div>
-
-                <div class="line4">
-                    Lot ${row.lot}
-                </div>
-
-                <div class="line5">
-                    ${row.komponen}
-                </div>
-
-                <div class="product">
-                    ${row.model}
-                </div>
-
-            </div>
-
-            <div class="right">
-
-                <div class="size">
-                    ${row.size}
-                </div>
-
-                <div
-                    class="qr"
-                    id="qr_${index}"
-                    data-code="${row.barcode}"
-                ></div>
-
-                <div class="barcodeText">
-                    ${String(row.barcode).substring(0,7)}
-                </div>
-
-            </div>
-
-        </div>
-
-        `;
-
-    });
-
-    win.rowsToUpdate = rows;
-    win.document.write(`
-
-    <!DOCTYPE html>
-
-    <html>
-
-    <head>
-
-    <meta charset="UTF-8">
-
-    <title>Print Label</title>
-
-    <style>
-
-    @page{
-        size:50mm 30mm;
-        margin:0;
-    }
-
-    html,
-    body{
-        margin:0;
-        padding:0;
-    }
-
-    .label{
-
-        width:50mm;
-        height:30mm;
-
-        box-sizing:border-box;
-
-        display:flex;
-
-        padding:1.5mm;
-
-        font-family:Arial,sans-serif;
-
-        overflow:hidden;
-
-        page-break-after:always;
-    }
-
-    .label:last-child{
-        page-break-after:auto;
-    }
-
-    .left{
-        width:33mm;
-        padding-right:1mm;
-    }
-
-    .right{
-        width:14mm;
-        text-align:center;
-    }
-
-    .line1{
-
-        font-size:3.6mm;
-        font-weight:bold;
-
-        line-height:4mm;
-    }
-
-    .line2,
-    .line3,
-    .line4,
-    .line5{
-
-        font-size:2.5mm;
-        line-height:3mm;
-    }
-
-    .product{
-
-        font-size:2.5mm;
-        font-weight:bold;
-
-        line-height:3mm;
-    }
-
-    .size{
-
-        font-size:4.5mm;
-        font-weight:bold;
-    }
-
-    .size small{
-
-        font-size:2.8mm;
-    }
-
-    .barcodeText{
-
-        font-size:2mm;
-        margin-top:1mm;
-    }
-
-    .qr{
-
-        width:50px;
-        height:50px;
-
-        margin:auto;
-    }
-
-    </style>
-
-    </head>
-
-    <body>
-
-    ${htmlLabels}
-
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script>
-
-    <script>
-
-    document
-    .querySelectorAll('.qr')
-    .forEach(function(el){
-
-        new QRCode(
-            el,
-            {
-                text:
-                    el.dataset.code,
-
-                width:50,
-
-                height:50
-            }
+        $('.row-checkbox').prop(
+          'checked',
+          $(this).is(':checked')
         );
 
-    });
-
-    setTimeout(function(){
-
-    window.print();
-
-      },1000);
-
-      window.onafterprint = function(){
-
-          if(window.opener){
-
-              window.opener.updatePrintCount(
-                  window.rowsToUpdate
-              );
-
-          }
-
-          window.close();
-
-      };
-
-    <\/script>
-
-    </body>
-
-    </html>
-
-    `);
-
-        win.document.close();
-
-    }
-
-
-    // ===========================
-    // Update Count Print
-    // ==========================
-    function updatePrintCount(rows){
-
-      const barcodes =
-          rows.map(
-              row => row.barcode
-          );
-
-      console.log(
-          'UPDATE BARCODE =>',
-          barcodes
-      );
-
-      $.ajax({
-
-          url:'./../config/update_count_barcode.php',
-
-          type:'POST',
-
-          dataType:'json',
-
-          data:{
-              barcodes: barcodes
-          },
-
-          success:function(res){
-
-              console.log(res);
-
-              if(res.status){
-
-                  location.reload();
-
-              }
-
-          },
-
-          error:function(xhr){
-
-              console.error(xhr);
-
-          }
-
-      });
-  }
+      }
+    );
   </script>
 
-  
+  // ===========================
+  // Ambiil Semua data yang di Select All
+  // ===========================
+  <script>
+    $(document).on(
+      'click',
+      '#btnPrintAll',
+      function() {
 
+        const selectedRows = [];
 
+        $('.row-checkbox:checked').each(
+          function() {
 
+            const row =
+              $(this).closest('tr');
 
-  <!-- Notification print Struk -->
+            const btn =
+              row.find('.btnPrintRow');
+
+            selectedRows.push({
+
+              job_order:
+                btn.data('joborder'),
+
+              bucket:
+                btn.data('bucket'),
+
+              po_code:
+                btn.data('po_code'),
+
+              po_item:
+                btn.data('poitem'),
+
+              model:
+                btn.data('model'),
+
+              style:
+                btn.data('style'),
+
+              ncvs:
+                btn.data('ncvs'),
+
+              size:
+                btn.data('size'),
+
+              total_qty:
+                btn.data('total_qty'),
+
+              barcode:
+                btn.data('barcode')
+
+            });
+
+          }
+        );
+
+        if (
+          selectedRows.length === 0
+        ) {
+
+          alert(
+            'Pilih data terlebih dahulu'
+          );
+
+          return;
+        }
+
+        console.log(
+          selectedRows
+        );
+
+        // panggil fungsi print massal
+        printAllBarcode(
+          selectedRows
+        );
+
+      }
+    );
+  </script>
+
+  <!-- Modul print -->
+  <script>
+    let bluetoothDevice = null;
+    let printerCharacteristic = null;
+
+    // UUID Printer
+    const SERVICE_UUID =
+      '000018f0-0000-1000-8000-00805f9b34fb';
+
+    const CHARACTERISTIC_UUID =
+      '00002af1-0000-1000-8000-00805f9b34fb';
+
+    // ==========================
+    // CEK SUPPORT BLUETOOTH
+    // ==========================
+    function isBluetoothSupported() {
+
+      if (!navigator.bluetooth) {
+
+        showError(
+          '❌ Browser tidak support Bluetooth'
+        );
+
+        return false;
+      }
+
+      return true;
+    }
+
+    // ==========================
+    // CONNECT BLUETOOTH
+    // ==========================
+    async function connectPrinterBluetooth() {
+
+      try {
+
+        // cek support browser
+        if (!isBluetoothSupported()) {
+          return false;
+        }
+
+        // cek android
+        const isAndroid =
+          /Android/i.test(navigator.userAgent);
+
+        if (isAndroid) {
+
+          showSuccess(
+            '📱 Pastikan Bluetooth & Lokasi aktif'
+          );
+        }
+
+        bluetoothDevice =
+          await navigator.bluetooth.requestDevice({
+
+            acceptAllDevices: true,
+
+            optionalServices: [SERVICE_UUID]
+          });
+
+        if (!bluetoothDevice) {
+
+          showError(
+            '❌ Device printer tidak dipilih'
+          );
+
+          return false;
+        }
+
+        const server =
+          await bluetoothDevice.gatt.connect();
+
+        const service =
+          await server.getPrimaryService(
+            SERVICE_UUID
+          );
+
+        printerCharacteristic =
+          await service.getCharacteristic(
+            CHARACTERISTIC_UUID
+          );
+
+        showSuccess(
+          '✅ Printer berhasil terhubung'
+        );
+
+        return true;
+
+      } catch (err) {
+
+        console.error(err);
+
+        // Android biasanya ini
+        if (
+          err.message.includes('User cancelled')
+        ) {
+
+          showError(
+            '❌ Pemilihan printer dibatalkan'
+          );
+
+        } else {
+
+          showError(
+            '❌ Gagal connect printer'
+          );
+        }
+
+        return false;
+      }
+    }
+
+    // ==========================
+    // SEND DATA
+    // ==========================
+    async function sendToPrinter(data) {
+
+      if (!printerCharacteristic) {
+
+        const ok =
+          await connectPrinterBluetooth();
+
+        if (!ok) {
+          throw new Error(
+            'Printer tidak terhubung'
+          );
+        }
+      }
+
+      try {
+
+        const chunkSize = 100;
+
+        for (
+          let i = 0; i < data.length; i += chunkSize
+        ) {
+
+          const chunk =
+            data.slice(i, i + chunkSize);
+
+          await printerCharacteristic.writeValue(
+            chunk
+          );
+
+          await new Promise(
+            r => setTimeout(r, 60)
+          );
+        }
+
+        return true;
+
+      } catch (err) {
+
+        console.error(err);
+
+        throw err;
+      }
+    }
+
+    // ==========================
+    // PRINT SMALL TEXT
+    // ==========================
+    async function printSmallText(
+      text,
+      align = 'left'
+    ) {
+
+      const alignCode =
+        align === 'center' ? 0x01 :
+        align === 'right' ? 0x02 :
+        0x00;
+
+      await sendToPrinter(
+        new Uint8Array([0x1B, 0x61, alignCode])
+      );
+
+      // font kecil
+      await sendToPrinter(
+        new Uint8Array([0x1B, 0x4D, 0x01])
+      );
+
+      // line rapat
+      await sendToPrinter(
+        new Uint8Array([0x1B, 0x33, 24])
+      );
+
+      const encoder = new TextEncoder();
+
+      await sendToPrinter(
+        encoder.encode(text + "\n")
+      );
+
+      // reset font
+      await sendToPrinter(
+        new Uint8Array([0x1B, 0x4D, 0x00])
+      );
+
+      // reset spacing
+      await sendToPrinter(
+        new Uint8Array([0x1B, 0x32])
+      );
+    }
+
+    // ==========================
+    // PRINT TEXT
+    // ==========================
+    async function printText(
+      text,
+      align = 'left'
+    ) {
+
+      const alignCode =
+        align === 'center' ? 0x01 :
+        align === 'right' ? 0x02 :
+        0x00;
+
+      await sendToPrinter(
+        new Uint8Array([0x1B, 0x61, alignCode])
+      );
+
+      const encoder = new TextEncoder();
+
+      return sendToPrinter(
+        encoder.encode(text + "\n")
+      );
+    }
+
+    // ==========================
+    // PRINT BARCODE
+    // ==========================
+    async function printBarcode(barcodeText) {
+
+      try {
+
+        const canvas =
+          document.createElement("canvas");
+
+        JsBarcode(canvas, barcodeText, {
+
+          format: "CODE128",
+
+          displayValue: true,
+
+          width: 3,
+          height: 80,
+
+          margin: 6,
+
+          fontSize: 16,
+          textMargin: 2,
+
+          lineColor: "#000000",
+          background: "#FFFFFF",
+
+          flat: true
+        });
+
+        const ctx =
+          canvas.getContext("2d");
+
+        const imageData =
+          ctx.getImageData(
+            0,
+            0,
+            canvas.width,
+            canvas.height
+          );
+
+        const pixels =
+          imageData.data;
+
+        const width =
+          canvas.width;
+
+        const height =
+          canvas.height;
+
+        const bytesPerRow =
+          Math.ceil(width / 8);
+
+        const imageBytes = [];
+
+        imageBytes.push(
+          0x1D,
+          0x76,
+          0x30,
+          0x00,
+
+          bytesPerRow % 256,
+          Math.floor(bytesPerRow / 256),
+
+          height % 256,
+          Math.floor(height / 256)
+        );
+
+        for (let y = 0; y < height; y++) {
+
+          for (
+            let x = 0; x < bytesPerRow; x++
+          ) {
+
+            let byte = 0;
+
+            for (
+              let bit = 0; bit < 8; bit++
+            ) {
+
+              const px =
+                x * 8 + bit;
+
+              if (px < width) {
+
+                const i =
+                  (y * width + px) * 4;
+
+                const r = pixels[i];
+                const g = pixels[i + 1];
+                const b = pixels[i + 2];
+
+                const gray =
+                  (r + g + b) / 3;
+
+                if (gray < 160) {
+
+                  byte |= (
+                    1 << (7 - bit)
+                  );
+                }
+              }
+            }
+
+            imageBytes.push(byte);
+          }
+        }
+
+        // reset printer
+        await sendToPrinter(
+          new Uint8Array([0x1B, 0x40])
+        );
+
+        // darkness
+        await sendToPrinter(
+          new Uint8Array([0x1D, 0x7C, 0x01])
+        );
+
+        // center
+        await sendToPrinter(
+          new Uint8Array([0x1B, 0x61, 0x01])
+        );
+
+        // print image
+        await sendToPrinter(
+          new Uint8Array(imageBytes)
+        );
+
+        // tunggu printer render
+        await new Promise(
+          r => setTimeout(r, 300)
+        );
+
+        // feed sedikit
+        await sendToPrinter(
+          new Uint8Array([0x0A])
+        );
+
+        return true;
+
+      } catch (err) {
+
+        console.error(err);
+
+        showError("❌ Gagal print barcode");
+
+        return false;
+      }
+    }
+
+    // ==========================
+    // EVENT PRINT
+    // ==========================
+    document.addEventListener(
+      "click",
+      async function(e) {
+
+        const btn =
+          e.target.closest(".btnPrintRow");
+
+        if (!btn) return;
+
+        try {
+
+          const createdBy =
+            btn.dataset.created_by || "-";
+
+          const createdAt =
+            btn.dataset.created_at || "-";
+
+          const jobOrder =
+            btn.dataset.joborder || "-";
+
+          const poCode =
+            btn.dataset.po_code || "-";
+
+          const poItem =
+            btn.dataset.poitem || "-";
+
+          const ncvs =
+            btn.dataset.ncvs || "-";
+
+          const bucket =
+            btn.dataset.bucket || "-";
+
+          const style =
+            btn.dataset.style || "-";
+
+          const model =
+            btn.dataset.model || "-";
+
+          const nmKomponen =
+            btn.dataset.nm_komponen_in || "-";
+
+          const size =
+            btn.dataset.size || "-";
+
+          const totalQty =
+            btn.dataset.total_qty || "-";
+
+          const barcode =
+            btn.dataset.barcode || "";
+
+          const lot =
+            JSON.parse(
+              btn.dataset.lot || "[]"
+            );
+
+          if (!barcode) {
+
+            showError("Barcode kosong");
+
+            return;
+          }
+
+          const lotText =
+            Array.isArray(lot) && lot.length ?
+            lot.join(", ") :
+            "-";
+
+          // ==========================
+          // PRINT TEXT
+          // ==========================
+          await printSmallText(
+            `${createdBy} - ${createdAt}`
+          );
+
+          await printSmallText("");
+
+          await printSmallText(`${model}`);
+
+          await printSmallText(
+            `NCVS      : ${ncvs}`
+          );
+
+          await printSmallText(
+            `Job order : ${jobOrder}`
+          );
+
+          await printSmallText(
+            `Bucket    : ${bucket}`
+          );
+
+          await printSmallText(
+            `PO-PO Item: ${poCode} - ${poItem}`
+          );
+
+          await printSmallText(
+            `Style     : ${style}`
+          );
+
+          await printSmallText(
+            `Komp      : ${nmKomponen}`
+          );
+
+          await printSmallText(
+            `Lot       : ${lotText}`
+          );
+
+          await printSmallText(
+            `Size/Qty  : ${size}`
+          );
+
+          await printSmallText(
+            `Total Qty : ${totalQty}`
+          );
+
+          await printSmallText("");
+
+          // ==========================
+          // PRINT BARCODE
+          // ==========================
+          const ok =
+            await printBarcode(barcode);
+
+          if (!ok) {
+            return;
+          }
+
+          // feed bawah
+          await printText("");
+
+          // ==========================
+          // UPDATE COUNT
+          // ==========================
+          try {
+
+            const response =
+              await fetch(
+                './../config/update_count_barcode.php', {
+
+                  method: 'POST',
+
+                  headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                  },
+
+                  body: 'barcode=' +
+                    encodeURIComponent(barcode)
+                }
+              );
+
+            const data =
+              await response.json();
+
+            if (!data.status) {
+
+              showError(data.message);
+            }
+
+          } catch (err) {
+
+            console.error(err);
+
+            showError(
+              'Gagal update count barcode'
+            );
+          }
+
+          showSuccess("✅ Print berhasil");
+
+        } catch (err) {
+
+          console.error(err);
+
+          showError(
+            "❌ Printer tidak terhubung"
+          );
+        }
+      });
+  </script>
+
   <?php include_once __DIR__ . '/../includes/notification.php'; ?>
-  
+  <!-- Notification print Struk -->
   <script>
     // ==========================
     // TOAST SUCCESS
