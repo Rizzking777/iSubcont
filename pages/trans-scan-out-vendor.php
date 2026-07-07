@@ -307,53 +307,128 @@ $username = $_SESSION['username'];
             </div>
           </div>
 
-          <!-- UNTUK SUKSES SCAN MERGE -->
-          <?php if (isset($_GET['merge_success'])): ?>
-            <?php
-            $main_barcode = $_GET['main'] ?? '';
+          <?php
+
+          $status  = $_GET['status'] ?? '';
+          $barcode = $_GET['barcode'] ?? '';
+
+          if ($status && $barcode):
+
+            // Ambil data barcode
             $stmt = $conn->prepare("
-              SELECT *
-              FROM tbl_transaksi
-              WHERE barcode = ?
-              ORDER BY
-              CAST(REPLACE(size, 'T', '') AS UNSIGNED),
-              size ASC
-          ");
+        SELECT *
+        FROM tbl_transaksi
+        WHERE barcode = ?
+        LIMIT 1
+    ");
 
-            $stmt->bind_param("s", $main_barcode);
+            $stmt->bind_param("s", $barcode);
             $stmt->execute();
-            $result = $stmt->get_result();
-            $rows = [];
-            $total_qty = 0;
-            while ($r = $result->fetch_assoc()) {
-              $rows[] = $r;
-              $total_qty += (float)$r['qty_vendor_to_whsubcont'];
-            }
-            $first = $rows[0] ?? null;
-            ?>
 
-            <?php if ($first): ?>
+            $first = $stmt->get_result()->fetch_assoc();
+
+            if ($first):
+
+              // Ambil semua group pada output yang sama
+              $stmtGroup = $conn->prepare("
+            SELECT
+                id_group,
+                MIN(nm_komponen_in) AS nm_group,
+                lot,
+                size,
+                MAX(qty_vendor_to_whsubcont) AS qty,
+                MAX(last_gate='VENDOR_TO_WH_SUBCONT') AS ready
+            FROM tbl_transaksi
+            WHERE
+                job_order=?
+                AND lot=?
+                AND size=?
+                AND nm_komponen_out=?
+            GROUP BY id_group, lot, size
+            ORDER BY id_group
+        ");
+
+              $stmtGroup->bind_param(
+                "ssss",
+                $first['job_order'],
+                $first['lot'],
+                $first['size'],
+                $first['nm_komponen_out']
+              );
+
+              $stmtGroup->execute();
+
+              $groups = $stmtGroup->get_result();
+
+              $rows = [];
+              $totalQty = 0;
+              $readyGroup = 0;
+
+              while ($g = $groups->fetch_assoc()) {
+
+                $rows[] = $g;
+
+                $totalQty += $g['qty'];
+
+                if ($g['ready']) {
+                  $readyGroup++;
+                }
+              }
+
+              $totalGroup = count($rows);
+
+          ?>
+
               <div class="card border-0 shadow-lg success-card mb-4 fade-in">
+
                 <div class="card-body p-4">
-                  <!-- SUCCESS HEADER -->
+
+                  <!-- HEADER -->
+
                   <div class="text-center mb-4">
-                    <div class="merge-success-icon mb-3">
-                      <i class="bi bi-check-circle-fill"></i>
-                    </div>
-                    <h2 class="fw-bold text-success mb-1">
-                      TRANSAKSI BERHASIL
-                    </h2>
-                    <div class="text-muted">
-                      Semua komponen berhasil diproses.
-                    </div>
+
+                    <?php if ($status == "complete"): ?>
+
+                      <div class="merge-success-icon mb-3">
+                        <i class="bi bi-check-circle-fill"></i>
+                      </div>
+
+                      <h2 class="fw-bold text-success">
+                        TRANSAKSI BERHASIL
+                      </h2>
+
+                      <div class="text-muted">
+                        Semua group berhasil diproses.
+                      </div>
+
+                    <?php else: ?>
+
+                      <div class="partial-icon mb-3">
+                        <i class="bi bi-hourglass-split"></i>
+                      </div>
+
+                      <h2 class="fw-bold text-warning">
+                        TRANSAKSI PARSIAL
+                      </h2>
+
+                      <div class="text-muted">
+                        Masih menunggu group lainnya.
+                      </div>
+
+                    <?php endif; ?>
+
                   </div>
 
                   <!-- SUMMARY -->
-                  <div class="row g-3 mb-4">
+
+                  <div class="row mb-4">
+
                     <div class="col-md-6">
+
                       <div class="detail-box">
+
                         <div class="detail-label">
-                          Output Component
+                          Output Process
                         </div>
 
                         <div class="detail-value">
@@ -361,231 +436,150 @@ $username = $_SESSION['username'];
                         </div>
 
                       </div>
+
                     </div>
 
                     <div class="col-md-6">
+
                       <div class="detail-box">
+
                         <div class="detail-label">
-                          Total Qty
+                          Progress
                         </div>
-                        <div class="detail-value qty-highlight">
-                          <?= number_format($total_qty) ?>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
 
-                  <!-- SIZE DETAIL -->
-                  <div class="size-wrapper mb-4">
-                    <div class="size-title mb-3">
-                      Detail Size
-                    </div>
-                    <div class="table-responsive">
-                      <table class="table align-middle table-bordered">
-                        <thead class="table-light">
-                          <tr>
-                            <th class="text-center">LOT</th>
-                            <th class="text-center">SIZE</th>
-                            <th class="text-center">QTY</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <?php foreach ($rows as $r): ?>
-                            <tr>
-                              <td class="text-center fw-semibold">
-                                <?= htmlspecialchars($r['lot']) ?>
-                              </td>
-                              <td class="text-center">
-                                <?= htmlspecialchars($r['size']) ?>
-                              </td>
-                              <td class="text-center text-success fw-bold">
-                                <?= number_format($r['qty_vendor_to_whsubcont']) ?>
-                              </td>
-                            </tr>
-                          <?php endforeach; ?>
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-
-                  <!-- FINAL INFO -->
-                  <div class="next-action-box">
-                    <i class="bi bi-check2-all me-2"></i>
-                    Semua komponen selesai diproses. Silakan lanjutkan ke proses berikutnya.
-                  </div>
-                </div>
-              </div>
-            <?php endif; ?>
-          <?php endif; ?>
-
-          <!-- UNTUK SUKSES SCAN SINGLE -->
-          <?php if (isset($_GET['success']) && $_GET['success'] == 'single'): ?>
-            <?php
-            $barcode_success = $_GET['barcode'] ?? '';
-            if (empty($barcode_success)) {
-              return;
-            }
-            $stmt = $conn->prepare("
-              SELECT * 
-              FROM tbl_transaksi 
-              WHERE barcode = ?
-              ORDER BY 
-              CAST(REPLACE(size, 'T', '') AS UNSIGNED),
-              size ASC
-          ");
-            $stmt->bind_param("s", $barcode_success);
-            $stmt->execute();
-            $result = $stmt->get_result();
-            $rows = [];
-            $total_qty = 0;
-            while ($r = $result->fetch_assoc()) {
-              $rows[] = $r;
-              $total_qty += (float)$r['qty_vendor_to_whsubcont'];
-            }
-            $first = $rows[0] ?? null;
-            ?>
-
-            <?php if ($first): ?>
-              <div class="card border-0 shadow-lg success-card mb-4 fade-in">
-                <div class="card-body p-4">
-                  <!-- SUCCESS HEADER -->
-                  <div class="text-center mb-4">
-                    <div class="success-icon mb-3">
-                      <i class="bi bi-check-circle-fill"></i>
-                    </div>
-                    <h2 class="fw-bold text-success mb-1">
-                      TRANSAKSI BERHASIL
-                    </h2>
-                    <div class="text-muted">
-                      Barcode berhasil diproses
-                    </div>
-                  </div>
-
-                  <!-- SUMMARY -->
-                  <div class="row g-3 mb-4">
-                    <div class="col-md-6">
-                      <div class="detail-box">
-                        <div class="detail-label">
-                          Komponen
-                        </div>
                         <div class="detail-value">
-                          <?= htmlspecialchars($first['nm_komponen_in']) ?>
+
+                          <?= $readyGroup ?>
+
+                          /
+
+                          <?= $totalGroup ?>
+
+                          Group Ready
+
                         </div>
+
                       </div>
+
                     </div>
 
-                    <div class="col-md-6">
-                      <div class="detail-box">
-                        <div class="detail-label">
-                          Total Qty
-                        </div>
-                        <div class="detail-value qty-highlight">
-                          <?= number_format($total_qty) ?>
-                        </div>
-                      </div>
-                    </div>
                   </div>
 
-                  <!-- SIZE DETAIL -->
-                  <div class="size-wrapper mb-4">
-                    <div class="size-title mb-3">
-                      Detail Size
-                    </div>
-                    <div class="table-responsive">
-                      <table class="table align-middle table-bordered">
-                        <thead class="table-light">
+                  <!-- DETAIL -->
+
+                  <div class="table-responsive">
+
+                    <table class="table table-bordered align-middle">
+
+                      <thead class="table-light">
+
+                        <tr>
+
+                          <th class="text-center">LOT</th>
+
+                          <th class="text-center">SIZE</th>
+
+                          <th class="text-center">GROUP</th>
+
+                          <th class="text-center">QTY</th>
+
+                          <th class="text-center">STATUS</th>
+
+                        </tr>
+
+                      </thead>
+
+                      <tbody>
+
+                        <?php foreach ($rows as $r): ?>
+
                           <tr>
-                            <th class="text-center">LOT</th>
-                            <th class="text-center">SIZE</th>
-                            <th class="text-center">QTY</th>
+
+                            <td class="text-center">
+
+                              <?= $r['lot'] ?>
+
+                            </td>
+
+                            <td class="text-center">
+
+                              <?= $r['size'] ?>
+
+                            </td>
+
+                            <td class="text-center">
+
+                              <?= htmlspecialchars($r['nm_group']) ?>
+
+                            </td>
+
+                            <td class="text-center fw-bold">
+
+                              <?= number_format($r['qty']) ?>
+
+                            </td>
+
+                            <td class="text-center">
+
+                              <?php if ($r['ready']): ?>
+
+                                <span class="badge bg-success">
+
+                                  READY
+
+                                </span>
+
+                              <?php else: ?>
+
+                                <span class="badge bg-warning text-dark">
+
+                                  WAITING
+
+                                </span>
+
+                              <?php endif; ?>
+
+                            </td>
+
                           </tr>
-                        </thead>
-                        <tbody>
-                          <?php foreach ($rows as $r): ?>
-                            <tr>
-                              <td class="text-center fw-semibold">
-                                <?= htmlspecialchars($r['lot']) ?>
-                              </td>
-                              <td class="text-center">
-                                <?= htmlspecialchars($r['size']) ?>
-                              </td>
-                              <td class="text-center text-success fw-bold">
-                                <?= number_format($r['qty_vendor_to_whsubcont']) ?>
-                              </td>
-                            </tr>
-                          <?php endforeach; ?>
-                        </tbody>
-                      </table>
-                    </div>
+
+                        <?php endforeach; ?>
+
+                      </tbody>
+
+                    </table>
+
                   </div>
 
-                  <!-- INFO -->
-                  <div class="scan-info">
-                    <div>
-                      <i class="bi bi-person-circle me-1"></i>
-                      <?= htmlspecialchars($first['transac_by']) ?>
-                    </div>
-                    <div>
-                      <i class="bi bi-clock-history me-1"></i>
-                      <?= date('d M Y H:i', strtotime($first['updated_at'])) ?>
-                    </div>
+                  <div class="next-action-box mt-4">
+
+                    <?php if ($status == "complete"): ?>
+
+                      <i class="bi bi-check2-all me-2"></i>
+
+                      Seluruh group berhasil diproses. Silakan lanjut ke proses berikutnya.
+
+                    <?php else: ?>
+
+                      <i class="bi bi-arrow-repeat me-2"></i>
+
+                      Silakan scan group yang masih berstatus <strong>WAITING</strong>.
+
+                    <?php endif; ?>
+
                   </div>
+
                 </div>
+
               </div>
-            <?php endif; ?>
-          <?php endif; ?>
 
-          <!-- UNTUK SCAN PARSIAL -->
-          <?php if (isset($_GET['partial_ready'])): ?>
-            <div class="card border-0 shadow-lg mb-4 partial-card fade-in">
-              <div class="card-body p-5">
-                <!-- HEADER -->
-                <div class="text-center mb-4">
-                  <div class="partial-icon mb-3">
-                    <i class="bi bi-hourglass-split"></i>
-                  </div>
-                  <h2 class="fw-bold text-warning mb-1">
-                    TRANSAKSI PARSIAL BERHASIL
-                  </h2>
-                  <div class="partial-progress">
-                    <?= $_GET['ready'] ?>
-                    /
-                    <?= $_GET['total'] ?>
-                    Komponen Ready
+          <?php
 
-                  </div>
-                </div>
+            endif;
 
-                <!-- OUTPUT -->
-                <div class="detail-box mb-4">
-                  <div class="detail-label">
-                    Output Process
-                  </div>
-                  <div class="detail-value">
-                    <?= htmlspecialchars($_GET['output']) ?>
-                  </div>
-                </div>
+          endif;
 
-                <!-- COMPONENT STATUS -->
-                <div class="component-status-wrapper mb-4">
-                  <div class="component-item success">
-                    <i class="bi bi-check-circle-fill me-2"></i>
-                    <?= htmlspecialchars($_GET['ready_component']) ?>
-                  </div>
-                  <div class="component-item waiting">
-                    <i class="bi bi-hourglass-split me-2"></i>
-                    <?= htmlspecialchars($_GET['waiting_component']) ?>
-                  </div>
-                </div>
-
-                <!-- NEXT ACTION -->
-                <div class="next-action-box">
-                  <i class="bi bi-arrow-repeat me-2"></i>
-                  Menunggu seluruh komponen selesai diproses.
-                </div>
-              </div>
-            </div>
-          <?php endif; ?>
+          ?>
 
         </div>
       </div>

@@ -278,43 +278,10 @@ $username = $_SESSION['username'];
 
                   </div>
 
-                  <!-- SUMMARY -->
-                  <div class="row g-3 mb-4">
-
-                    <div class="col-md-6">
-                      <div class="detail-box">
-
-                        <div class="detail-label">
-                          Komponen
-                        </div>
-
-                        <div class="detail-value">
-                          <?= htmlspecialchars($first['nm_komponen_in']) ?>
-                        </div>
-
-                      </div>
-                    </div>
-
-                    <div class="col-md-6">
-                      <div class="detail-box">
-
-                        <div class="detail-label">
-                          Total Qty
-                        </div>
-
-                        <div class="detail-value qty-highlight">
-                          <?= number_format($total_qty) ?>
-                        </div>
-
-                      </div>
-                    </div>
-
-                  </div>
-
                   <!-- SIZE DETAIL -->
                   <div class="size-wrapper mb-4">
                     <div class="size-title mb-3">
-                      Detail Size
+                      Detail Transaksi:
                     </div>
                     <div class="table-responsive">
                       <table class="table align-middle table-bordered">
@@ -322,6 +289,7 @@ $username = $_SESSION['username'];
                           <tr>
                             <th class="text-center">LOT</th>
                             <th class="text-center">SIZE</th>
+                            <th class="text-center">KOMPONEN</th>
                             <th class="text-center">QTY</th>
                           </tr>
                         </thead>
@@ -338,6 +306,20 @@ $username = $_SESSION['username'];
                                 <?= htmlspecialchars($r['size']) ?>
                               </td>
 
+                              <td class="text-center">
+
+                                <?= htmlspecialchars($r['nm_komponen_in']) ?>
+
+                                <?php if ($r['is_main_komponen']) : ?>
+
+                                  <span class="badge bg-success ms-2">
+                                    Main
+                                  </span>
+
+                                <?php endif; ?>
+
+                              </td>
+
                               <td class="text-center text-success fw-bold">
                                 <?= number_format($r['qty_whsubcont_fr_smsubcont']) ?>
                               </td>
@@ -345,6 +327,25 @@ $username = $_SESSION['username'];
                             </tr>
                           <?php endforeach; ?>
                         </tbody>
+
+                        <tfoot>
+
+                          <tr>
+
+                            <th colspan="3" class="text-end">
+                              Total Qty
+                            </th>
+
+                            <th class="text-center text-success">
+
+                              <?= number_format($total_qty) ?>
+
+                            </th>
+
+                          </tr>
+
+                        </tfoot>
+
                       </table>
                     </div>
                   </div>
