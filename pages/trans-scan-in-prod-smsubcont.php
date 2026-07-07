@@ -223,32 +223,44 @@ $username = $_SESSION['username'];
           </div>
 
           <!-- ========== HASIL SCAN SUCCESS ========== -->
+          <!-- ========== HASIL SCAN SUCCESS ========== -->
           <?php if (isset($_GET['success'])): ?>
 
             <?php
             $barcode_success = $_GET['barcode'] ?? '';
+
             if (empty($barcode_success)) {
               return;
             }
 
             $stmt = $conn->prepare("
-              SELECT * 
-              FROM tbl_transaksi 
+              SELECT *
+              FROM tbl_transaksi
               WHERE barcode = ?
-              ORDER BY 
-              CAST(REPLACE(size, 'T', '') AS UNSIGNED),
-              size ASC
+              ORDER BY
+                  CAST(REPLACE(size,'T','') AS UNSIGNED),
+                  size ASC
           ");
+
             $stmt->bind_param("s", $barcode_success);
             $stmt->execute();
+
             $result = $stmt->get_result();
+
             $rows = [];
-            $total_qty = 0;
+
             while ($r = $result->fetch_assoc()) {
               $rows[] = $r;
-              $total_qty += (float)$r['qty_smsubcont_fr_whsubcont'];
             }
+
             $first = $rows[0] ?? null;
+
+            if (!$first) {
+              return;
+            }
+
+            // Karena 1 barcode = 1 set
+            $total_qty = $first['qty_smsubcont_fr_whsubcont'];
             ?>
 
             <?php if ($first): ?>
@@ -269,11 +281,13 @@ $username = $_SESSION['username'];
 
                   <!-- SUMMARY -->
                   <div class="row g-3 mb-4">
+
                     <div class="col-md-6">
                       <div class="detail-box">
                         <div class="detail-label">
                           Komponen
                         </div>
+
                         <div class="detail-value">
                           <?= htmlspecialchars($first['nm_komponen_out']) ?>
                         </div>
@@ -283,13 +297,15 @@ $username = $_SESSION['username'];
                     <div class="col-md-6">
                       <div class="detail-box">
                         <div class="detail-label">
-                          Total Qty
+                          Qty Set
                         </div>
+
                         <div class="detail-value qty-highlight">
                           <?= number_format($total_qty) ?>
                         </div>
                       </div>
                     </div>
+
                   </div>
 
                   <!-- SIZE DETAIL -->
@@ -307,19 +323,21 @@ $username = $_SESSION['username'];
                           </tr>
                         </thead>
                         <tbody>
-                          <?php foreach ($rows as $r): ?>
-                            <tr>
-                              <td class="text-center fw-semibold">
-                                <?= htmlspecialchars($r['lot']) ?>
-                              </td>
-                              <td class="text-center">
-                                <?= htmlspecialchars($r['size']) ?>
-                              </td>
-                              <td class="text-center text-success fw-bold">
-                                <?= number_format($r['qty_smsubcont_fr_whsubcont']) ?>
-                              </td>
-                            </tr>
-                          <?php endforeach; ?>
+                          <tr>
+
+                            <td class="text-center fw-semibold">
+                              <?= htmlspecialchars($first['lot']) ?>
+                            </td>
+
+                            <td class="text-center">
+                              <?= htmlspecialchars($first['size']) ?>
+                            </td>
+
+                            <td class="text-center text-success fw-bold">
+                              <?= number_format($first['qty_smsubcont_fr_whsubcont']) ?>
+                            </td>
+
+                          </tr>
                         </tbody>
                       </table>
                     </div>

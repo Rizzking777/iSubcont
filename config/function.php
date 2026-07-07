@@ -4481,39 +4481,14 @@ if (
 
         // AMBIL DATA ACTIVE
         $q = mysqli_query($conn, "
-            SELECT *
-            FROM tbl_transaksi
-            WHERE
-                barcode = '$barcode'
-                AND barcode_status = 'ACTIVE'
-            ORDER BY id_trans ASC
+        SELECT *
+        FROM tbl_transaksi
+        WHERE barcode = '$barcode'
+        ORDER BY id_trans ASC
         ");
 
-        // CEK BARCODE MERGED
         if (mysqli_num_rows($q) == 0) {
-
-            $qMerge = mysqli_query($conn, "
-                SELECT *
-                FROM tbl_transaksi
-                WHERE barcode = '$barcode'
-                LIMIT 1
-            ");
-
-            $mergeData = mysqli_fetch_assoc($qMerge);
-
-            if (
-                $mergeData &&
-                $mergeData['barcode_status'] == 'MERGED'
-            ) {
-
-                throw new Exception("
-                Barcode ini sudah tidak dapat digunakan. Silahkan gunakan barcode utama.
-                ");
-            }
-
-            throw new Exception("
-            Barcode tidak ditemukan.
-            ");
+            throw new Exception("Barcode tidak ditemukan.");
         }
 
         // SIMPAN SEMUA ROW
@@ -4528,7 +4503,7 @@ if (
         foreach ($all_data as $d) {
 
             if (
-                $d['last_gate'] != 'VENDOR_TO_WH_SUBCONT'
+                $d['last_gate'] != 'WH_SUBCONT_TO_VENDOR'
             ) {
 
                 $current_gate = $d['last_gate'];
@@ -4551,36 +4526,6 @@ if (
                 {$next_label}
                 ");
             }
-        }
-
-        // VALIDASI LOT COMPLETE
-        $qLot = mysqli_query($conn, "
-    SELECT DISTINCT barcode
-    FROM tbl_transaksi
-    WHERE
-        batch_transaksi = '{$first['batch_transaksi']}'
-        AND lot = '{$first['lot']}'
-        AND barcode_status = 'ACTIVE'
-");
-
-        $total_lot = mysqli_num_rows($qLot);
-
-        $qReady = mysqli_query($conn, "
-    SELECT DISTINCT barcode
-    FROM tbl_transaksi
-    WHERE
-        batch_transaksi = '{$first['batch_transaksi']}'
-        AND lot = '{$first['lot']}'
-        AND barcode_status = 'ACTIVE'
-        AND last_gate = 'VENDOR_TO_WH_SUBCONT'
-");
-
-        $total_ready = mysqli_num_rows($qReady);
-        if ($total_ready < $total_lot) {
-
-            throw new Exception("
-    Barcode ini tidak dapat digunakan. Karena ada beberapa barcode belum transaksi di vendor.
-    ");
         }
 
         // ANTI DOUBLE SCAN
@@ -4618,7 +4563,7 @@ if (
             $update = mysqli_query($conn, "
                 UPDATE tbl_transaksi SET
                     last_gate = 'WH_SUBCONT_FROM_VENDOR',
-                    qty_whsubcont_fr_vendor = qty_vendor_to_whsubcont,
+                    qty_whsubcont_fr_vendor = qty_whsubcont_to_vendor,
                     updated_at = NOW()
                 WHERE id_trans = '{$data['id_trans']}'
             ");
@@ -4634,7 +4579,7 @@ if (
                 "size" => $data['size'],
                 "last_gate" => 'WH_SUBCONT_FROM_VENDOR',
                 "qty_whsubcont_fr_vendor" =>
-                $data['qty_vendor_to_whsubcont']
+                $data['qty_whsubcont_to_vendor']
             ], JSON_UNESCAPED_UNICODE);
 
             // INSERT EVENT
@@ -4650,8 +4595,8 @@ if (
                     size = '{$data['size']}',
                     gate = 'WH_SUBCONT_FROM_VENDOR',
                     flow_type = 'IN',
-                    qty = '{$data['qty_vendor_to_whsubcont']}',
-                    qty_before = '{$data['qty_vendor_to_whsubcont']}',
+                    qty = '{$data['qty_whsubcont_to_vendor']}',
+                    qty_before = '{$data['qty_whsubcont_to_vendor']}',
                     qty_after = NULL,
                     transac_by = '$scan_by',
                     created_at = NOW()
@@ -4731,37 +4676,12 @@ if (
         $q = mysqli_query($conn, "
             SELECT *
             FROM tbl_transaksi
-            WHERE
-                barcode = '$barcode'
-                AND barcode_status = 'ACTIVE'
+            WHERE barcode = '$barcode'
             ORDER BY id_trans ASC
         ");
 
-        // CEK BARCODE MERGED
         if (mysqli_num_rows($q) == 0) {
-
-            $qMerge = mysqli_query($conn, "
-                SELECT *
-                FROM tbl_transaksi
-                WHERE barcode = '$barcode'
-                LIMIT 1
-            ");
-
-            $mergeData = mysqli_fetch_assoc($qMerge);
-
-            if (
-                $mergeData &&
-                $mergeData['barcode_status'] == 'MERGED'
-            ) {
-
-                throw new Exception("
-                Barcode ini sudah tidak dapat digunakan. Silahkan gunakan barcode utama.
-                ");
-            }
-
-            throw new Exception("
-            Barcode tidak ditemukan.
-            ");
+            throw new Exception("Barcode tidak ditemukan.");
         }
 
         // SIMPAN SEMUA ROW
@@ -4800,37 +4720,6 @@ if (
                 {$next_label}
                 ");
             }
-        }
-
-        // VALIDASI LOT COMPLETE
-        $qLot = mysqli_query($conn, "
-            SELECT DISTINCT barcode
-            FROM tbl_transaksi
-            WHERE
-                batch_transaksi = '{$first['batch_transaksi']}'
-                AND lot = '{$first['lot']}'
-                AND barcode_status = 'ACTIVE'
-        ");
-
-        $total_lot = mysqli_num_rows($qLot);
-
-        $qReady = mysqli_query($conn, "
-            SELECT DISTINCT barcode
-            FROM tbl_transaksi
-            WHERE
-                batch_transaksi = '{$first['batch_transaksi']}'
-                AND lot = '{$first['lot']}'
-                AND barcode_status = 'ACTIVE'
-                AND last_gate = 'WH_SUBCONT_FROM_VENDOR'
-        ");
-
-        $total_ready = mysqli_num_rows($qReady);
-
-        if ($total_ready < $total_lot) {
-
-            throw new Exception("
-            Barcode ini tidak dapat digunakan. Karena ada beberapa barcode belum transaksi di vendor.
-            ");
         }
 
         // ANTI DOUBLE SCAN
@@ -4982,37 +4871,12 @@ if (
         $q = mysqli_query($conn, "
             SELECT *
             FROM tbl_transaksi
-            WHERE
-                barcode = '$barcode'
-                AND barcode_status = 'ACTIVE'
+            WHERE barcode = '$barcode'
             ORDER BY id_trans ASC
         ");
 
-        // CEK BARCODE MERGED
         if (mysqli_num_rows($q) == 0) {
-
-            $qMerge = mysqli_query($conn, "
-                SELECT *
-                FROM tbl_transaksi
-                WHERE barcode = '$barcode'
-                LIMIT 1
-            ");
-
-            $mergeData = mysqli_fetch_assoc($qMerge);
-
-            if (
-                $mergeData &&
-                $mergeData['barcode_status'] == 'MERGED'
-            ) {
-
-                throw new Exception("
-                Barcode ini sudah tidak dapat digunakan. Silahkan gunakan barcode utama.
-                ");
-            }
-
-            throw new Exception("
-            Barcode tidak ditemukan.
-            ");
+            throw new Exception("Barcode tidak ditemukan.");
         }
 
         // SIMPAN SEMUA ROW
@@ -5050,37 +4914,6 @@ if (
                 {$next_label}
                 ");
             }
-        }
-
-        // VALIDASI LOT COMPLETE
-        $qLot = mysqli_query($conn, "
-            SELECT DISTINCT barcode
-            FROM tbl_transaksi
-            WHERE
-                batch_transaksi = '{$first['batch_transaksi']}'
-                AND lot = '{$first['lot']}'
-                AND barcode_status = 'ACTIVE'
-        ");
-
-        $total_lot = mysqli_num_rows($qLot);
-
-        $qReady = mysqli_query($conn, "
-            SELECT DISTINCT barcode
-            FROM tbl_transaksi
-            WHERE
-                batch_transaksi = '{$first['batch_transaksi']}'
-                AND lot = '{$first['lot']}'
-                AND barcode_status = 'ACTIVE'
-                AND last_gate = 'WH_SUBCONT_TO_SM_SUBCONT'
-        ");
-
-        $total_ready = mysqli_num_rows($qReady);
-
-        if ($total_ready < $total_lot) {
-
-            throw new Exception("
-            Barcode ini tidak dapat digunakan. Karena ada beberapa barcode belum transaksi di vendor.
-            ");
         }
 
         // ANTI DOUBLE SCAN
@@ -5259,39 +5092,12 @@ if (
         $q = mysqli_query($conn, "
             SELECT *
             FROM tbl_transaksi
-            WHERE
-                barcode = '$barcode'
-                AND barcode_status = 'ACTIVE'
+            WHERE barcode = '$barcode'
             ORDER BY id_trans ASC
         ");
 
-        // CEK BARCODE MERGED
         if (mysqli_num_rows($q) == 0) {
-
-            $qMerge = mysqli_query($conn, "
-                SELECT *
-                FROM tbl_transaksi
-                WHERE barcode = '$barcode'
-                LIMIT 1
-            ");
-
-            $mergeData =
-                mysqli_fetch_assoc($qMerge);
-
-            if (
-                $mergeData &&
-                $mergeData['barcode_status']
-                == 'MERGED'
-            ) {
-
-                throw new Exception("
-                Barcode ini sudah tidak dapat digunakan. Silahkan gunakan barcode utama.
-                ");
-            }
-
-            throw new Exception("
-            Barcode tidak ditemukan.
-            ");
+            throw new Exception("Barcode tidak ditemukan.");
         }
 
         // SIMPAN SEMUA ROW
@@ -5352,39 +5158,6 @@ if (
         //     {$first['ncvs']}
         //     ");
         // }
-
-        // VALIDASI LOT COMPLETE
-        $qLot = mysqli_query($conn, "
-            SELECT DISTINCT barcode
-            FROM tbl_transaksi
-            WHERE
-                batch_transaksi = '{$first['batch_transaksi']}'
-                AND lot = '{$first['lot']}'
-                AND barcode_status = 'ACTIVE'
-        ");
-
-        $total_lot =
-            mysqli_num_rows($qLot);
-
-        $qReady = mysqli_query($conn, "
-            SELECT DISTINCT barcode
-            FROM tbl_transaksi
-            WHERE
-                batch_transaksi = '{$first['batch_transaksi']}'
-                AND lot = '{$first['lot']}'
-                AND barcode_status = 'ACTIVE'
-                AND last_gate = 'SM_SUBCONT_FROM_WH_SUBCONT'
-        ");
-
-        $total_ready =
-            mysqli_num_rows($qReady);
-
-        if ($total_ready < $total_lot) {
-
-            throw new Exception("
-            Barcode ini tidak dapat digunakan. Karena ada beberapa barcode belum transaksi di vendor.
-            ");
-        }
 
         // ANTI DOUBLE SCAN
         $check = mysqli_query($conn, "
