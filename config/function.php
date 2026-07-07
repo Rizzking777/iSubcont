@@ -1285,12 +1285,14 @@ if (isset($_POST['submit-komponen'])) {
     date_default_timezone_set('Asia/Jakarta');
     mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
-    session_start();
+    if (session_status() === PHP_SESSION_NONE) {
+        session_start();
+    }
 
     $updated_by      = $_SESSION['username'] ?? 'unknown';
     $model_input     = trim($_POST['model']);
     $style_input     = trim($_POST['style']);
-    $input_komponen  = $_POST['input_komponen']; // array
+    $input_komponen  = $_POST['input_komponen'] ?? [];
     $output_komponen = trim($_POST['output_komponen']);
     $vendor_id       = !empty($_POST['vendor_id']) ? (int)$_POST['vendor_id'] : null;
     $main_index      = isset($_POST['main_komponen']) ? (int)$_POST['main_komponen'] : 0;
@@ -1299,17 +1301,57 @@ if (isset($_POST['submit-komponen'])) {
 
         $conn->begin_transaction();
 
-        // CARI MODEL MIRIP
+        /* ===================================== */
+        /* VALIDASI INPUT */
+        /* ===================================== */
+
+        $clean_input_komponen = [];
+
+        foreach ($input_komponen as $i => $komponen_in) {
+
+            $komponen_in = trim($komponen_in);
+
+            if ($komponen_in === '') {
+                continue;
+            }
+
+            $clean_input_komponen[$i] = $komponen_in;
+        }
+
+        if (empty($clean_input_komponen)) {
+            throw new Exception('Input komponen belum diisi.');
+        }
+
+        if ($output_komponen === '') {
+            throw new Exception('Output komponen belum diisi.');
+        }
+
+        if (!array_key_exists($main_index, $clean_input_komponen)) {
+
+            $main_index = array_key_first($clean_input_komponen);
+        }
+
+        /* ===================================== */
+        /* CARI MODEL MIRIP */
+        /* ===================================== */
+
         $stmt = $conn->prepare("
             SELECT DISTINCT model 
             FROM tbl_master_data 
             WHERE model LIKE CONCAT('%', ?, '%')
         ");
-        $stmt->bind_param("s", $model_input);
+
+        $stmt->bind_param(
+            "s",
+            $model_input
+        );
+
         $stmt->execute();
+
         $result = $stmt->get_result();
 
         $models = [];
+
         while ($row = $result->fetch_assoc()) {
             $models[] = $row['model'];
         }
@@ -1318,91 +1360,294 @@ if (isset($_POST['submit-komponen'])) {
             $models = [$model_input];
         }
 
-        // LOOP PER MODEL
+        /* ===================================== */
+        /* LOOP PER MODEL */
+        /* ===================================== */
+
         foreach ($models as $similar_model) {
 
-            // INSERT OUTPUT (1x per model)
+            /* ===================================== */
+            /* INSERT OUTPUT */
+            /* ===================================== */
+
             $stmt_output = $conn->prepare("
                 INSERT INTO tbl_komponen 
-                (model, style, nama_komponen, is_deleted, updated_by, timestamp) 
-                VALUES (?, ?, ?, 0, ?, NOW())
+                (
+                    model,
+                    style,
+                    nama_komponen,
+                    is_deleted,
+                    updated_by,
+                    timestamp
+                ) 
+                VALUES 
+                (
+                    ?,
+                    ?,
+                    ?,
+                    0,
+                    ?,
+                    NOW()
+                )
             ");
-            $stmt_output->bind_param("ssss", $similar_model, $style_input, $output_komponen, $updated_by);
+
+            $stmt_output->bind_param(
+                "ssss",
+                $similar_model,
+                $style_input,
+                $output_komponen,
+                $updated_by
+            );
+
             $stmt_output->execute();
+
             $id_output = $stmt_output->insert_id;
 
-            // LOOP INPUT
-            foreach ($input_komponen as $i => $komponen_in) {
+            /* ===================================== */
+            /* INSERT INPUT FIRST */
+            /* ===================================== */
 
-                $komponen_in = trim($komponen_in);
-                if (empty($komponen_in)) continue;
+            $inputRows = [];
 
-                $is_main = ($i == $main_index) ? 1 : 0;
+            foreach ($clean_input_komponen as $i => $komponen_in) {
 
-                // INSERT INPUT
+                $is_main =
+                    ((int)$i === (int)$main_index)
+                    ? 1
+                    : 0;
+
                 $stmt_input = $conn->prepare("
                     INSERT INTO tbl_komponen 
-                    (model, style, nama_komponen, is_deleted, updated_by, timestamp) 
-                    VALUES (?, ?, ?, 0, ?, NOW())
+                    (
+                        model,
+                        style,
+                        nama_komponen,
+                        is_deleted,
+                        updated_by,
+                        timestamp
+                    ) 
+                    VALUES 
+                    (
+                        ?,
+                        ?,
+                        ?,
+                        0,
+                        ?,
+                        NOW()
+                    )
                 ");
-                $stmt_input->bind_param("ssss", $similar_model, $style_input, $komponen_in, $updated_by);
+
+                $stmt_input->bind_param(
+                    "ssss",
+                    $similar_model,
+                    $style_input,
+                    $komponen_in,
+                    $updated_by
+                );
+
                 $stmt_input->execute();
+
                 $id_input = $stmt_input->insert_id;
 
-                // RELASI INPUT → OUTPUT + MAIN FLAG
+                $inputRows[] = [
+
+                    'index' =>
+                    (int)$i,
+
+                    'id_input' =>
+                    (int)$id_input,
+
+                    'nama_komponen' =>
+                    $komponen_in,
+
+                    'is_main' =>
+                    (int)$is_main
+
+                ];
+            }
+
+            /* ===================================== */
+            /* GET ID GROUP FROM MAIN COMPONENT */
+            /* ===================================== */
+
+            $id_group = null;
+
+            foreach ($inputRows as $rowInput) {
+
+                if (
+                    (int)$rowInput['is_main']
+                    ===
+                    1
+                ) {
+
+                    $id_group =
+                        (int)$rowInput['id_input'];
+
+                    break;
+                }
+            }
+
+            if (empty($id_group)) {
+                throw new Exception('Main komponen belum dipilih.');
+            }
+
+            /* ===================================== */
+            /* INSERT RELATION */
+            /* ===================================== */
+
+            foreach ($inputRows as $rowInput) {
+
                 $stmt_rel = $conn->prepare("
                     INSERT INTO tbl_komponen_proses 
-                    (id_input, id_output, is_main) 
-                    VALUES (?, ?, ?)
+                    (
+                        id_group,
+                        id_input,
+                        id_output,
+                        is_main
+                    ) 
+                    VALUES 
+                    (
+                        ?,
+                        ?,
+                        ?,
+                        ?
+                    )
                 ");
-                $stmt_rel->bind_param("iii", $id_input, $id_output, $is_main);
-                $stmt_rel->execute();
-                $id_proses = $stmt_rel->insert_id;
 
-                // RELASI VENDOR ======
+                $stmt_rel->bind_param(
+                    "iiii",
+                    $id_group,
+                    $rowInput['id_input'],
+                    $id_output,
+                    $rowInput['is_main']
+                );
+
+                $stmt_rel->execute();
+
+                $id_proses =
+                    $stmt_rel->insert_id;
+
+                /* ===================================== */
+                /* RELASI VENDOR */
+                /* ===================================== */
+
                 if ($vendor_id) {
+
                     $stmt_vendor = $conn->prepare("
                         INSERT INTO tbl_vendor_proses 
-                        (id_vendor, id_proses, created_at, updated_at) 
-                        VALUES (?, ?, NOW(), NOW())
+                        (
+                            id_vendor,
+                            id_proses,
+                            created_at,
+                            updated_at
+                        ) 
+                        VALUES 
+                        (
+                            ?,
+                            ?,
+                            NOW(),
+                            NOW()
+                        )
                     ");
-                    $stmt_vendor->bind_param("ii", $vendor_id, $id_proses);
+
+                    $stmt_vendor->bind_param(
+                        "ii",
+                        $vendor_id,
+                        $id_proses
+                    );
+
                     $stmt_vendor->execute();
                 }
 
-                // LOG =============================
+                /* ===================================== */
+                /* LOG */
+                /* ===================================== */
+
                 $new_data = [
-                    "model"    => $similar_model,
-                    "style"    => $style_input,
-                    "input"    => $komponen_in,
-                    "output"   => $output_komponen,
-                    "vendor"   => $vendor_id,
-                    "is_main"  => $is_main
+
+                    "model" =>
+                    $similar_model,
+
+                    "style" =>
+                    $style_input,
+
+                    "id_group" =>
+                    $id_group,
+
+                    "input" =>
+                    $rowInput['nama_komponen'],
+
+                    "output" =>
+                    $output_komponen,
+
+                    "vendor" =>
+                    $vendor_id,
+
+                    "is_main" =>
+                    $rowInput['is_main']
+
                 ];
 
-                $new_data_json = json_encode($new_data, JSON_UNESCAPED_UNICODE);
+                $new_data_json =
+                    json_encode(
+                        $new_data,
+                        JSON_UNESCAPED_UNICODE
+                    );
 
                 $stmt_log = $conn->prepare("
                     INSERT INTO tlog_komponen 
-                    (id_komponen, updated_by, action_type, old_data, new_data, created_at, timestamp) 
-                    VALUES (?, ?, 'INSERT', NULL, ?, NOW(), NOW())
+                    (
+                        id_komponen,
+                        updated_by,
+                        action_type,
+                        old_data,
+                        new_data,
+                        created_at,
+                        timestamp
+                    ) 
+                    VALUES 
+                    (
+                        ?,
+                        ?,
+                        'INSERT',
+                        NULL,
+                        ?,
+                        NOW(),
+                        NOW()
+                    )
                 ");
-                $stmt_log->bind_param("iss", $id_input, $updated_by, $new_data_json);
+
+                $stmt_log->bind_param(
+                    "iss",
+                    $rowInput['id_input'],
+                    $updated_by,
+                    $new_data_json
+                );
+
                 $stmt_log->execute();
             }
         }
 
-        // COMMIT =============================
+        /* ===================================== */
+        /* COMMIT */
+        /* ===================================== */
+
         $conn->commit();
 
-        $_SESSION['green_notif'] = "Data komponen berhasil disimpan.";
-        header("Location: /isubcont/pages/master-komponen.php");
+        $_SESSION['green_notif'] =
+            "Data komponen berhasil disimpan.";
+
+        header(
+            "Location: /isubcont/pages/master-komponen.php"
+        );
+
         exit;
     } catch (Exception $e) {
 
         $conn->rollback();
 
-        die("Gagal insert komponen: " . $e->getMessage());
+        die("Gagal insert komponen: " .
+            $e->getMessage());
     }
 }
 
@@ -2561,17 +2806,12 @@ if (isset($_POST['action']) && $_POST['action'] == 'create-barcode') {
     // LOOP CORE 
     foreach ($detail as $lot => $sizes) {
 
-        foreach ($komponen as $k) {
-
-            $is_main =
-                isset($k['is_main'])
-                ? (int)$k['is_main']
-                : 0;
+        foreach ($komponen as $group) {
 
             foreach ($sizes as $size => $qty) {
 
                 /* ===================================== */
-                /* CHECK DUPLICATE */
+                /* CHECK DUPLICATE PER GROUP */
                 /* ===================================== */
 
                 $check = mysqli_query($conn, "
@@ -2582,8 +2822,8 @@ if (isset($_POST['action']) && $_POST['action'] == 'create-barcode') {
                     AND job_order = '{$global['job_order']}'
                     AND lot = '$lot'
                     AND size = '$size'
-                    AND id_komponen_in = '{$k['id_input']}'
-                    AND id_komponen_out = '{$k['id_output']}'
+                    AND id_group = '{$group['id_group']}'
+                    AND id_komponen_out = '{$group['id_output']}'
                 LIMIT 1
             ");
 
@@ -2594,15 +2834,15 @@ if (isset($_POST['action']) && $_POST['action'] == 'create-barcode') {
                     $failed_detail[] = [
                         'lot' => $lot,
                         'size' => $size,
-                        'komponen' => $k['nm_input'],
-                        'reason' => 'duplicate'
+                        'group' => $group['nm_group'],
+                        'reason' => 'duplicate group'
                     ];
 
                     continue;
                 }
 
                 /* ===================================== */
-                /* BARCODE PER LOT × KOMPONEN × SIZE */
+                /* GENERATE BARCODE PER GROUP × LOT × SIZE */
                 /* ===================================== */
 
                 $barcode_format =
@@ -2618,11 +2858,93 @@ if (isset($_POST['action']) && $_POST['action'] == 'create-barcode') {
 
                 $increment++;
 
-                // INSERT TRANSAKSI
-                $id_vendor = !empty($k['id_vendor']) ? "'{$k['id_vendor']}'" : "NULL";
-                $nm_vendor = !empty($k['nm_vendor']) ? "'{$k['nm_vendor']}'" : "NULL";
+                /* ===================================== */
+                /* DATA GROUP */
+                /* ===================================== */
 
-                $insert = mysqli_query($conn, "
+                $id_group =
+                    $group['id_group'];
+
+                $id_output =
+                    $group['id_output'];
+
+                $nm_output =
+                    $group['nm_output'];
+
+                $id_vendor =
+                    !empty($group['id_vendor'])
+                    ? "'{$group['id_vendor']}'"
+                    : "NULL";
+
+                $nm_vendor =
+                    !empty($group['nm_vendor'])
+                    ? "'{$group['nm_vendor']}'"
+                    : "NULL";
+
+                $id_input_list =
+                    $group['id_input_list'] ?? [];
+
+                $nm_input_list =
+                    $group['nm_input_list'] ?? [];
+
+                $is_main_list =
+                    $group['is_main_list'] ?? [];
+
+                if (
+                    empty($id_group) ||
+                    empty($id_output) ||
+                    empty($id_input_list)
+                ) {
+
+                    $failed++;
+
+                    $failed_detail[] = [
+                        'lot' => $lot,
+                        'size' => $size,
+                        'group' => $group['nm_group'] ?? '-',
+                        'reason' => 'data group tidak lengkap'
+                    ];
+
+                    continue;
+                }
+
+                /* ===================================== */
+                /* INSERT PER KOMPONEN DALAM GROUP */
+                /* ===================================== */
+
+                foreach ($id_input_list as $idx => $id_input) {
+
+                    $nm_input =
+                        $nm_input_list[$idx] ?? '';
+
+                    $is_main =
+                        isset($is_main_list[$idx])
+                        ? (int)$is_main_list[$idx]
+                        : 0;
+
+                    if (
+                        empty($id_input) ||
+                        empty($nm_input)
+                    ) {
+
+                        $failed++;
+
+                        $failed_detail[] = [
+                            'lot' => $lot,
+                            'size' => $size,
+                            'group' => $group['nm_group'] ?? '-',
+                            'komponen' => $nm_input,
+                            'reason' => 'komponen dalam group tidak valid'
+                        ];
+
+                        continue;
+                    }
+
+                    /* ===================================== */
+                    /* INSERT TRANSAKSI */
+                    /* ===================================== */
+
+                    $insert = mysqli_query($conn, "
                     INSERT INTO tbl_transaksi SET
                     transac_by = '$transac_by',
                     status_lot = '{$global['lot_code']}',
@@ -2635,10 +2957,13 @@ if (isset($_POST['action']) && $_POST['action'] == 'create-barcode') {
                     style      = '{$global['style']}',
                     lot  = '$lot',
                     size = '$size',
-                    id_komponen_in  = '{$k['id_input']}',
-                    nm_komponen_in  = '{$k['nm_input']}',
-                    id_komponen_out = '{$k['id_output']}',
-                    nm_komponen_out = '{$k['nm_output']}',
+
+                    id_group = '$id_group',
+
+                    id_komponen_in  = '$id_input',
+                    nm_komponen_in  = '$nm_input',
+                    id_komponen_out = '$id_output',
+                    nm_komponen_out = '$nm_output',
                     id_vendor = $id_vendor,
                     nm_vendor = $nm_vendor,
                     is_main_komponen = '$is_main',
@@ -2651,31 +2976,38 @@ if (isset($_POST['action']) && $_POST['action'] == 'create-barcode') {
                     created_at = NOW()
                 ");
 
-                if (!$insert) {
+                    if (!$insert) {
 
-                    $failed++;
+                        $failed++;
 
-                    $failed_detail[] = [
-                        'lot' => $lot,
-                        'size' => $size,
-                        'komponen' => $k['nm_input'],
-                        'reason' => mysqli_error($conn)
-                    ];
+                        $failed_detail[] = [
+                            'lot' => $lot,
+                            'size' => $size,
+                            'group' => $group['nm_group'] ?? '-',
+                            'komponen' => $nm_input,
+                            'reason' => mysqli_error($conn)
+                        ];
 
-                    continue;
-                }
+                        continue;
+                    }
 
-                $success++;
-                $id_trans = mysqli_insert_id($conn);
+                    $success++;
 
-                // INSERT EVENT
-                $event = mysqli_query($conn, "
+                    $id_trans =
+                        mysqli_insert_id($conn);
+
+                    /* ===================================== */
+                    /* INSERT EVENT */
+                    /* ===================================== */
+
+                    $event = mysqli_query($conn, "
                     INSERT INTO tbl_transaksi_event SET
                         id_trans = '$id_trans',
                         batch_transaksi = '$batch_transaksi',
                         barcode = '$barcode',
-                        id_komponen = '{$k['id_input']}',
-                        nm_komponen = '{$k['nm_input']}',
+                        id_komponen = '$id_input',
+                        nm_komponen = '$nm_input',
+                        id_group = '$id_group',
                         lot = '$lot',
                         size = '$size',
                         gate = 'CUT_TO_SM_SUBCONT',
@@ -2687,20 +3019,37 @@ if (isset($_POST['action']) && $_POST['action'] == 'create-barcode') {
                         created_at = NOW()
                 ");
 
-                if (!$event) {
-                    $failed++;
-                }
+                    if (!$event) {
 
-                // SIMPAN LOG TANPA QUERY ULANG
-                $log_detail[] = [
-                    'job_order' => $global['job_order'],
-                    'lot' => $lot,
-                    'size' => $size,
-                    'komponen' => $k['nm_input'],
-                    'qty' => $qty,
-                    'barcode' => $barcode,
-                    'is_main' => $is_main
-                ];
+                        $failed++;
+
+                        $failed_detail[] = [
+                            'lot' => $lot,
+                            'size' => $size,
+                            'group' => $group['nm_group'] ?? '-',
+                            'komponen' => $nm_input,
+                            'reason' => mysqli_error($conn)
+                        ];
+
+                        continue;
+                    }
+
+                    /* ===================================== */
+                    /* LOG DETAIL */
+                    /* ===================================== */
+
+                    $log_detail[] = [
+                        'job_order' => $global['job_order'],
+                        'lot' => $lot,
+                        'size' => $size,
+                        'id_group' => $id_group,
+                        'group' => $group['nm_group'] ?? '-',
+                        'komponen' => $nm_input,
+                        'qty' => $qty,
+                        'barcode' => $barcode,
+                        'is_main' => $is_main
+                    ];
+                }
             }
         }
     }
@@ -2936,6 +3285,7 @@ if (isset($_POST['action']) && $_POST['action'] == 'scan_sm_subcont_from_cut') {
                     batch_transaksi = '{$data['batch_transaksi']}',
                     id_komponen = '{$data['id_komponen_in']}',
                     nm_komponen = '{$data['nm_komponen_in']}',
+                    id_group = '{$data['id_group']}',
                     lot = '{$data['lot']}',
                     size = '{$data['size']}',
                     gate = 'SM_SUBCONT_FROM_CUT',
@@ -3128,6 +3478,7 @@ if (isset($_POST['action']) && $_POST['action'] == 'scan_sm_subcont_to_wh_subcon
                     batch_transaksi = '{$data['batch_transaksi']}',
                     id_komponen = '{$data['id_komponen_in']}',
                     nm_komponen = '{$data['nm_komponen_in']}',
+                    id_group = '{$data['id_group']}',
                     lot = '{$data['lot']}',
                     size = '{$data['size']}',
                     gate = 'SM_SUBCONT_TO_WH_SUBCONT',
@@ -3320,6 +3671,7 @@ if (isset($_POST['action']) && $_POST['action'] == 'scan_in_wh_subcont') {
                     batch_transaksi = '{$data['batch_transaksi']}',
                     id_komponen = '{$data['id_komponen_in']}',
                     nm_komponen = '{$data['nm_komponen_in']}',
+                    id_group = '{$data['id_group']}',
                     lot = '{$data['lot']}',
                     size = '{$data['size']}',
                     gate = 'WH_SUBCONT_FROM_SM_SUBCONT',
@@ -3512,6 +3864,7 @@ if (isset($_POST['action']) && $_POST['action'] == 'scan_out_to_vendor') {
                     batch_transaksi = '{$data['batch_transaksi']}',
                     id_komponen = '{$data['id_komponen_in']}',
                     nm_komponen = '{$data['nm_komponen_in']}',
+                    id_group = '{$data['id_group']}',
                     lot = '{$data['lot']}',
                     size = '{$data['size']}',
                     gate = 'WH_SUBCONT_TO_VENDOR',
@@ -3704,6 +4057,7 @@ if (isset($_POST['action']) && $_POST['action'] == 'scan_in_vendor') {
                     batch_transaksi = '{$data['batch_transaksi']}',
                     id_komponen = '{$data['id_komponen_in']}',
                     nm_komponen = '{$data['nm_komponen_in']}',
+                    id_group = '{$data['id_group']}',
                     lot = '{$data['lot']}',
                     size = '{$data['size']}',
                     gate = 'VENDOR_FROM_WH_SUBCONT',
@@ -3862,14 +4216,14 @@ if (isset($_POST['action']) && $_POST['action'] == 'scan_vendor_to_whsubcont') {
 
         // CEK TOTAL KOMPONEN
         $total_pair = mysqli_query($conn, "
-    SELECT COUNT(DISTINCT id_komponen_in) AS total
-    FROM tbl_transaksi
-    WHERE
-        batch_transaksi = '{$first['batch_transaksi']}'
-        AND job_order = '{$first['job_order']}'
-        AND lot = '{$first['lot']}'
-        AND id_komponen_out = '{$first['id_komponen_out']}'
-    ");
+        SELECT COUNT(DISTINCT id_group) AS total
+        FROM tbl_transaksi
+        WHERE
+            job_order = '{$first['job_order']}'
+            AND lot = '{$first['lot']}'
+            AND size = '{$first['size']}'
+            AND nm_komponen_out = '{$first['nm_komponen_out']}'
+        ");
 
         $total_pair_data = mysqli_fetch_assoc($total_pair);
         $total_required = (int)$total_pair_data['total'];
@@ -3925,6 +4279,7 @@ if (isset($_POST['action']) && $_POST['action'] == 'scan_vendor_to_whsubcont') {
                     batch_transaksi = '{$data['batch_transaksi']}',
                     id_komponen = '{$data['id_komponen_in']}',
                     nm_komponen = '{$data['nm_komponen_in']}',
+                    id_group = '{$data['id_group']}',
                     lot = '{$data['lot']}',
                     size = '{$data['size']}',
                     gate = 'VENDOR_TO_WH_SUBCONT',
@@ -3937,26 +4292,17 @@ if (isset($_POST['action']) && $_POST['action'] == 'scan_vendor_to_whsubcont') {
             ");
         }
 
-        // SINGLE COMPONENT
-        if ($total_required == 1) {
-
-            mysqli_commit($conn);
-
-            header("Location: /isubcont/pages/trans-scan-out-vendor.php?success=single&barcode=$barcode");
-            exit;
-        }
-
         // CEK SEMUA PASANGAN READY
         $ready_pair = mysqli_query($conn, "
-            SELECT DISTINCT barcode
-            FROM tbl_transaksi
-            WHERE
-                batch_transaksi = '{$first['batch_transaksi']}'
-                AND job_order = '{$first['job_order']}'
-                AND lot = '{$first['lot']}'
-                AND id_komponen_out = '{$first['id_komponen_out']}'
-                AND last_gate = 'VENDOR_TO_WH_SUBCONT'
-                AND barcode_status = 'ACTIVE'
+        SELECT DISTINCT barcode
+        FROM tbl_transaksi
+        WHERE
+            job_order = '{$first['job_order']}'
+            AND lot = '{$first['lot']}'
+            AND size = '{$first['size']}'
+            AND nm_komponen_out = '{$first['nm_komponen_out']}'
+            AND last_gate = 'VENDOR_TO_WH_SUBCONT'
+            AND barcode_status = 'ACTIVE'
         ");
 
         $ready_barcodes = [];
@@ -3969,55 +4315,12 @@ if (isset($_POST['action']) && $_POST['action'] == 'scan_vendor_to_whsubcont') {
         // BELUM LENGKAP
         if ($ready_total < $total_required) {
 
-            // READY COMPONENT
-            $ready_component = [];
-
-            $qReady = mysqli_query($conn, "
-            SELECT DISTINCT nm_komponen_in
-            FROM tbl_transaksi
-            WHERE
-            barcode = '$barcode'
-            AND batch_transaksi = '{$first['batch_transaksi']}'
-            AND job_order = '{$first['job_order']}'
-            AND lot = '{$first['lot']}'
-            AND id_komponen_out = '{$first['id_komponen_out']}'
-            AND last_gate = 'VENDOR_TO_WH_SUBCONT'
-    ");
-
-            while ($r = mysqli_fetch_assoc($qReady)) {
-                $ready_component[] = $r['nm_komponen_in'];
-            }
-
-            // WAITING COMPONENT
-            $waiting_component = [];
-
-            $qWaiting = mysqli_query($conn, "
-            SELECT DISTINCT nm_komponen_in
-            FROM tbl_transaksi
-            WHERE
-            barcode != '$barcode'
-            AND batch_transaksi = '{$first['batch_transaksi']}'
-            AND job_order = '{$first['job_order']}'
-            AND lot = '{$first['lot']}'
-            AND id_komponen_out = '{$first['id_komponen_out']}'
-            AND last_gate != 'VENDOR_TO_WH_SUBCONT'
-    ");
-
-            while ($r = mysqli_fetch_assoc($qWaiting)) {
-                $waiting_component[] = $r['nm_komponen_in'];
-            }
-
-            // REDIRECT
             mysqli_commit($conn);
 
             header(
                 "Location: /isubcont/pages/trans-scan-out-vendor.php" .
-                    "?partial_ready=1" .
-                    "&ready=$ready_total" .
-                    "&total=$total_required" .
-                    "&output=" . urlencode($first['nm_komponen_out']) .
-                    "&ready_component=" . urlencode(implode(', ', $ready_component)) .
-                    "&waiting_component=" . urlencode(implode(', ', $waiting_component))
+                    "?status=partial" .
+                    "&barcode=" . urlencode($barcode)
             );
 
             exit;
@@ -4025,15 +4328,15 @@ if (isset($_POST['action']) && $_POST['action'] == 'scan_vendor_to_whsubcont') {
 
         // CARI MAIN BARCODE
         $qMain = mysqli_query($conn, "
-            SELECT barcode
-            FROM tbl_transaksi
-            WHERE
-                batch_transaksi = '{$first['batch_transaksi']}'
-                AND job_order = '{$first['job_order']}'
-                AND lot = '{$first['lot']}'
-                AND id_komponen_out = '{$first['id_komponen_out']}'
-                AND is_main_komponen = 1
-            LIMIT 1
+        SELECT barcode
+        FROM tbl_transaksi
+        WHERE
+            job_order = '{$first['job_order']}'
+            AND lot = '{$first['lot']}'
+            AND size = '{$first['size']}'
+            AND nm_komponen_out = '{$first['nm_komponen_out']}'
+        ORDER BY barcode ASC
+        LIMIT 1
         ");
 
         $main = mysqli_fetch_assoc($qMain);
@@ -4047,15 +4350,15 @@ if (isset($_POST['action']) && $_POST['action'] == 'scan_vendor_to_whsubcont') {
         foreach ($ready_barcodes as $merge_barcode) {
 
             $qData = mysqli_query($conn, "
-    SELECT *
-    FROM tbl_transaksi
-    WHERE
-        barcode = '$merge_barcode'
-        AND batch_transaksi = '{$first['batch_transaksi']}'
-        AND job_order = '{$first['job_order']}'
-        AND lot = '{$first['lot']}'
-        AND id_komponen_out = '{$first['id_komponen_out']}'
-");
+            SELECT *
+            FROM tbl_transaksi
+            WHERE
+                barcode = '$merge_barcode'
+                AND job_order = '{$first['job_order']}'
+                AND lot = '{$first['lot']}'
+                AND size = '{$first['size']}'
+                AND nm_komponen_out = '{$first['nm_komponen_out']}'
+            ");
 
             while ($data = mysqli_fetch_assoc($qData)) {
 
@@ -4130,7 +4433,12 @@ if (isset($_POST['action']) && $_POST['action'] == 'scan_vendor_to_whsubcont') {
 
         mysqli_commit($conn);
 
-        header("Location: /isubcont/pages/trans-scan-out-vendor.php?merge_success=1&main=$main_barcode");
+        header(
+            "Location: /isubcont/pages/trans-scan-out-vendor.php" .
+                "?status=complete" .
+                "&barcode=" . urlencode($main_barcode)
+        );
+
         exit;
     } catch (Exception $e) {
         mysqli_rollback($conn);
@@ -4337,6 +4645,7 @@ if (
                     batch_transaksi = '{$data['batch_transaksi']}',
                     id_komponen = '{$data['id_komponen_out']}',
                     nm_komponen = '{$data['nm_komponen_out']}',
+                    id_group = '{$data['id_group']}',
                     lot = '{$data['lot']}',
                     size = '{$data['size']}',
                     gate = 'WH_SUBCONT_FROM_VENDOR',
@@ -4587,6 +4896,7 @@ if (
                     batch_transaksi = '{$data['batch_transaksi']}',
                     id_komponen = '{$data['id_komponen_out']}',
                     nm_komponen = '{$data['nm_komponen_out']}',
+                    id_group = '{$data['id_group']}',
                     lot = '{$data['lot']}',
                     size = '{$data['size']}',
                     gate = 'WH_SUBCONT_TO_SM_SUBCONT',
@@ -4835,6 +5145,7 @@ if (
                     batch_transaksi = '{$data['batch_transaksi']}',
                     id_komponen = '{$data['id_komponen_out']}',
                     nm_komponen = '{$data['nm_komponen_out']}',
+                    id_group = '{$data['id_group']}',
                     lot = '{$data['lot']}',
                     size = '{$data['size']}',
                     gate = 'SM_SUBCONT_FROM_WH_SUBCONT',
@@ -5138,6 +5449,7 @@ if (
                     batch_transaksi = '{$data['batch_transaksi']}',
                     id_komponen = '{$data['id_komponen_out']}',
                     nm_komponen = '{$data['nm_komponen_out']}',
+                    id_group = '{$data['id_group']}',
                     lot = '{$data['lot']}',
                     size = '{$data['size']}',
                     gate = 'SM_SUBCONT_TO_NCVS',
