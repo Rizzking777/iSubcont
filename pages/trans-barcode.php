@@ -392,7 +392,7 @@ $username = $_SESSION['username'];
           width: "100%",
           placeholder: placeholder,
           allowClear: true,
-          minimumInputLength: 2,
+          minimumInputLength: 1,
           ajax: {
             url: "./../config/get_option_master_data.php",
             type: "POST",
@@ -422,6 +422,11 @@ $username = $_SESSION['username'];
       initSelect2("#ncvs", "searchNCVS", "NCVS");
       initSelect2("#po_code", "searchPOCode", "PO Code");
       initSelect2("#job_order", "searchJobOrder", "Job Order");
+
+      // Auto focus search ketika Select2 dibuka
+      $(document).on('select2:open', function() {
+        document.querySelector('.select2-container--open .select2-search__field').focus();
+      });
 
       // ================================
       // DataTables
