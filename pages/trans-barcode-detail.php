@@ -1042,8 +1042,10 @@ usort($officialSizes, function ($a, $b) {
             //   row.qty_smsubcont_fr_cut != null &&
             //   Number(row.count_barcode || 0) > 0;
 
-            const isScanned =
-              parseInt(row.count_barcode || 0) > 0;
+            // const isScanned =
+            //   parseInt(row.count_barcode || 0) > 0;
+
+            const isScanned = false;
 
             // console.log(
             //     row.barcode,
@@ -1052,16 +1054,10 @@ usort($officialSizes, function ($a, $b) {
             // );
 
             const componentName =
-              String(
-                row.nm_komponen_in ?? ''
-              ) +
-              (
-                Number(
-                  row.is_main_komponen
-                ) === 1 ?
-                ' *' :
-                ''
-              );
+              row.nm_komponen_in ?? '';
+
+            const componentMain =
+              row.nm_komponen_main ?? '';
 
             const lotData =
               JSON.stringify([
@@ -1077,11 +1073,7 @@ usort($officialSizes, function ($a, $b) {
                 type="checkbox"
                 class="row-checkbox"
                 data-barcode="${escapeHtml(row.barcode)}"
-                ${
-                    Number(row.count_barcode || 0) > 0
-                    ? 'disabled'
-                    : ''
-                }
+                
               >
               </td>
 
@@ -1145,17 +1137,9 @@ usort($officialSizes, function ($a, $b) {
                   class="
                     btn
                     btn-sm
-                    ${isScanned
-                      ? 'btn-secondary'
-                      : 'btn-primary'
-                    }
+                    btn-primary
                     btnPrintRow
                   "
-
-                  ${isScanned
-                    ? 'disabled'
-                    : ''
-                  }
 
                   data-joborder="${escapeHtml(row.job_order)}"
                   data-bucket="${escapeHtml(row.bucket)}"
@@ -1171,6 +1155,7 @@ usort($officialSizes, function ($a, $b) {
                   data-created_at="${escapeHtml(row.created_at)}"
 
                   data-nm_komponen_in="${escapeHtml(componentName)}"
+                  data-nm_komponen_main="${escapeHtml(componentMain)}"
 
                   data-size="${escapeHtml(row.size_detail)}"
                   data-total_qty="${escapeHtml(row.total_qty)}"
@@ -1183,10 +1168,7 @@ usort($officialSizes, function ($a, $b) {
 
                   <i class="bi bi-printer"></i>
 
-                  ${isScanned
-                    ? 'Sudah Scan'
-                    : 'Print'
-                  }
+                 Print
 
                 </button>
 
@@ -1369,7 +1351,7 @@ usort($officialSizes, function ($a, $b) {
         ncvs: btn.data('ncvs'),
         size: btn.data('size'),
         qty: btn.data('total_qty'),
-        komponen: btn.data('nm_komponen_in'),
+        komponen: btn.data('nm_komponen_main'),
         barcode: btn.data('barcode'),
         lot: lot,
 

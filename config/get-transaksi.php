@@ -4,6 +4,7 @@ error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
 header('Content-Type: application/json');
+/** @var mysqli $conn */
 
 require 'function.php';
 
@@ -42,6 +43,12 @@ SELECT
     MAX(is_main_komponen) AS is_main_komponen,
     MAX(count_barcode) AS count_barcode,
     MAX(qty_smsubcont_fr_cut) AS qty_smsubcont_fr_cut,
+    MAX(
+    CASE
+        WHEN is_main_komponen = 1
+        THEN nm_komponen_in
+    END
+) AS nm_komponen_main,
 
     GROUP_CONCAT(DISTINCT lot ORDER BY lot SEPARATOR ', ') AS lot,
 
@@ -85,7 +92,7 @@ if (!$query) {
 
 $data = [];
 
-while($row = mysqli_fetch_assoc($query)) {
+while ($row = mysqli_fetch_assoc($query)) {
 
     $data[] = $row;
 }
