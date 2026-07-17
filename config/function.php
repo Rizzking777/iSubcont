@@ -13,7 +13,13 @@ if (isset($_POST['submit-user'])) {
     $updated_by = mysqli_real_escape_string($conn, $_POST['updated_by']);
     $username   = mysqli_real_escape_string($conn, $_POST['username']);
     $nik_user   = mysqli_real_escape_string($conn, $_POST['nik_user']);
-    $id_card   = mysqli_real_escape_string($conn, $_POST['id_card']);
+    $id_card = trim($_POST['id_card']);
+
+    if ($id_card === '') {
+        $id_card = null;
+    } else {
+        $id_card = mysqli_real_escape_string($conn, $id_card);
+    }
     $ncvs   = mysqli_real_escape_string($conn, $_POST['ncvs']);
     $role_id  = mysqli_real_escape_string($conn, $_POST['role_id']);
     $password   = mysqli_real_escape_string($conn, $_POST['password']);
@@ -30,19 +36,31 @@ if (isset($_POST['submit-user'])) {
         exit();
     }
 
-    // Cek apakah idcard sudah ada
-    $check_id_card = mysqli_query($conn, "SELECT 1 FROM tbl_user WHERE id_card = '$id_card'");
-    if (mysqli_num_rows($check_id_card) > 0) {
-        $_SESSION['red_notif'] = "ID Card sudah terdaftar, mohon gunakan ID Card lain.";
-        header("Location: /isubcont/pages/master-user.php");
-        exit();
+    if (!empty($id_card)) {
+
+        $check_id_card = mysqli_query($conn, "
+        SELECT 1
+        FROM tbl_user
+        WHERE id_card = '$id_card'
+    ");
+
+        if (mysqli_num_rows($check_id_card) > 0) {
+
+            $_SESSION['red_notif'] = "ID Card sudah terdaftar, mohon gunakan ID Card lain.";
+            header("Location: /isubcont/pages/master-user.php");
+            exit();
+        }
     }
+
+    $id_card_sql = ($id_card === null)
+        ? "NULL"
+        : "'$id_card'";
 
     // Simpan ke tbl_user
     $query_user = mysqli_query($conn, "INSERT INTO tbl_user 
         (username, nik_user, id_card, ncvs, pass_user, pass_plain, role_id, is_deleted, updated_by, timestamp) 
         VALUES 
-        ('$username', '$nik_user', '$id_card', '$ncvs', '$hashed_password', '$password', '$role_id', '0', '$updated_by', '$timestamp')");
+        ('$username', '$nik_user', $id_card_sql, '$ncvs', '$hashed_password', '$password', '$role_id', '0', '$updated_by', '$timestamp')");
 
     if ($query_user) {
         $last_user_id = mysqli_insert_id($conn);
