@@ -89,7 +89,12 @@ SELECT
     SUM(m.qty) AS Qty_Order
 " . $sql . "
 GROUP BY m.job_order
-ORDER BY m.job_order ASC, m.ncvs ASC
+ORDER BY
+    CAST(SUBSTRING_INDEX(m.job_order, '-', 1) AS UNSIGNED),
+    CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(m.job_order, '-', 2), '-', -1) AS UNSIGNED),
+    CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(m.job_order, '-', 3), '-', -1) AS UNSIGNED),
+    CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(m.job_order, '-', 4), '-', -1) AS UNSIGNED),
+    m.ncvs ASC
 LIMIT ?, ?";
 
 $params2 = $params;
