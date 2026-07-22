@@ -147,6 +147,7 @@ SELECT
     po_item,
     model,
     style,
+    nm_komponen_in AS komponen,
     nm_vendor AS vendor,
 
     SUM(IFNULL(qty_plan,0))
@@ -312,7 +313,8 @@ GROUP BY
     po_item,
     model,
     style,
-    nm_vendor
+    nm_vendor,
+    nm_komponen_in
 
 ORDER BY
     MAX(ncvs) ASC
@@ -370,6 +372,9 @@ while (
 
         "style" =>
         $row['style'],
+
+        "komponen" =>
+        $row['komponen'],
 
         "vendor" =>
         $row['vendor'],

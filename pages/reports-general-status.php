@@ -457,12 +457,13 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
                     <th rowspan="2" class="sticky-col sticky-4">PO Item</th>
                     <th rowspan="2">Model</th>
                     <th rowspan="2">Style</th>
+                    <th rowspan="2">Komponen</th>
                     <th rowspan="2">Vendor</th>
                     <th rowspan="2" class="sticky-col sticky-5">Total Order</th>
 
-                    <th colspan="4">
+                    <!-- <th colspan="4">
                       SM Cutting
-                    </th>
+                    </th> -->
 
                     <th colspan="4">
                       SM Subcont
@@ -489,11 +490,11 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
                   <!-- HEADER 2 -->
                   <tr>
 
-                    <th>In</th>
+                    <!-- <th>In</th>
                     <th>Balance</th>
 
                     <th>Out</th>
-                    <th>Balance</th>
+                    <th>Balance</th> -->
 
                     <th>In SM</th>
                     <th>Balance</th>
@@ -875,6 +876,11 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
             data: 'style'
           },
 
+          // KOMPONEN
+          {
+            data: 'komponen'
+          },
+
           // VENDOR
           {
             data: 'vendor'
@@ -886,33 +892,33 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
             className: 'sticky-col sticky-5 total-order'
           },
 
-          // SM CUTTING - IN
-          {
-            data: 'sm_cutting_in'
-          },
+          // // SM CUTTING - IN
+          // {
+          //   data: 'sm_cutting_in'
+          // },
 
-          // SM CUTTING - BALANCE
-          {
-            data: 'sm_cutting_balance',
+          // // SM CUTTING - BALANCE
+          // {
+          //   data: 'sm_cutting_balance',
 
-            render: function(data) {
-              return renderBalance(data);
-            }
-          },
+          //   render: function(data) {
+          //     return renderBalance(data);
+          //   }
+          // },
 
-          // SM CUTTING - OUT
-          {
-            data: 'sm_cutting_out'
-          },
+          // // SM CUTTING - OUT
+          // {
+          //   data: 'sm_cutting_out'
+          // },
 
-          // SM CUTTING - OUT BALANCE
-          {
-            data: 'sm_cutting_out_balance',
+          // // SM CUTTING - OUT BALANCE
+          // {
+          //   data: 'sm_cutting_out_balance',
 
-            render: function(data) {
-              return renderBalance(data);
-            }
-          },
+          //   render: function(data) {
+          //     return renderBalance(data);
+          //   }
+          // },
 
           // SM SUBCONT - IN
           {
@@ -1131,15 +1137,15 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
                 <c t="inlineStr" r="D1"><is><t>PO Item</t></is></c>
                 <c t="inlineStr" r="E1"><is><t>Model</t></is></c>
                 <c t="inlineStr" r="F1"><is><t>Style</t></is></c>
-                <c t="inlineStr" r="G1"><is><t>Vendor</t></is></c>
-                <c t="inlineStr" r="H1"><is><t>Total Order</t></is></c>
+                <c t="inlineStr" r="G1"><is><t>Komponen</t></is></c>
+                <c t="inlineStr" r="H1"><is><t>Vendor</t></is></c>
+                <c t="inlineStr" r="I1"><is><t>Total Order</t></is></c>
 
-                <c t="inlineStr" r="I1"><is><t>SM Cutting</t></is></c>
-                <c t="inlineStr" r="M1"><is><t>SM Subcont</t></is></c>
-                <c t="inlineStr" r="Q1"><is><t>WH Subcont</t></is></c>
-                <c t="inlineStr" r="U1"><is><t>Vendor</t></is></c>
-                <c t="inlineStr" r="Y1"><is><t>Return WH</t></is></c>
-                <c t="inlineStr" r="AC1"><is><t>Return SM</t></is></c>
+                <c t="inlineStr" r="J1"><is><t>SM Subcont</t></is></c>
+                <c t="inlineStr" r="N1"><is><t>WH Subcont</t></is></c>
+                <c t="inlineStr" r="R1"><is><t>Vendor</t></is></c>
+                <c t="inlineStr" r="V1"><is><t>Return WH</t></is></c>
+                <c t="inlineStr" r="Z1"><is><t>Return SM</t></is></c>
 
                 </row>
                 `;
@@ -1165,12 +1171,11 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
 
               mergeCells.append(`
 
-                <mergeCell ref="I1:L1"/>
-                <mergeCell ref="M1:P1"/>
-                <mergeCell ref="Q1:T1"/>
-                <mergeCell ref="U1:X1"/>
-                <mergeCell ref="Y1:AB1"/>
-                <mergeCell ref="AC1:AF1"/>
+                <mergeCell ref="J1:M1"/>
+                <mergeCell ref="N1:Q1"/>
+                <mergeCell ref="R1:U1"/>
+                <mergeCell ref="V1:Y1"/>
+                <mergeCell ref="Z1:AC1"/>
 
                 `);
 
