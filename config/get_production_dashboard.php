@@ -20,6 +20,7 @@ $sqlCutting = "
         IFNULL(qty_smsubcont_fr_cut, 0)
     ) AS total_inventory
 FROM tbl_transaksi
+WHERE is_main_komponen = 1
 ";
 
 $resultCutting = mysqli_query($conn, $sqlCutting);
@@ -35,6 +36,7 @@ $sqlChart = "
         IFNULL(qty_smsubcont_fr_cut, 0)
         ) AS total_inventory
     FROM tbl_transaksi
+    WHERE is_main_komponen = 1
     GROUP BY ncvs
     ORDER BY ncvs ASC;
 ";
@@ -63,7 +65,8 @@ $sqlPreVendor = "
             -
             IFNULL(qty_smsubcont_to_whsubcont, 0)
         ) AS total_inventory
-    FROM tbl_transaksi;
+    FROM tbl_transaksi
+    WHERE is_main_komponen = 1;
 ";
 
 $resultPreVendor = mysqli_query($conn, $sqlPreVendor);
@@ -80,6 +83,7 @@ $sqlChartPreVendor = "
         ) AS total_inventory
 
     FROM tbl_transaksi
+    WHERE is_main_komponen = 1
     GROUP BY ncvs
     ORDER BY ncvs ASC;
 

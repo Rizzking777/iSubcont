@@ -16,7 +16,9 @@ $ncvs = $_GET['ncvs'] ?? '';
 /* CONDITION */
 $where = "";
 $qtyFormula = "0";
-$mainComponentWhere = "";
+$mainComponentWhere = "
+    AND is_main_komponen = 1
+";
 $ncvsWhere = "";
 
 /* ===================================== */
@@ -172,11 +174,6 @@ if ($section == 'pre_vendor') {
 
 /* AFTER VENDOR */
 if ($section == 'after_vendor') {
-
-    /* MAIN COMPONENT ONLY */
-    $mainComponentWhere = "
-        AND is_main_komponen = 1
-    ";
 
     /* ===================================== */
     /* USE COMPONENT OUT */
