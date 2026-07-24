@@ -301,7 +301,7 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
           <div class="row g-3">
 
             <!-- DATE -->
-            <div class="col-md-3">
+            <!-- <div class="col-md-3">
               <label class="form-label fw-semibold">
                 Date Range
               </label>
@@ -312,6 +312,19 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
                 name="date_range"
                 class="form-control"
                 placeholder="Select date range">
+            </div> -->
+
+            <!-- komponen -->
+            <div class="col-md-3">
+              <label class="form-label fw-semibold">
+                Komponen
+              </label>
+
+              <select
+                id="nm_komponen_in"
+                name="nm_komponen_in"
+                class="form-control select2-remote">
+              </select>
             </div>
 
             <!-- BUCKET -->
@@ -635,7 +648,8 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
                 po_item: $("#po_item").val(),
                 style: $("#style").val(),
                 model: $("#model").val(),
-                vendor: $("#vendor").val()
+                vendor: $("#vendor").val(),
+                nm_komponen_in: $("#nm_komponen_in").val()
               };
             },
 
@@ -709,6 +723,12 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
         "#vendor",
         "searchVendor",
         "Vendor"
+      );
+
+      initSelect2(
+        "#nm_komponen_in",
+        "searchKomponen",
+        "Komponen"
       );
 
       // ENABLE SEARCH BUTTON
@@ -878,7 +898,7 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
 
           // KOMPONEN
           {
-            data: 'komponen'
+            data: 'nm_komponen_in'
           },
 
           // VENDOR
@@ -1262,6 +1282,9 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
 
               d.vendor =
                 $('#vendor').val();
+
+              d.nm_komponen_in =
+                $('#nm_komponen_in').val();
             },
 
             dataSrc: function(json) {

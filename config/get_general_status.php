@@ -41,6 +41,10 @@ $vendor =
     $_POST['vendor']
     ?? '';
 
+$nm_komponen_in =
+    $_POST['nm_komponen_in']
+    ?? '';
+
 // WHERE
 $where = [];
 
@@ -102,7 +106,8 @@ $filters = [
     'ncvs' => $ncvs,
     'model' => $model,
     'style' => $style,
-    'nm_vendor' => $vendor
+    'nm_vendor' => $vendor,
+    'nm_komponen_in' => $nm_komponen_in
 ];
 
 foreach (
@@ -147,7 +152,7 @@ SELECT
     po_item,
     model,
     style,
-    nm_komponen_in AS komponen,
+    nm_komponen_in AS nm_komponen_in,
     nm_vendor AS vendor,
 
     SUM(IFNULL(qty_plan,0))
@@ -373,8 +378,8 @@ while (
         "style" =>
         $row['style'],
 
-        "komponen" =>
-        $row['komponen'],
+        "nm_komponen_in" =>
+        $row['nm_komponen_in'],
 
         "vendor" =>
         $row['vendor'],

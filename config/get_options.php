@@ -56,7 +56,8 @@ try {
             'job_order' => 'job_order',
             'style'     => 'style',
             'model'     => 'model',
-            'nm_vendor' => 'nm_vendor'
+            'nm_vendor' => 'nm_vendor',
+            'nm_komponen_in'  => 'nm_komponen_in'
 
         ];
 
@@ -233,6 +234,30 @@ try {
                     nm_vendor AS text
                 FROM tbl_transaksi
                 WHERE nm_vendor LIKE ?
+            ";
+
+            $params = ["%$search%"];
+            $types = "s";
+            buildFilter($sql, $params, $types);
+            $sql .= "
+                ORDER BY nm_vendor ASC
+                LIMIT 20
+            ";
+
+            break;
+
+        // Komponen
+
+        case "searchKomponen":
+
+            $sql = "
+            SELECT DISTINCT
+                nm_komponen_in AS id,
+                nm_komponen_in AS text
+            FROM tbl_transaksi
+            WHERE
+                is_main_komponen = 1
+                AND nm_komponen_in COLLATE utf8mb4_general_ci LIKE ?
             ";
 
             $params = ["%$search%"];
