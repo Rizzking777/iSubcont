@@ -62,6 +62,8 @@
  <aside id="sidebar" class="sidebar">
    <ul class="sidebar-nav" id="sidebar-nav">
      <?php
+     /** @var mysqli $conn */
+
       // ambil role
       $role_id = isset($_SESSION['role_id']) ? (int)$_SESSION['role_id'] : 0;
 

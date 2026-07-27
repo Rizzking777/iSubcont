@@ -313,7 +313,7 @@ $username = $_SESSION['username'];
                                 <?php if ($r['is_main_komponen']) : ?>
 
                                   <span class="badge bg-success ms-2">
-                                    Main 
+                                    Main
                                   </span>
 
                                 <?php endif; ?>

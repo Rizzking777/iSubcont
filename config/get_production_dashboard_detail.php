@@ -57,8 +57,7 @@ if ($section == 'cutting') {
         ";
     }
 
-    /* OUT */ 
-    else if ($type == 'out') {
+    /* OUT */ else if ($type == 'out') {
 
         $where = "
             qty_smsubcont_fr_cut > 0
@@ -71,8 +70,7 @@ if ($section == 'cutting') {
         ";
     }
 
-    /* INVENTORY */
-    else if ($type == 'inventory') {
+    /* INVENTORY */ else if ($type == 'inventory') {
 
         $where = "
             (
@@ -122,8 +120,7 @@ if ($section == 'pre_vendor') {
         ";
     }
 
-    /* OUT */
-    else if ($type == 'out') {
+    /* OUT */ else if ($type == 'out') {
 
         $where = "
             qty_smsubcont_to_whsubcont > 0
@@ -138,9 +135,8 @@ if ($section == 'pre_vendor') {
 
         ";
     }
-    
-    /* INVENTORY */
-    else if ($type == 'inventory') {
+
+    /* INVENTORY */ else if ($type == 'inventory') {
 
         $where = "
             (
@@ -206,8 +202,7 @@ if ($section == 'after_vendor') {
         ";
     }
 
-    /* OUT */
-    else if ($type == 'out') {
+    /* OUT */ else if ($type == 'out') {
 
         $where = "
             qty_smsubcont_to_prod > 0
@@ -223,8 +218,7 @@ if ($section == 'after_vendor') {
         ";
     }
 
-    /* INVENTORY */
-    else if ($type == 'inventory') {
+    /* INVENTORY */ else if ($type == 'inventory') {
 
         $where = "
             (
@@ -281,6 +275,7 @@ $sql = "
 
     GROUP BY
 
+        job_order,
         ncvs,
         bucket,
         style,
@@ -291,6 +286,8 @@ $sql = "
         size
 
     ORDER BY
+        bucket ASC,
+        job_order ASC,
         ncvs ASC
 
 ";

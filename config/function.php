@@ -3277,6 +3277,7 @@ if (isset($_POST['action']) && $_POST['action'] == 'scan_sm_subcont_from_cut') {
                 UPDATE tbl_transaksi SET
                     last_gate = 'SM_SUBCONT_FROM_CUT',
                     qty_smsubcont_fr_cut = qty_cut_to_smsubcont,
+                    transac_by = '$scan_by',
                     updated_at = NOW()
                 WHERE id_trans = '{$data['id_trans']}'
             ");
@@ -3289,6 +3290,8 @@ if (isset($_POST['action']) && $_POST['action'] == 'scan_sm_subcont_from_cut') {
             $new_data = $old_data;
 
             $new_data['last_gate'] = 'SM_SUBCONT_FROM_CUT';
+
+            $new_data['transac_by'] = $scan_by;
 
             $new_data['qty_smsubcont_fr_cut'] =
                 $old_data['qty_cut_to_smsubcont'];
@@ -3470,6 +3473,7 @@ if (isset($_POST['action']) && $_POST['action'] == 'scan_sm_subcont_to_wh_subcon
                 UPDATE tbl_transaksi SET
                     last_gate = 'SM_SUBCONT_TO_WH_SUBCONT',
                     qty_smsubcont_to_whsubcont = qty_smsubcont_fr_cut,
+                    transac_by = '$scan_by',
                     updated_at = NOW()
                 WHERE id_trans = '{$data['id_trans']}'
             ");
@@ -3487,6 +3491,8 @@ if (isset($_POST['action']) && $_POST['action'] == 'scan_sm_subcont_to_wh_subcon
                 $old_data['qty_smsubcont_fr_cut'];
 
             $new_data['updated_at'] = date('Y-m-d H:i:s');
+
+            $new_data['transac_by'] = $scan_by;
 
             // INSERT EVENT
             $event = mysqli_query($conn, "
@@ -3662,6 +3668,7 @@ if (isset($_POST['action']) && $_POST['action'] == 'scan_in_wh_subcont') {
             $update = mysqli_query($conn, "
                 UPDATE tbl_transaksi SET
                     last_gate = 'WH_SUBCONT_FROM_SM_SUBCONT',
+                    transac_by = '$scan_by',
                     qty_whsubcont_fr_smsubcont = qty_smsubcont_to_whsubcont,
                     updated_at = NOW()
                 WHERE id_trans = '{$data['id_trans']}'
@@ -3678,6 +3685,8 @@ if (isset($_POST['action']) && $_POST['action'] == 'scan_in_wh_subcont') {
 
             $new_data['qty_whsubcont_fr_smsubcont'] =
                 $old_data['qty_smsubcont_to_whsubcont'];
+
+            $new_data['transac_by'] = $scan_by;    
 
             $new_data['updated_at'] = date('Y-m-d H:i:s');
 
@@ -3855,6 +3864,7 @@ if (isset($_POST['action']) && $_POST['action'] == 'scan_out_to_vendor') {
             $update = mysqli_query($conn, "
                 UPDATE tbl_transaksi SET
                     last_gate = 'WH_SUBCONT_TO_VENDOR',
+                    transac_by = '$scan_by',
                     qty_whsubcont_to_vendor = qty_whsubcont_fr_smsubcont,
                     updated_at = NOW()
                 WHERE id_trans = '{$data['id_trans']}'
@@ -3868,6 +3878,8 @@ if (isset($_POST['action']) && $_POST['action'] == 'scan_out_to_vendor') {
             $new_data = $old_data;
 
             $new_data['last_gate'] = 'WH_SUBCONT_TO_VENDOR';
+
+            $new_data['transac_by'] = $scan_by;
 
             $new_data['qty_whsubcont_to_vendor'] =
                 $old_data['qty_whsubcont_fr_smsubcont'];
@@ -4048,6 +4060,7 @@ if (isset($_POST['action']) && $_POST['action'] == 'scan_in_vendor') {
             $update = mysqli_query($conn, "
                 UPDATE tbl_transaksi SET
                     last_gate = 'VENDOR_FROM_WH_SUBCONT',
+                    transac_by = '$scan_by',
                     qty_vendor_fr_whsubcont = qty_whsubcont_to_vendor,
                     updated_at = NOW()
                 WHERE id_trans = '{$data['id_trans']}'
@@ -4061,6 +4074,8 @@ if (isset($_POST['action']) && $_POST['action'] == 'scan_in_vendor') {
             $new_data = $old_data;
 
             $new_data['last_gate'] = 'VENDOR_FROM_WH_SUBCONT';
+
+            $new_data['transac_by'] = $scan_by;
 
             $new_data['qty_vendor_fr_whsubcont'] =
                 $old_data['qty_whsubcont_to_vendor'];
@@ -4263,6 +4278,7 @@ if (isset($_POST['action']) && $_POST['action'] == 'scan_vendor_to_whsubcont') {
             mysqli_query($conn, "
                 UPDATE tbl_transaksi SET
                     last_gate = 'VENDOR_TO_WH_SUBCONT',
+                    transac_by = '$scan_by',
                     qty_vendor_to_whsubcont = qty_vendor_fr_whsubcont,
                     updated_at = NOW()
                 WHERE id_trans = '{$data['id_trans']}'
@@ -4581,6 +4597,7 @@ if (
             $update = mysqli_query($conn, "
                 UPDATE tbl_transaksi SET
                     last_gate = 'WH_SUBCONT_FROM_VENDOR',
+                    transac_by = '$scan_by',
                     qty_whsubcont_fr_vendor = qty_whsubcont_to_vendor,
                     updated_at = NOW()
                 WHERE id_trans = '{$data['id_trans']}'
@@ -4775,6 +4792,7 @@ if (
             $update = mysqli_query($conn, "
                 UPDATE tbl_transaksi SET
                     last_gate = 'WH_SUBCONT_TO_SM_SUBCONT',
+                    transac_by = '$scan_by',
                     qty_whsubcont_to_smsubcont = qty_whsubcont_fr_vendor,
                     updated_at = NOW()
                 WHERE id_trans = '{$data['id_trans']}'
@@ -4968,6 +4986,7 @@ if (
             $update = mysqli_query($conn, "
                 UPDATE tbl_transaksi SET
                     last_gate = 'SM_SUBCONT_FROM_WH_SUBCONT',
+                    transac_by = '$scan_by',
                     qty_smsubcont_fr_whsubcont = qty_whsubcont_to_smsubcont,
                     updated_at = NOW()
                 WHERE id_trans = '{$data['id_trans']}'
