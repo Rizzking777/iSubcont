@@ -550,6 +550,164 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
           </div>
         </div>
       </div>
+
+      <div class="modal fade"
+        id="balanceModal"
+        tabindex="-1"
+        aria-hidden="true">
+
+        <div class="modal-dialog modal-xl modal-dialog-centered">
+
+          <div class="modal-content">
+
+            <div class="modal-header">
+
+              <h5 class="modal-title">
+                <i class="bi bi-search me-2"></i>
+                Balance Detail
+              </h5>
+
+              <button
+                class="btn-close"
+                data-bs-dismiss="modal">
+              </button>
+
+            </div>
+
+            <div class="modal-body">
+
+              <div class="row g-3 mb-3">
+
+                <div class="col-md-6">
+
+                  <div class="card bg-light border-0">
+
+                    <div class="card-body py-2">
+
+                      <div><strong>NCVS</strong> :
+                        <span id="modal_ncvs"></span>
+                      </div>
+
+                      <div><strong>Bucket</strong> :
+                        <span id="modal_bucket"></span>
+                      </div>
+
+                      <div><strong>PO</strong> :
+                        <span id="modal_po"></span>
+                      </div>
+
+                      <div><strong>Model</strong> :
+                        <span id="modal_model"></span>
+                      </div>
+
+                    </div>
+
+                  </div>
+
+                </div>
+
+                <div class="col-md-6">
+
+                  <div class="card bg-light border-0">
+
+                    <div class="card-body py-2">
+
+                      <div><strong>Style</strong> :
+                        <span id="modal_style"></span>
+                      </div>
+
+                      <div><strong>Stage</strong> :
+                        <span id="modal_stage"></span>
+                      </div>
+
+                      <div><strong>Component</strong> :
+                        <span id="modal_component"></span>
+                      </div>
+
+                      <div><strong>Vendor</strong> :
+                        <span id="modal_vendor"></span>
+                      </div>
+
+                    </div>
+
+                  </div>
+
+                </div>
+
+              </div>
+
+              <hr>
+
+              <div id="modal_loading"
+                class="text-center py-5">
+
+                <div class="spinner-border text-primary"></div>
+
+                <div class="mt-2">
+                  Loading...
+                </div>
+
+              </div>
+
+              <div id="modal_content"
+                style="display:none;">
+
+                <div class="table-responsive">
+
+                  <table
+                    class="table table-bordered table-hover align-middle text-center mb-0">
+
+                    <thead class="table-light">
+
+                      <tr>
+
+                        <th>Size</th>
+
+                        <th>Plan</th>
+
+                        <th id="actualHeader">
+                          Actual
+                        </th>
+
+                        <th>Balance</th>
+
+                      </tr>
+
+                    </thead>
+
+                    <tbody id="balanceBody">
+
+                    </tbody>
+
+                    <tfoot>
+
+                      <tr class="table-secondary fw-bold">
+
+                        <td>Total</td>
+
+                        <td id="totalPlan"></td>
+
+                        <td id="totalActual"></td>
+
+                        <td id="totalBalance"></td>
+
+                      </tr>
+
+                    </tfoot>
+
+                  </table>
+
+                </div>
+
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
     </section>
 
   </main><!-- End #main -->
@@ -806,19 +964,52 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
         }
       );
 
-      function renderBalance(data) {
+      function renderBalance(data, row, stage) {
+
+        if (data >= 0) {
+
+          return `
+            <span class="balance-positive">
+                ${data}
+            </span>
+        `;
+
+        }
 
         return `
-    <span class="
-      ${
-        data < 0
-        ? 'balance-negative'
-        : 'balance-positive'
-      }
-    ">
-      ${data}
-    </span>
-  `;
+        <a href="#"
+
+          class="balance-detail text-danger fw-bold"
+
+          data-stage="${stage}"
+
+          data-job="${row.job_order}"
+
+          data-ncvs="${row.ncvs}"
+
+          data-bucket="${row.bucket}"
+
+          data-po="${row.po_code}"
+
+          data-po_item="${row.po_item}"
+
+          data-component="${row.nm_komponen_in}"
+
+          data-style="${row.style}"
+
+          data-model="${row.model}"
+
+          data-vendor="${row.vendor}"
+
+          data-total="${row.total_order}"
+
+        >
+
+            ${data}
+
+        </a>
+    `;
+
       }
 
       // DATATABLE
@@ -949,8 +1140,14 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
           {
             data: 'balance_in_sm',
 
-            render: function(data) {
-              return renderBalance(data);
+            render: function(data, type, row) {
+
+              return renderBalance(
+                data,
+                row,
+                "SM Subcont In"
+              );
+
             }
           },
 
@@ -963,8 +1160,14 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
           {
             data: 'balance_out_sm',
 
-            render: function(data) {
-              return renderBalance(data);
+            render: function(data, type, row) {
+
+              return renderBalance(
+                data,
+                row,
+                "SM Subcont Out"
+              );
+
             }
           },
 
@@ -977,8 +1180,14 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
           {
             data: 'balance_in_wh',
 
-            render: function(data) {
-              return renderBalance(data);
+            render: function(data, type, row) {
+
+              return renderBalance(
+                data,
+                row,
+                "WH Subcont In"
+              );
+
             }
           },
 
@@ -991,8 +1200,14 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
           {
             data: 'balance_out_wh',
 
-            render: function(data) {
-              return renderBalance(data);
+            render: function(data, type, row) {
+
+              return renderBalance(
+                data,
+                row,
+                "WH Subcont Out"
+              );
+
             }
           },
 
@@ -1005,8 +1220,14 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
           {
             data: 'balance_in_vendor',
 
-            render: function(data) {
-              return renderBalance(data);
+            render: function(data, type, row) {
+
+              return renderBalance(
+                data,
+                row,
+                "Vendor Subcont In"
+              );
+
             }
           },
 
@@ -1019,8 +1240,14 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
           {
             data: 'balance_out_vendor',
 
-            render: function(data) {
-              return renderBalance(data);
+            render: function(data, type, row) {
+
+              return renderBalance(
+                data,
+                row,
+                "Vendor Subcont Out"
+              );
+
             }
           },
 
@@ -1033,8 +1260,14 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
           {
             data: 'balance_return_wh',
 
-            render: function(data) {
-              return renderBalance(data);
+            render: function(data, type, row) {
+
+              return renderBalance(
+                data,
+                row,
+                "Return WH Subcont"
+              );
+
             }
           },
 
@@ -1047,8 +1280,14 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
           {
             data: 'balance_transfer_sm',
 
-            render: function(data) {
-              return renderBalance(data);
+            render: function(data, type, row) {
+
+              return renderBalance(
+                data,
+                row,
+                "Transfer to SM Subcont"
+              );
+
             }
           },
 
@@ -1061,8 +1300,14 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
           {
             data: 'balance_return_sm',
 
-            render: function(data) {
-              return renderBalance(data);
+            render: function(data, type, row) {
+
+              return renderBalance(
+                data,
+                row,
+                "Return SM Subcont"
+              );
+
             }
           },
 
@@ -1075,8 +1320,14 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
           {
             data: 'balance_transfer_ncvs',
 
-            render: function(data) {
-              return renderBalance(data);
+            render: function(data, type, row) {
+
+              return renderBalance(
+                data,
+                row,
+                "Transfer to NCVS"
+              );
+
             }
           }
 
@@ -1380,6 +1631,165 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
       );
 
     });
+
+    $(document).on(
+      "click",
+      ".balance-detail",
+
+      function(e) {
+
+        e.preventDefault();
+
+        $("#modal_loading").show();
+
+        $.ajax({
+
+          url: "./../config/get_general_status_detail.php",
+
+          type: "POST",
+
+          data: {
+
+            stage: $(this).data("stage"),
+
+            job_order: $(this).data("job"),
+
+            bucket: $(this).data("bucket"),
+
+            po_code: $(this).data("po"),
+
+            po_item: $(this).data("po_item"),
+
+            component: $(this).data("component")
+
+          },
+
+          success: function(res) {
+
+            $("#modal_loading").hide();
+
+            $("#modal_content").show();
+
+            $("#balanceBody").html("");
+
+            $("#actualHeader").text(
+              $(e.currentTarget).data("stage")
+            );
+
+            $.each(res.rows, function(i, row) {
+
+              let color = "";
+
+              if (row.balance < 0) {
+
+                color = "text-danger fw-bold";
+
+              } else if (row.balance > 0) {
+
+                color = "text-success fw-bold";
+
+              }
+
+              $("#balanceBody").append(`
+
+            <tr>
+
+                <td>${row.size}</td>
+
+                <td>${row.plan}</td>
+
+                <td>${row.actual}</td>
+
+                <td class="${color}">
+
+                    ${row.balance}
+
+                </td>
+
+            </tr>
+
+        `);
+
+            });
+
+            $("#totalPlan").text(res.summary.plan);
+
+            $("#totalActual").text(res.summary.actual);
+
+            $("#totalBalance").html(
+
+              res.summary.balance < 0
+
+              ?
+
+              `<span class="text-danger fw-bold">
+
+            ${res.summary.balance}
+
+        </span>`
+
+              :
+
+              `<span class="text-success fw-bold">
+
+            ${res.summary.balance}
+
+        </span>`
+
+            );
+
+          }
+
+        });
+
+        $("#modal_content").hide();
+
+        $("#modal_ncvs")
+          .text($(this).data("ncvs"));
+
+        $("#modal_bucket")
+          .text($(this).data("bucket"));
+
+        $("#modal_po")
+          .text(
+
+            $(this).data("po")
+
+            +
+
+            " - "
+
+            +
+
+            $(this).data("po_item")
+
+          );
+
+        $("#modal_stage")
+          .text($(this).data("stage"));
+
+        $("#modal_component")
+          .text($(this).data("component"));
+
+        $("#modal_style").text(
+          $(this).data("style")
+        );
+
+        $("#modal_model").text(
+          $(this).data("model")
+        );
+
+        $("#modal_vendor").text(
+          $(this).data("vendor")
+        );
+
+        new bootstrap.Modal(
+          document.getElementById(
+            "balanceModal"
+          )
+        ).show();
+
+      });
   </script>
 
 </body>
