@@ -38,27 +38,32 @@ switch ($stage) {
         $actualField = 'qty_whsubcont_to_vendor';
         break;
 
-    case 'Vendor In':
+    case 'Vendor Subcont In':
 
         $actualField = 'qty_vendor_fr_whsubcont';
         break;
 
-    case 'Vendor Out':
+    case 'Vendor Subcont Out':
 
         $actualField = 'qty_vendor_to_whsubcont';
         break;
 
-    case 'Return WH':
+    case 'Return WH Subcont':
 
         $actualField = 'qty_whsubcont_fr_vendor';
         break;
 
-    case 'Return SM':
+    case 'Transfer to SM Subcont':
 
         $actualField = 'qty_whsubcont_to_smsubcont';
         break;
 
-    case 'Transfer NCVS':
+    case 'Return SM Subcont':
+
+        $actualField = 'qty_smsubcont_fr_whsubcont';
+        break;
+
+    case 'Transfer to NCVS':
 
         $actualField = 'qty_smsubcont_to_prod';
         break;
