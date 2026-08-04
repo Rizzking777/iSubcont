@@ -655,9 +655,9 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
                 <div class="table-responsive">
 
                   <table
-                    class="table table-bordered table-hover align-middle text-center mb-0">
+                    class="table table-bordered table-striped table-hover align-middle text-center mb-0">
 
-                    <thead class="table-light">
+                    <thead class="table-secondary">
 
                       <tr>
 

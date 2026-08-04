@@ -302,6 +302,23 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
   table.dataTable {
     width: 100% !important;
   }
+
+  #componentList .list-group-item {
+
+    border-left: 0;
+    border-right: 0;
+
+    font-size: 14px;
+
+  }
+
+  #componentList .main-component {
+
+    font-weight: 700;
+
+    color: #198754;
+
+  }
 </style>
 
 <!DOCTYPE html>
@@ -701,9 +718,12 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
               <table
                 id="dashboardDetailTable"
                 class="
-                table
-                dashboard-detail-table
-                align-middle
+                  table
+                  table-bordered
+                  table-striped
+                  table-hover
+                  dashboard-detail-table
+                  align-middle
               ">
               </table>
 
@@ -735,6 +755,133 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
               <i class="bi bi-file-earmark-excel"></i>
               Export
             </button>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- ========================================= -->
+    <!-- COMPONENT DETAIL MODAL -->
+    <!-- ========================================= -->
+
+    <div class="modal fade"
+      id="componentDetailModal"
+      tabindex="-1"
+      aria-hidden="true">
+
+      <div class="modal-dialog modal-lg modal-dialog-scrollable">
+
+        <div class="modal-content border-0 shadow">
+
+          <div class="modal-header">
+
+            <h5 class="modal-title">
+              <i class="bi bi-diagram-3 me-2"></i>
+              Component Detail
+            </h5>
+
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal">
+            </button>
+
+          </div>
+
+          <div class="modal-body">
+
+            <!-- HEADER INFO -->
+
+            <div class="border rounded p-3 mb-3">
+
+              <div class="row">
+
+                <div class="col-md-6">
+
+                  <div>
+                    <strong>NCVS :</strong>
+                    <span id="cd_ncvs">-</span>
+                  </div>
+
+                  <div>
+                    <strong>Bucket :</strong>
+                    <span id="cd_bucket">-</span>
+                  </div>
+
+                  <div>
+                    <strong>PO - PO Item :</strong>
+                    <span id="cd_po">-</span>
+                  </div>
+
+                </div>
+
+                <div class="col-md-6">
+
+                  <div>
+                    <strong>Style :</strong>
+                    <span id="cd_style">-</span>
+                  </div>
+
+                  <div>
+                    <strong>Model :</strong>
+                    <span id="cd_model">-</span>
+                  </div>
+
+                  <div>
+                    <strong>Main Component :</strong>
+                    <span id="cd_component">-</span>
+                  </div>
+
+                </div>
+
+              </div>
+
+            </div>
+
+            <hr>
+
+            <h6 class="fw-bold mb-3">
+
+              List Component
+
+            </h6>
+
+            <div class="table-responsive">
+
+              <table
+                class="table table-bordered table-striped align-middle"
+                id="componentTable">
+
+                <thead class="table-secondary">
+
+                  <tr>
+                    <th width="10%">No</th>
+                    <th>Component</th>
+                  </tr>
+
+                </thead>
+
+                <tbody id="componentList">
+
+                  <tr>
+
+                    <td colspan="2" class="text-center text-muted">
+
+                      No data
+
+                    </td>
+
+                  </tr>
+
+                </tbody>
+
+              </table>
+
+            </div>
 
           </div>
 
@@ -1659,7 +1806,25 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
                 <td>${row.model ?? ''}</td>
                 <td>${row.po ?? ''}</td>
                 <td>${row.po_item ?? ''}</td>
-                <td>${row.component ?? ''}</td>
+                <td>
+
+    <a href="#"
+       class="component-detail text-decoration-none fw-semibold"
+
+       data-id_group="${row.id_group ?? ''}"
+       data-ncvs="${row.ncvs ?? ''}"
+       data-bucket="${row.bucket ?? ''}"
+       data-style="${row.style ?? ''}"
+       data-model="${row.model ?? ''}"
+       data-po="${row.po ?? ''}"
+       data-po_item="${row.po_item ?? ''}"
+       data-component="${row.component ?? ''}">
+
+        ${row.component ?? ''}
+
+    </a>
+
+</td>
 
         `;
 
@@ -1783,6 +1948,110 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
 
       }
     );
+
+    $(document).on(
+      'click',
+      '.component-detail',
+      function(e) {
+
+        e.preventDefault();
+
+        openComponentModal({
+
+          id_group: $(this).data("id_group"),
+          ncvs: $(this).data('ncvs'),
+          bucket: $(this).data('bucket'),
+          style: $(this).data('style'),
+          model: $(this).data('model'),
+          po: $(this).data('po'),
+          po_item: $(this).data('po_item'),
+          component: $(this).data('component')
+
+        });
+
+      }
+    );
+
+    function openComponentModal(data) {
+
+      $("#cd_ncvs").text(data.ncvs);
+
+      $("#cd_bucket").text(data.bucket);
+
+      $("#cd_style").text(data.style);
+
+      $("#cd_model").text(data.model);
+
+      $("#cd_po").text(data.po + " - " + data.po_item);
+
+      $("#cd_component").text(data.component);
+
+      $("#componentList").html(`
+          <tr>
+              <td colspan="2" class="text-center py-3">
+                  Loading component...
+              </td>
+          </tr>
+      `);
+
+      $.ajax({
+
+        url: './../config/get_production_dashboard_component.php',
+
+        type: 'GET',
+
+        dataType: 'json',
+
+        data: {
+
+          id_group: data.id_group
+
+        },
+
+        success: function(response) {
+
+          let html = '';
+
+          response.data.forEach(function(item, index) {
+
+            html += `
+        <tr>
+
+            <td class="text-center">
+                ${index + 1}
+            </td>
+
+            <td>
+                ${item.nama_komponen}
+                ${item.is_main == 1 ? ' *' : ''}
+            </td>
+
+        </tr>
+    `;
+
+          });
+
+          if (html === '') {
+
+            html = `
+        <tr>
+            <td colspan="2" class="text-center text-muted">
+                No component found
+            </td>
+        </tr>
+    `;
+
+          }
+
+          $("#componentList").html(html);
+
+        }
+
+      });
+
+      $("#componentDetailModal").modal("show");
+
+    }
   </script>
 
 </body>

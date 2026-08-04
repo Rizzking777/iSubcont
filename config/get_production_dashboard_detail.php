@@ -254,6 +254,7 @@ if ($section == 'after_vendor') {
 
 $sql = "
     SELECT
+        job_order,
         ncvs,
         bucket,
         style,
@@ -262,6 +263,7 @@ $sql = "
         po_item,
         $componentField AS main_component,
         size,
+        id_group,
         SUM(
             $qtyFormula
         ) AS qty_total
@@ -274,7 +276,6 @@ $sql = "
         $ncvsWhere
 
     GROUP BY
-
         job_order,
         ncvs,
         bucket,
@@ -283,7 +284,8 @@ $sql = "
         po_code,
         po_item,
         main_component,
-        size
+        size,
+        id_group
 
     ORDER BY
         bucket ASC,
@@ -328,14 +330,15 @@ while ($row = mysqli_fetch_assoc($result)) {
 
         $rows[$key] = [
 
+            'job_order' => $row['job_order'],
             'ncvs' => $row['ncvs'],
             'bucket' => $row['bucket'],
             'style' => $row['style'],
             'model' => $row['model'],
             'po' => $row['po_code'],
             'po_item' => $row['po_item'],
-            'component' =>
-            $row['main_component'],
+            'component' => $row['main_component'],
+            'id_group' => $row['id_group'],
             'sizes' => []
 
         ];
