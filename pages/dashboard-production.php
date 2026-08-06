@@ -391,6 +391,73 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
 
     <section class="section">
 
+      <div class="card shadow-sm mb-3">
+
+        <div class="card-body">
+
+          <div class="row align-items-end">
+
+            <div class="col-md-4">
+
+              <label class="form-label">
+
+                Date Range
+
+              </label>
+
+              <input
+                id="dateRange"
+                class="form-control"
+                type="text">
+
+            </div>
+
+            <div class="col-md-3 d-flex gap-2">
+
+              <button
+                id="btnResetDashboard"
+                class="btn btn-secondary">
+
+                <i class="bi bi-arrow-counterclockwise"></i>
+
+                Reset
+
+              </button>
+
+              <button
+                id="btnSearchDashboard"
+                class="btn btn-success">
+
+                <i class="bi bi-search"></i>
+
+                Search
+
+              </button>
+
+            </div>
+
+            <div class="col-md-5 text-end">
+
+              <span class="text-muted">
+
+                Period :
+
+              </span>
+
+              <strong id="currentPeriod">
+
+                Today
+
+              </strong>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
       <div class="row g-3">
 
         <!-- RIGHT SIDE -->
@@ -937,6 +1004,10 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
   <script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.print.min.js"></script>
   <script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.colVis.min.js"></script>
 
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.css">
+  <script src="https://cdn.jsdelivr.net/momentjs/latest/moment.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.min.js"></script>
+
   <?php include_once __DIR__ . '/../includes/notification.php'; ?>
 
   <script>
@@ -961,6 +1032,7 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
 
   <script>
     var dashboardCharts = {};
+
     const chartColor = {
 
       cutting: '#5f84ad',
@@ -969,32 +1041,168 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
 
     };
 
-    $(document).ready(function() {
+    const dashboardConfig = {
+
+      cutting: {
+
+        prefix: "",
+
+        chartId: "#chartCutting",
+
+        chartKey: "chartCutting",
+
+        color: chartColor.cutting,
+
+        unit: "Prs"
+
+      },
+
+      pre_vendor: {
+
+        prefix: "PreVendor",
+
+        chartId: "#chartPreVendor",
+
+        chartKey: "chartPreVendor",
+
+        color: chartColor.preVendor,
+
+        unit: "Prs"
+
+      },
+
+      after_vendor: {
+
+        prefix: "AfterVendor",
+
+        chartId: "#chartAfterVendor",
+
+        chartKey: "chartAfterVendor",
+
+        color: chartColor.afterVendor,
+
+        unit: "Pairs"
+
+      }
+
+    };
+
+    $(function() {
+
+      initDateRange();
+
       loadDashboard();
 
-      /* AUTO REFRESH */
-      setInterval(function() {
-        loadDashboard();
-      }, 60000);
+      setInterval(loadDashboard, 60000);
+
+    });
+
+    function initDateRange() {
+
+      const today = moment();
+
+      $("#dateRange").daterangepicker({
+
+        autoApply: true,
+
+        opens: "left",
+
+        startDate: today,
+
+        endDate: today,
+
+        locale: {
+
+          format: "YYYY-MM-DD"
+
+        }
+
+      });
+
+      updateCurrentPeriod();
+
+    }
+
+    function updateCurrentPeriod() {
+
+      let picker = $("#dateRange").data("daterangepicker");
+
+      let start = picker.startDate.format("YYYY-MM-DD");
+
+      let end = picker.endDate.format("YYYY-MM-DD");
+
+      $("#currentPeriod").text(
+
+        start == end
+
+        ?
+
+        start
+
+        :
+
+        start + " s/d " + end
+
+      );
+
+    }
+
+    $("#btnSearchDashboard").on("click", function() {
+
+      updateCurrentPeriod();
+
+      loadDashboard();
+
+    });
+
+    $("#btnResetDashboard").on("click", function() {
+
+      let picker = $("#dateRange").data("daterangepicker");
+
+      picker.setStartDate(moment());
+
+      picker.setEndDate(moment());
+
+      updateCurrentPeriod();
+
+      loadDashboard();
 
     });
 
     function loadDashboard() {
 
+      let picker = $("#dateRange").data("daterangepicker");
+
+      let dateFrom =
+
+        picker.startDate.format("YYYY-MM-DD");
+
+      let dateTo =
+
+        picker.endDate.format("YYYY-MM-DD");
+
       $.ajax({
         url: './../config/get_production_dashboard.php',
         type: 'GET',
         dataType: 'json',
+        data: {
+
+          date_from: dateFrom,
+
+          date_to: dateTo
+
+        },
 
         success: function(response) {
-          console.log(response);
-          renderCuttingOverview(response);
-          renderCuttingChart(response);
-          renderPreVendorOverview(response);
-          renderPreVendorChart(response);
-          renderAfterVendorOverview(response);
-          renderAfterVendorChart(response);
+
+          // renderSection("cutting", response.cutting);
+
+          renderSection("pre_vendor", response.pre_vendor);
+
+          renderSection("after_vendor", response.after_vendor);
+
           initTooltip();
+
         },
 
         error: function(xhr) {
@@ -1009,7 +1217,7 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
 
       $('[data-bs-toggle="tooltip"]').tooltip('dispose');
 
-      var tooltipTriggerList = [].slice.call(
+      const tooltipTriggerList = [].slice.call(
         document.querySelectorAll('[data-bs-toggle="tooltip"]')
       );
 
@@ -1021,644 +1229,269 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
 
     }
 
-    function renderCuttingOverview(response) {
+    function calculateProgress(summary) {
 
-      let data = response.cutting.summary;
-      let totalIn = data.in ?? 0;
-      let totalOut = data.out ?? 0;
-      let totalInventory = data.inventory ?? 0;
+      const max = Math.max(
 
-      let maxValue = Math.max(
-        totalIn,
-        totalOut,
-        totalInventory,
+        summary.in,
+
+        summary.out,
+
+        summary.inventory,
+
         1
+
       );
 
-      let inPercent =
-        (totalIn / maxValue) * 100;
+      return {
 
-      let outPercent =
-        (totalOut / maxValue) * 100;
+        in: (summary.in / max) * 100,
 
-      let inventoryPercent =
-        (totalInventory / maxValue) * 100;
+        out: (summary.out / max) * 100,
 
-      $('#totalIn')
-        .text(totalIn.toLocaleString());
-
-      $('#totalOut')
-        .text(totalOut.toLocaleString());
-
-      $('#totalInventory')
-        .text(totalInventory.toLocaleString());
-
-      $('#barIn')
-        .css('width', inPercent + '%');
-
-      $('#barOut')
-        .css('width', outPercent + '%');
-
-      $('#barInventory')
-        .css('width', inventoryPercent + '%');
-
-      $('#tooltipIn')
-        .attr(
-          'data-bs-original-title',
-          'In : ' +
-          totalIn.toLocaleString() + ' Prs'
-        )
-        .attr(
-          'data-value',
-          totalIn
-        );
-
-      $('#tooltipOut')
-        .attr(
-          'data-bs-original-title',
-          'Out : ' +
-          totalOut.toLocaleString() + ' Prs'
-        )
-        .attr(
-          'data-value',
-          totalOut
-        );
-
-      $('#tooltipInventory')
-        .attr(
-          'data-bs-original-title',
-          'Inventory : ' +
-          totalInventory.toLocaleString() + ' Prs'
-        )
-        .attr(
-          'data-value',
-          totalInventory
-        );
-
-    }
-
-    function renderCuttingChart(response) {
-
-      let categories =
-        response.cutting.chart.categories ?? [];
-
-      let seriesData =
-        response.cutting.chart.series ?? [];
-
-      let dynamicChartWidth =
-        categories.length * 70;
-
-      dynamicChartWidth = Math.max(
-        dynamicChartWidth,
-        350
-      );
-
-      if (dashboardCharts.chartCutting) {
-
-        dashboardCharts.chartCutting.destroy();
-
-      }
-
-      var chartOptions = {
-
-        chart: {
-
-          type: 'bar',
-          height: 280,
-          width: dynamicChartWidth,
-
-          toolbar: {
-            show: false
-          },
-
-          animations: {
-            enabled: true,
-            easing: 'easeinout',
-            speed: 700
-          },
-
-          events: {
-
-            dataPointSelection: function(
-              event,
-              chartContext,
-              config
-            ) {
-
-              let selectedNcvs =
-                categories[
-                  config.dataPointIndex
-                ];
-
-              /* VALUE */
-              let selectedValue =
-                seriesData[
-                  config.dataPointIndex
-                ];
-
-              /* PREVENT ZERO CLICK */
-              if (selectedValue <= 0) {
-                return;
-              }
-
-              /* OPEN DETAIL */
-              openDashboardDetail({
-                section: 'cutting',
-                type: 'inventory',
-                ncvs: selectedNcvs
-
-              });
-            }
-          }
-        },
-
-        legend: {
-          show: false
-        },
-
-        series: [{
-          name: 'Inventory',
-          data: seriesData
-        }],
-
-        xaxis: {
-          categories: categories
-        },
-
-        colors: [
-          chartColor.cutting
-        ],
-
-        plotOptions: {
-          bar: {
-            borderRadius: 6,
-            columnWidth: '35%'
-          }
-        },
-
-        tooltip: {
-
-          theme: 'light',
-
-          y: {
-            formatter: function(val) {
-              return val.toLocaleString() + ' prs';
-
-            }
-          }
-        },
-
-        dataLabels: {
-          enabled: true
-        },
-
-        grid: {
-          borderColor: '#e2e8f0'
-        }
+        inventory: (summary.inventory / max) * 100
 
       };
 
-      dashboardCharts.chartCutting =
-        new ApexCharts(
-          document.querySelector("#chartCutting"),
-          chartOptions
-        );
-
-      dashboardCharts.chartCutting.render();
-
     }
 
-    function renderPreVendorOverview(response) {
+    function setMetric(prefix, name, value, width, unit) {
 
-      let data = response.pre_vendor.summary;
-      let totalIn = data.in ?? 0;
-      let totalOut = data.out ?? 0;
-      let totalInventory = data.inventory ?? 0;
+      $("#total" + prefix + name)
 
-      let maxValue = Math.max(
-        totalIn,
-        totalOut,
-        totalInventory,
-        1
-      );
+        .text(value.toLocaleString());
 
-      let inPercent =
-        (totalIn / maxValue) * 100;
+      $("#bar" + prefix + name)
 
-      let outPercent =
-        (totalOut / maxValue) * 100;
+        .css("width", width + "%");
 
-      let inventoryPercent =
-        (totalInventory / maxValue) * 100;
+      $("#tooltip" + prefix + name)
 
-      $('#totalPreVendorIn')
-        .text(totalIn.toLocaleString());
-
-      $('#totalPreVendorOut')
-        .text(totalOut.toLocaleString());
-
-      $('#totalPreVendorInventory')
-        .text(totalInventory.toLocaleString());
-
-      $('#barPreVendorIn')
-        .css('width', inPercent + '%');
-
-      $('#barPreVendorOut')
-        .css('width', outPercent + '%');
-
-      $('#barPreVendorInventory')
-        .css('width', inventoryPercent + '%');
-
-      $('#tooltipPreVendorIn')
         .attr(
-          'data-bs-original-title',
-          'In : ' +
-          totalIn.toLocaleString() +
-          ' Prs'
+
+          "data-bs-original-title",
+
+          name + " : " + value.toLocaleString() + " " + unit
+
         )
-        .attr(
-          'data-value',
-          totalIn
-        );
 
-      $('#tooltipPreVendorOut')
         .attr(
-          'data-bs-original-title',
-          'Out : ' +
-          totalOut.toLocaleString() +
-          ' Prs'
-        )
-        .attr(
-          'data-value',
-          totalOut
-        );
 
-      $('#tooltipPreVendorInventory')
-        .attr(
-          'data-bs-original-title',
-          'Inventory : ' +
-          totalInventory.toLocaleString() +
-          ' Prs'
-        )
-        .attr(
-          'data-value',
-          totalInventory
+          "data-value",
+
+          value
+
         );
 
     }
 
-    function renderPreVendorChart(response) {
+    function renderOverview(section, data) {
 
-      let categories =
-        response.pre_vendor.chart.categories ?? [];
+      const cfg = dashboardConfig[section];
 
-      let seriesData =
-        response.pre_vendor.chart.series ?? [];
+      const {
+        summary
+      } = data;
 
-      let dynamicChartWidth =
-        categories.length * 70;
+      const progress = calculateProgress(summary);
 
-      dynamicChartWidth = Math.max(
-        dynamicChartWidth,
-        350
+      setMetric(
+
+        cfg.prefix,
+
+        "In",
+
+        summary.in,
+
+        progress.in,
+
+        cfg.unit
+
       );
 
-      if (dashboardCharts.chartPreVendor) {
+      setMetric(
 
-        dashboardCharts.chartPreVendor.destroy();
+        cfg.prefix,
+
+        "Out",
+
+        summary.out,
+
+        progress.out,
+
+        cfg.unit
+
+      );
+
+      setMetric(
+
+        cfg.prefix,
+
+        "Inventory",
+
+        summary.inventory,
+
+        progress.inventory,
+
+        cfg.unit
+
+      );
+
+    }
+
+    function renderSection(section, data) {
+
+      if (!data) {
+
+        console.warn(section + " not found");
+
+        return;
 
       }
 
-      var chartOptions = {
+      renderOverview(section, data);
 
-        chart: {
-
-          type: 'bar',
-
-          height: 280,
-
-          width: dynamicChartWidth,
-
-          toolbar: {
-            show: false
-          },
-
-          animations: {
-            enabled: true,
-            easing: 'easeinout',
-            speed: 700
-          },
-
-          events: {
-
-            dataPointSelection: function(
-              event,
-              chartContext,
-              config
-            ) {
-
-              let selectedNcvs =
-                categories[
-                  config.dataPointIndex
-                ];
-
-              let selectedValue =
-                seriesData[
-                  config.dataPointIndex
-                ];
-
-              if (selectedValue <= 0) {
-                return;
-              }
-
-              openDashboardDetail({
-
-                section: 'pre_vendor',
-
-                type: 'inventory',
-
-                ncvs: selectedNcvs
-
-              });
-
-            }
-
-          }
-
-        },
-
-        legend: {
-          show: false
-        },
-
-        series: [{
-          name: 'Inventory',
-          data: seriesData
-        }],
-
-        xaxis: {
-          categories: categories
-        },
-
-        colors: [
-          chartColor.preVendor
-        ],
-
-        plotOptions: {
-          bar: {
-            borderRadius: 6,
-            columnWidth: '35%'
-          }
-        },
-
-        tooltip: {
-
-          theme: 'light',
-
-          y: {
-            formatter: function(val) {
-
-              return val.toLocaleString() + ' prs';
-
-            }
-          }
-        },
-
-        dataLabels: {
-          enabled: true
-        },
-
-        grid: {
-          borderColor: '#e2e8f0'
-        }
-
-      };
-
-      dashboardCharts.chartPreVendor =
-        new ApexCharts(
-          document.querySelector("#chartPreVendor"),
-          chartOptions
-        );
-
-      dashboardCharts.chartPreVendor.render();
+      renderChart(section, data);
 
     }
 
-    function renderAfterVendorOverview(response) {
+    function renderChart(section, data) {
 
-      let data =
-        response.after_vendor.summary;
-      let totalIn = data.in ?? 0;
-      let totalOut = data.out ?? 0;
-      let totalInventory =
-        data.inventory ?? 0;
-      let maxValue = Math.max(
-        totalIn,
-        totalOut,
-        totalInventory,
-        1
-      );
+      const cfg = dashboardConfig[section];
 
-      let inPercent =
-        (totalIn / maxValue) * 100;
+      const categories = data.chart.categories ?? [];
 
-      let outPercent =
-        (totalOut / maxValue) * 100;
+      const seriesData = data.chart.series ?? [];
 
-      let inventoryPercent =
-        (totalInventory / maxValue) * 100;
+      let dynamicChartWidth = Math.max(categories.length * 70, 350);
 
-      $('#totalAfterVendorIn')
-        .text(totalIn.toLocaleString());
-
-      $('#totalAfterVendorOut')
-        .text(totalOut.toLocaleString());
-
-      $('#totalAfterVendorInventory')
-        .text(totalInventory.toLocaleString());
-
-      $('#barAfterVendorIn')
-        .css('width', inPercent + '%');
-
-      $('#barAfterVendorOut')
-        .css('width', outPercent + '%');
-
-      $('#barAfterVendorInventory')
-        .css(
-          'width',
-          inventoryPercent + '%'
-        );
-
-      $('#tooltipAfterVendorIn')
-        .attr(
-          'data-bs-original-title',
-          'In : ' +
-          totalIn.toLocaleString() +
-          ' Pairs'
-        )
-        .attr(
-          'data-value',
-          totalIn
-        );
-
-      $('#tooltipAfterVendorOut')
-        .attr(
-          'data-bs-original-title',
-          'Out : ' +
-          totalOut.toLocaleString() +
-          ' Pairs'
-        )
-        .attr(
-          'data-value',
-          totalOut
-        );
-
-      $('#tooltipAfterVendorInventory')
-        .attr(
-          'data-bs-original-title',
-          'Inventory : ' +
-          totalInventory.toLocaleString() +
-          ' Pairs'
-        )
-        .attr(
-          'data-value',
-          totalInventory
-        );
-
-    }
-
-
-    function renderAfterVendorChart(response) {
-
-      let categories =
-        response.after_vendor.chart.categories ?? [];
-      let seriesData =
-        response.after_vendor.chart.series ?? [];
-      let dynamicChartWidth =
-        categories.length * 70;
-
-      dynamicChartWidth = Math.max(
-        dynamicChartWidth,
-        350
-      );
-
-      if (dashboardCharts.chartAfterVendor) {
-
-        dashboardCharts.chartAfterVendor.destroy();
-
+      if (dashboardCharts[cfg.chartKey]) {
+        dashboardCharts[cfg.chartKey].destroy();
       }
 
-      var chartOptions = {
+      dashboardCharts[cfg.chartKey] = new ApexCharts(
 
-        chart: {
+        document.querySelector(cfg.chartId),
 
-          type: 'bar',
+        {
 
-          height: 280,
+          chart: {
 
-          width: dynamicChartWidth,
+            type: "bar",
 
-          toolbar: {
+            height: 280,
+
+            width: dynamicChartWidth,
+
+            toolbar: {
+              show: false
+            },
+
+            animations: {
+              enabled: true,
+              easing: "easeinout",
+              speed: 700
+            },
+
+            events: {
+
+              dataPointSelection: function(event, chartContext, config) {
+
+                let ncvs = categories[config.dataPointIndex];
+
+                let value = seriesData[config.dataPointIndex];
+
+                if (value <= 0) return;
+
+                openDashboardDetail({
+
+                  section: section,
+
+                  type: "inventory",
+
+                  ncvs: ncvs
+
+                });
+
+              }
+
+            }
+
+          },
+
+          legend: {
             show: false
           },
 
-          animations: {
-            enabled: true,
-            easing: 'easeinout',
-            speed: 700
+          series: [
+
+            {
+
+              name: "Inventory",
+
+              data: seriesData
+
+            }
+
+          ],
+
+          xaxis: {
+
+            categories: categories
+
           },
 
-          events: {
+          colors: [
 
-            dataPointSelection: function(
-              event,
-              chartContext,
-              config
-            ) {
+            cfg.color
 
-              let selectedNcvs =
-                categories[
-                  config.dataPointIndex
-                ];
+          ],
 
-              let selectedValue =
-                seriesData[
-                  config.dataPointIndex
-                ];
+          plotOptions: {
 
-              /* PREVENT 0 CLICK */
+            bar: {
 
-              if (selectedValue <= 0) {
-                return;
+              borderRadius: 6,
+
+              columnWidth: "35%"
+
+            }
+
+          },
+
+          tooltip: {
+
+            theme: "light",
+
+            y: {
+
+              formatter: function(val) {
+
+                return val.toLocaleString() + " " + cfg.unit;
+
               }
 
-              openDashboardDetail({
-
-                section: 'after_vendor',
-                type: 'inventory',
-                ncvs: selectedNcvs
-
-              });
-
             }
 
+          },
+
+          dataLabels: {
+
+            enabled: true
+
+          },
+
+          grid: {
+
+            borderColor: "#e2e8f0"
+
           }
 
-        },
-
-        legend: {
-          show: false
-        },
-
-        series: [{
-          name: 'Inventory',
-          data: seriesData
-        }],
-
-        xaxis: {
-          categories: categories
-        },
-
-        colors: [
-          chartColor.afterVendor
-        ],
-
-        plotOptions: {
-          bar: {
-            borderRadius: 6,
-            columnWidth: '35%'
-          }
-        },
-
-        tooltip: {
-
-          theme: 'light',
-
-          y: {
-            formatter: function(val) {
-              return val.toLocaleString() + ' Qty';
-
-            }
-          }
-        },
-
-        dataLabels: {
-          enabled: true
-        },
-
-        grid: {
-          borderColor: '#e2e8f0'
         }
 
-      };
+      );
 
-      dashboardCharts.chartAfterVendor =
-        new ApexCharts(
-          document.querySelector("#chartAfterVendor"),
-          chartOptions
-        );
-
-      dashboardCharts.chartAfterVendor.render();
+      dashboardCharts[cfg.chartKey].render();
 
     }
 
@@ -1698,36 +1531,41 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
 
       currentDetailParams = params;
 
+      let picker = $("#dateRange").data("daterangepicker");
+
       $.ajax({
 
-        url: './../config/get_production_dashboard_detail.php',
+        url: "./../config/get_production_dashboard_detail.php",
 
-        type: 'GET',
+        type: "GET",
 
-        dataType: 'json',
+        dataType: "json",
 
-        data: params,
+        data: {
+
+          section: params.section,
+
+          type: params.type,
+
+          ncvs: params.ncvs ?? "",
+
+          date_from: picker.startDate.format("YYYY-MM-DD"),
+
+          date_to: picker.endDate.format("YYYY-MM-DD")
+
+        },
 
         success: function(response) {
 
-          console.log(response);
+          renderDashboardDetailTable(response);
 
-          renderDashboardDetailTable(
-            response
-          );
+          $("#dashboardModalTitle")
+            .text("Detail Production Dashboard Monitoring");
 
-          $('#dashboardModalTitle')
-            .text('Detail Production Dashboard Monitoring');
+          $("#dashboardModalSubtitle")
+            .text(params.section.replaceAll("_", " ").toUpperCase());
 
-          $('#dashboardModalSubtitle')
-            .text(
-              params.section
-              .replaceAll('_', ' ')
-              .toUpperCase()
-            );
-
-          $('#dashboardDetailModal')
-            .modal('show');
+          $("#dashboardDetailModal").modal("show");
 
         }
 
@@ -1932,10 +1770,17 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
       '#btnExportDashboardDetail',
       function() {
 
-        let query =
-          $.param(
-            currentDetailParams
-          );
+        let picker = $("#dateRange").data("daterangepicker");
+
+        let query = $.param({
+
+          ...currentDetailParams,
+
+          date_from: picker.startDate.format("YYYY-MM-DD"),
+
+          date_to: picker.endDate.format("YYYY-MM-DD")
+
+        });
 
         window.open(
 

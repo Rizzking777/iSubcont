@@ -11,425 +11,187 @@ require_once "function.php";
 $section = $_GET['section'] ?? '';
 $type = $_GET['type'] ?? '';
 $ncvs = $_GET['ncvs'] ?? '';
+$dateFrom = $_GET['date_from'] ?? '';
+$dateTo   = $_GET['date_to'] ?? '';
+
+$gateMap = [
+
+    "pre_vendor" => [
+
+        "in"  => "SM_SUBCONT_FROM_CUT",
+
+        "out" => "SM_SUBCONT_TO_WH_SUBCONT"
+
+    ],
+
+    "after_vendor" => [
+
+        "in"  => "SM_SUBCONT_FROM_WH_SUBCONT",
+
+        "out" => "SM_SUBCONT_TO_PROD"
+
+    ]
+
+];
 
 /* DEFAULT */
-$where = "1=1";
-$qtyFormula = "0";
-$mainComponentWhere = "";
-$ncvsWhere = "";
-$componentField = "
-    COALESCE(
-        nm_komponen_in,
-        '-'
-    )
-";
 
-/* NCVS FILTER */
+$ncvsWhere = "";
 
 if (!empty($ncvs)) {
 
     $ncvsWhere = "
-        AND ncvs = '$ncvs'
-    ";
-}
 
-/* CUTTING */
-
-if ($section == 'cutting') {
-
-    /* ALL COMPONENT */
-    $mainComponentWhere = "";
-
-    /* IN */
-    if ($type == 'in') {
-
-        $where = "
-            qty_cut_to_smsubcont > 0
-        ";
-
-        $qtyFormula = "
-            IFNULL(
-                qty_cut_to_smsubcont,
-                0
-            )
-        ";
-    }
-
-    /* OUT */ else if ($type == 'out') {
-        $where = "
-            qty_smsubcont_fr_cut > 0
-        ";
-
-        $qtyFormula = "
-            IFNULL(
-                qty_smsubcont_fr_cut,
-                0
-            )
-        ";
-    }
-
-    /* INVENTORY */ else if ($type == 'inventory') {
-        $where = "
-            (
-                IFNULL(
-                    qty_cut_to_smsubcont,
-                    0
-                )
-                -
-                IFNULL(
-                    qty_smsubcont_fr_cut,
-                    0
-                )
-            ) > 0
-        ";
-
-        $qtyFormula = "
-            (
-                IFNULL(
-                    qty_cut_to_smsubcont,
-                    0
-                )
-                -
-                IFNULL(
-                    qty_smsubcont_fr_cut,
-                    0
-                )
-            )
-
-        ";
-    }
-}
-
-/* PRE VENDOR */
-
-if ($section == 'pre_vendor') {
-
-    /* ALL COMPONENT */
-    $mainComponentWhere = "";
-
-    /* IN */
-    if ($type == 'in') {
-        $where = "
-            qty_smsubcont_fr_cut > 0
-        ";
-        $qtyFormula = "
-            IFNULL(
-                qty_smsubcont_fr_cut,
-                0
-            )
-        ";
-    }
-
-    /* OUT */ else if ($type == 'out') {
-        $where = "
-            qty_smsubcont_to_whsubcont > 0
-        ";
-        $qtyFormula = "
-            IFNULL(
-                qty_smsubcont_to_whsubcont,
-                0
-            )
-        ";
-    }
-
-    /* INVENTORY */ else if ($type == 'inventory') {
-        $where = "
-            (
-                IFNULL(
-                    qty_smsubcont_fr_cut,
-                    0
-                )
-                -
-                IFNULL(
-                    qty_smsubcont_to_whsubcont,
-                    0
-                )
-
-            ) > 0
-        ";
-
-        $qtyFormula = "
-            (
-                IFNULL(
-                    qty_smsubcont_fr_cut,
-                    0
-                )
-                -
-                IFNULL(
-                    qty_smsubcont_to_whsubcont,
-                    0
-                )
-            )
-        ";
-    }
-}
-
-/* AFTER VENDOR */
-if ($section == 'after_vendor') {
-
-    $componentField = "
-
-        COALESCE(
-            nm_komponen_out,
-            nm_komponen_in,
-            '-'
-        )
+        AND t.ncvs='$ncvs'
 
     ";
 
-    /* MAIN COMPONENT ONLY */
-    $mainComponentWhere = "
-        AND is_main_komponen = 1
-    ";
-
-    /* IN */
-    if ($type == 'in') {
-        $where = "
-            qty_smsubcont_fr_whsubcont > 0
-        ";
-        $qtyFormula = "
-            IFNULL(
-                qty_smsubcont_fr_whsubcont,
-                0
-            )
-        ";
-    }
-
-    /* OUT */ else if ($type == 'out') {
-
-        $where = "
-            qty_smsubcont_to_prod > 0
-        ";
-        $qtyFormula = "
-            IFNULL(
-                qty_smsubcont_to_prod,
-                0
-            )
-        ";
-    }
-
-    /* INVENTORY */ else if ($type == 'inventory') {
-        $where = "
-            (
-                IFNULL(
-                    qty_smsubcont_fr_whsubcont,
-                    0
-                )
-                -
-                IFNULL(
-                    qty_smsubcont_to_prod,
-                    0
-                )
-
-            ) > 0
-        ";
-        $qtyFormula = "
-            (
-                IFNULL(
-                    qty_smsubcont_fr_whsubcont,
-                    0
-                )
-                -
-                IFNULL(
-                    qty_smsubcont_to_prod,
-                    0
-                )
-            )
-        ";
-    }
 }
 
-/* READY TRANSFER */
+$gate = "";
 
-if ($section == 'ready_transfer') {
+if ($type != "inventory") {
 
-    if ($type == 'receive') {
+    $gate = $gateMap[$section][$type] ?? "";
 
-        $where = "
-            qty_whsubcont_fr_smsubcont > 0
-        ";
-
-        $qtyFormula = "
-            IFNULL(
-                qty_whsubcont_fr_smsubcont,
-                0
-            )
-        ";
-    } else if ($type == 'transfer') {
-
-        $where = "
-            qty_whsubcont_to_vendor > 0
-        ";
-
-        $qtyFormula = "
-            IFNULL(
-                qty_whsubcont_to_vendor,
-                0
-            )
-        ";
-    } else if ($type == 'inventory') {
-
-        $where = "
-
-            (
-                IFNULL(
-                    qty_whsubcont_fr_smsubcont,
-                    0
-                )
-
-                -
-
-                IFNULL(
-                    qty_whsubcont_to_vendor,
-                    0
-                )
-
-            ) > 0
-
-        ";
-
-        $qtyFormula = "
-
-            (
-
-                IFNULL(
-                    qty_whsubcont_fr_smsubcont,
-                    0
-                )
-
-                -
-
-                IFNULL(
-                    qty_whsubcont_to_vendor,
-                    0
-                )
-
-            )
-
-        ";
-    }
-}
-
-/* RETURN VENDOR */
-
-if ($section == 'return_vendor') {
-
-    $componentField = "
-
-        COALESCE(
-            nm_komponen_out,
-            nm_komponen_in,
-            '-'
-        )
-
-    ";
-
-    /* MAIN COMPONENT ONLY */
-    $mainComponentWhere = "
-        AND is_main_komponen = 1
-    ";
-
-    if ($type == 'receive') {
-
-        $where = "
-            qty_whsubcont_fr_vendor > 0
-        ";
-
-        $qtyFormula = "
-            IFNULL(
-                qty_whsubcont_fr_vendor,
-                0
-            )
-        ";
-    } else if ($type == 'send_prod') {
-
-        $where = "
-            qty_whsubcont_to_smsubcont > 0
-        ";
-
-        $qtyFormula = "
-            IFNULL(
-                qty_whsubcont_to_smsubcont,
-                0
-            )
-        ";
-    } else if ($type == 'inventory') {
-
-        $where = "
-
-            (
-
-                IFNULL(
-                    qty_whsubcont_fr_vendor,
-                    0
-                )
-
-                -
-
-                IFNULL(
-                    qty_whsubcont_to_smsubcont,
-                    0
-                )
-
-            ) > 0
-
-        ";
-
-        $qtyFormula = "
-
-            (
-
-                IFNULL(
-                    qty_whsubcont_fr_vendor,
-                    0
-                )
-
-                -
-
-                IFNULL(
-                    qty_whsubcont_to_smsubcont,
-                    0
-                )
-
-            )
-
-        ";
-    }
 }
 
 /* QUERY */
 
-$sql = "
-    SELECT
-        ncvs,
-        bucket,
-        style,
-        model,
-        po_code,
-        po_item,
-        $componentField AS component,
-        size,
-        SUM(
-            $qtyFormula
-        ) AS qty_total
-    FROM tbl_transaksi
-    WHERE
-        $where
-        $mainComponentWhere
-        $ncvsWhere
-    GROUP BY
-        ncvs,
-        bucket,
-        style,
-        model,
-        po_code,
-        po_item,
-        component,
-        size
-    ORDER BY
-        ncvs ASC
+if ($type == "inventory") {
+
+    $gateIn = $gateMap[$section]["in"];
+    $gateOut = $gateMap[$section]["out"];
+
+    $sql = "
+
+SELECT
+
+    t.job_order,
+    t.ncvs,
+    t.bucket,
+    t.style,
+    t.model,
+    t.po_code,
+    t.po_item,
+    t.nm_komponen_in AS component,
+    t.size,
+    t.id_group,
+
+    SUM(
+        CASE
+            WHEN te.gate='$gateIn'
+            THEN te.qty
+            ELSE 0
+        END
+    )
+
+    -
+
+    SUM(
+        CASE
+            WHEN te.gate='$gateOut'
+            THEN te.qty
+            ELSE 0
+        END
+    )
+
+    AS qty_total
+
+FROM tbl_transaksi_event te
+
+INNER JOIN tbl_transaksi t
+ON t.id_trans = te.id_trans
+
+WHERE
+
+t.is_main_komponen = 1
+
+AND DATE(te.created_at)
+BETWEEN '$dateFrom'
+AND '$dateTo'
+
+$ncvsWhere
+
+GROUP BY
+
+    t.job_order,
+    t.ncvs,
+    t.bucket,
+    t.style,
+    t.model,
+    t.po_code,
+    t.po_item,
+    t.nm_komponen_in,
+    t.size,
+    t.id_group
+
+HAVING qty_total > 0
+
+ORDER BY
+
+    t.bucket,
+    t.job_order,
+    t.ncvs
 
 ";
+} else {
+
+    $sql = "
+
+SELECT
+
+    t.job_order,
+    t.ncvs,
+    t.bucket,
+    t.style,
+    t.model,
+    t.po_code,
+    t.po_item,
+    t.nm_komponen_in AS component,
+    t.size,
+    t.id_group,
+
+    SUM(te.qty) qty_total
+
+FROM tbl_transaksi_event te
+
+INNER JOIN tbl_transaksi t
+ON t.id_trans = te.id_trans
+
+WHERE
+
+    t.is_main_komponen = 1
+
+    AND te.gate='$gate'
+
+    AND DATE(te.created_at)
+        BETWEEN '$dateFrom'
+        AND '$dateTo'
+
+    $ncvsWhere
+
+GROUP BY
+
+    t.job_order,
+    t.ncvs,
+    t.bucket,
+    t.style,
+    t.model,
+    t.po_code,
+    t.po_item,
+    t.nm_komponen_in,
+    t.size,
+    t.id_group
+
+ORDER BY
+
+    t.bucket,
+    t.job_order,
+    t.ncvs
+
+";
+}
 
 $result = mysqli_query($conn, $sql);
 

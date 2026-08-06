@@ -8,236 +8,262 @@ header('Content-Type: application/json');
 
 require_once "function.php";
 
-/* CUTTING SUMMARY */
+/* ===========================================
+   FILTER DATE
+=========================================== */
 
-$sqlCutting = "
+$dateFrom = mysqli_real_escape_string(
+    $conn,
+    $_GET['date_from'] ?? date('Y-m-d')
+);
+
+$dateTo = mysqli_real_escape_string(
+    $conn,
+    $_GET['date_to'] ?? date('Y-m-d')
+);
+
+/* ===========================================
+   SUMMARY
+=========================================== */
+
+function getSummary($conn, $dateFrom, $dateTo, $gateIn, $gateOut)
+{
+
+    $sql = "
+
     SELECT
-    SUM(IFNULL(qty_cut_to_smsubcont, 0)) AS total_in,
-    SUM(IFNULL(qty_smsubcont_fr_cut, 0)) AS total_out,
-    SUM(
-        IFNULL(qty_cut_to_smsubcont, 0)
+
+        SUM(
+            CASE
+                WHEN te.gate='$gateIn'
+                THEN te.qty
+                ELSE 0
+            END
+        ) total_in,
+
+        SUM(
+            CASE
+                WHEN te.gate='$gateOut'
+                THEN te.qty
+                ELSE 0
+            END
+        ) total_out
+
+    FROM tbl_transaksi_event te
+
+    INNER JOIN tbl_transaksi t
+
+        ON t.id_trans=te.id_trans
+
+    WHERE
+
+t.is_main_komponen = 1
+
+    AND DATE(te.created_at)
+        BETWEEN '$dateFrom'
+        AND '$dateTo'
+
+    ";
+
+    $result = mysqli_query($conn, $sql);
+
+    $row = mysqli_fetch_assoc($result);
+
+    $in = (int)$row['total_in'];
+
+    $out = (int)$row['total_out'];
+
+    return [
+
+        "in" => $in,
+
+        "out" => $out,
+
+        "inventory" => $in - $out
+
+    ];
+}
+
+/* ===========================================
+   CHART
+=========================================== */
+
+function getChart($conn, $dateFrom, $dateTo, $gateIn, $gateOut)
+{
+
+    $sql = "
+
+    SELECT
+
+        t.ncvs,
+
+        SUM(
+            CASE
+                WHEN te.gate='$gateIn'
+                THEN te.qty
+                ELSE 0
+            END
+        )
+
         -
-        IFNULL(qty_smsubcont_fr_cut, 0)
-    ) AS total_inventory
-FROM tbl_transaksi
-WHERE is_main_komponen = 1
-";
 
-$resultCutting = mysqli_query($conn, $sqlCutting);
-$dataCutting = mysqli_fetch_assoc($resultCutting);
-
-/* CUTTING CHART */
-$sqlChart = "
-    SELECT
-        ncvs,
         SUM(
-            IFNULL(qty_cut_to_smsubcont, 0)
-        -
-        IFNULL(qty_smsubcont_fr_cut, 0)
-        ) AS total_inventory
-    FROM tbl_transaksi
-    WHERE is_main_komponen = 1
-    GROUP BY ncvs
-    ORDER BY ncvs ASC;
-";
+            CASE
+                WHEN te.gate='$gateOut'
+                THEN te.qty
+                ELSE 0
+            END
+        )
 
-$resultChart = mysqli_query($conn, $sqlChart);
-$categories = [];
-$seriesData = [];
+        total_inventory
 
-while ($row = mysqli_fetch_assoc($resultChart)) {
+    FROM tbl_transaksi_event te
 
-    $categories[] = $row['ncvs'];
-    $seriesData[] = (int)$row['total_inventory'];
+INNER JOIN tbl_transaksi t
+ON t.id_trans=te.id_trans
+
+WHERE
+
+t.is_main_komponen = 1
+
+    AND DATE(te.created_at)
+        BETWEEN '$dateFrom'
+        AND '$dateTo'
+
+    GROUP BY
+
+        t.ncvs
+
+    ORDER BY
+
+        t.ncvs
+
+    ";
+
+    $result = mysqli_query($conn, $sql);
+
+    $categories = [];
+
+    $series = [];
+
+    while ($row = mysqli_fetch_assoc($result)) {
+
+        $categories[] = $row['ncvs'];
+
+        $series[] = (int)$row['total_inventory'];
+    }
+
+    return [
+
+        "categories" => $categories,
+
+        "series" => $series
+
+    ];
 }
 
-/* PRE PROCESS VENDOR SUMMARY */
-$sqlPreVendor = "
-    SELECT
-        SUM(
-            IFNULL(qty_smsubcont_fr_cut, 0)
-        ) AS total_in,
-        SUM(
-            IFNULL(qty_smsubcont_to_whsubcont, 0)
-        ) AS total_out,
-        SUM(
-            IFNULL(qty_smsubcont_fr_cut, 0)
-            -
-            IFNULL(qty_smsubcont_to_whsubcont, 0)
-        ) AS total_inventory
-    FROM tbl_transaksi
-    WHERE is_main_komponen = 1;
-";
+/* ===========================================
+   RESPONSE
+=========================================== */
 
-$resultPreVendor = mysqli_query($conn, $sqlPreVendor);
-$dataPreVendor = mysqli_fetch_assoc($resultPreVendor);
-
-/* PRE VENDOR CHART */
-$sqlChartPreVendor = "
-    SELECT
-        ncvs,
-        SUM(
-            IFNULL(qty_smsubcont_fr_cut, 0)
-            -
-            IFNULL(qty_smsubcont_to_whsubcont, 0)
-        ) AS total_inventory
-
-    FROM tbl_transaksi
-    WHERE is_main_komponen = 1
-    GROUP BY ncvs
-    ORDER BY ncvs ASC;
-
-";
-
-$resultChartPreVendor = mysqli_query(
-    $conn,
-    $sqlChartPreVendor
-);
-
-$preVendorCategories = [];
-$preVendorSeries = [];
-
-while ($row = mysqli_fetch_assoc($resultChartPreVendor)) {
-
-    $preVendorCategories[] = $row['ncvs'];
-    $preVendorSeries[] = (int)$row['total_inventory'];
-}
-
-/* AFTER PROCESS VENDOR SUMMARY */
-$sqlAfterVendor = "
-    SELECT
-        SUM(
-            IFNULL(
-                qty_smsubcont_fr_whsubcont,
-                0
-            )
-        ) AS total_in,
-        SUM(
-
-            IFNULL(
-                qty_smsubcont_to_prod,
-                0
-            )
-        ) AS total_out,
-        SUM(
-
-            IFNULL(
-                qty_smsubcont_fr_whsubcont,
-                0
-            )
-            -
-            IFNULL(
-                qty_smsubcont_to_prod,
-                0
-            )
-
-        ) AS total_inventory
-
-    FROM tbl_transaksi
-    WHERE is_main_komponen = 1
-
-";
-
-$resultAfterVendor = mysqli_query(
-    $conn,
-    $sqlAfterVendor
-);
-
-$dataAfterVendor = mysqli_fetch_assoc(
-    $resultAfterVendor
-);
-
-/* AFTER VENDOR CHART */
-$sqlChartAfterVendor = "
-    SELECT
-        ncvs,
-        SUM(
-
-            IFNULL(
-                qty_smsubcont_fr_whsubcont,
-                0
-            )
-            -
-            IFNULL(
-                qty_smsubcont_to_prod,
-                0
-            )
-        ) AS total_inventory
-    FROM tbl_transaksi
-    WHERE is_main_komponen = 1
-    GROUP BY ncvs
-    ORDER BY ncvs ASC
-
-";
-
-$resultChartAfterVendor = mysqli_query(
-    $conn,
-    $sqlChartAfterVendor
-);
-
-$afterVendorCategories = [];
-$afterVendorSeries = [];
-
-while ($row = mysqli_fetch_assoc($resultChartAfterVendor)) {
-
-    $afterVendorCategories[] = $row['ncvs'];
-    $afterVendorSeries[] =
-        (int)$row['total_inventory'];
-}
-
-/* RESPONSE */
 $response = [
-    /* CUTTING */
-    'cutting' => [
-        'summary' => [
 
-            'in' => (int)$dataCutting['total_in'],
-            'out' => (int)$dataCutting['total_out'],
-            'inventory' => (int)$dataCutting['total_inventory']
+    "cutting" => [
 
-        ],
+        "summary" => getSummary(
 
-        'chart' => [
-            'categories' => $categories,
-            'series' => $seriesData
-        ]
+            $conn,
+
+            $dateFrom,
+
+            $dateTo,
+
+            "CUT_TO_SM_SUBCONT",
+
+            "SM_SUBCONT_FROM_CUT"
+
+        ),
+
+        "chart" => getChart(
+
+            $conn,
+
+            $dateFrom,
+
+            $dateTo,
+
+            "CUT_TO_SM_SUBCONT",
+
+            "SM_SUBCONT_FROM_CUT"
+
+        )
+
+    ],
+
+    "pre_vendor" => [
+
+        "summary" => getSummary(
+
+            $conn,
+
+            $dateFrom,
+
+            $dateTo,
+
+            "SM_SUBCONT_FROM_CUT",
+
+            "SM_SUBCONT_TO_WH_SUBCONT"
+
+        ),
+
+        "chart" => getChart(
+
+            $conn,
+
+            $dateFrom,
+
+            $dateTo,
+
+            "SM_SUBCONT_FROM_CUT",
+
+            "SM_SUBCONT_TO_WH_SUBCONT"
+
+        )
 
     ],
 
-    /* PRE VENDOR */
-    'pre_vendor' => [
-        'summary' => [
-            'in' => (int)$dataPreVendor['total_in'],
-            'out' => (int)$dataPreVendor['total_out'],
-            'inventory' => (int)$dataPreVendor['total_inventory']
-        ],
+    "after_vendor" => [
 
-        'chart' => [
-            'categories' => $preVendorCategories,
-            'series' => $preVendorSeries
-        ]
+        "summary" => getSummary(
 
-    ],
+            $conn,
 
-    /* AFTER VENDOR */
-    'after_vendor' => [
-        'summary' => [
-            'in' => (int)$dataAfterVendor['total_in'],
-            'out' => (int)$dataAfterVendor['total_out'],
-            'inventory' => (int)$dataAfterVendor['total_inventory']
-        ],
+            $dateFrom,
 
-        'chart' => [
+            $dateTo,
 
-            'categories' => $afterVendorCategories,
-            'series' => $afterVendorSeries
+            "SM_SUBCONT_FROM_WH_SUBCONT",
 
-        ]
+            "SM_SUBCONT_TO_PROD"
 
-    ],
+        ),
+
+        "chart" => getChart(
+
+            $conn,
+
+            $dateFrom,
+
+            $dateTo,
+
+            "SM_SUBCONT_FROM_WH_SUBCONT",
+
+            "SM_SUBCONT_TO_PROD"
+
+        )
+
+    ]
 
 ];
-
-header('Content-Type: application/json');
 
 echo json_encode($response);
