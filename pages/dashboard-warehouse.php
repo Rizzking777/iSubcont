@@ -10,1992 +10,1593 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
 ?>
 
 <style>
-    .toast-progress {
-        height: 4px;
-        width: 100%;
-        overflow: hidden;
-        border-radius: 0 0 0.375rem 0.375rem;
+  .toast-progress {
+    height: 4px;
+    width: 100%;
+    overflow: hidden;
+    border-radius: 0 0 0.375rem 0.375rem;
+  }
+
+  .toast-progress-bar {
+    height: 100%;
+    animation: progressBar 3s linear forwards;
+  }
+
+  @keyframes progressBar {
+    0% {
+      width: 100%;
     }
 
-    .toast-progress-bar {
-        height: 100%;
-        animation: progressBar 3s linear forwards;
+    100% {
+      width: 0%;
     }
+  }
 
-    @keyframes progressBar {
-        0% {
-            width: 100%;
-        }
+  body {
+    background: #f8fafc;
+  }
 
-        100% {
-            width: 0%;
-        }
-    }
+  .dashboard-title {
+    background: #f0e6d2;
+    padding: 12px 20px;
+    border-radius: 14px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, .05);
+  }
 
-    body {
-        background: #f8fafc;
-    }
+  .dashboard-title h1 {
+    margin: 0;
+    font-size: 28px;
+    font-weight: 700;
+    color: #0f172a;
+  }
 
-    .dashboard-title {
-        background: #f0e6d2;
-        padding: 12px 20px;
-        border-radius: 14px;
-        margin-bottom: 20px;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, .05);
-    }
+  .dashboard-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 18px;
+    padding: 18px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, .04);
+    transition: all .2s ease;
+  }
 
-    .dashboard-title h1 {
-        margin: 0;
-        font-size: 28px;
-        font-weight: 700;
-        color: #0f172a;
-    }
+  .dashboard-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, .06);
+  }
 
-    .dashboard-card {
-        background: #ffffff;
-        border: 1px solid #e2e8f0;
-        border-radius: 18px;
-        padding: 18px;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, .04);
-        transition: all .2s ease;
-    }
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 20px;
+    font-size: 16px;
+    font-weight: 600;
+    color: #0f172a;
+  }
 
-    .dashboard-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 8px 20px rgba(0, 0, 0, .06);
-    }
+  .section-header i {
+    color: #334155;
+  }
 
-    .section-header {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        margin-bottom: 20px;
-        font-size: 16px;
-        font-weight: 600;
-        color: #0f172a;
-    }
+  .sub-card {
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 20px;
+    background: #fcfcfd;
+    min-height: 320px;
+    display: flex;
+    align-items: center;
+  }
 
-    .section-header i {
-        color: #334155;
-    }
+  .sub-title {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 24px;
+    color: #0f172a;
+  }
 
-    .sub-card {
-        border: 1px solid #e2e8f0;
-        border-radius: 16px;
-        padding: 20px;
-        background: #fcfcfd;
-        min-height: 320px;
-        display: flex;
-        align-items: center;
-    }
+  .chart-title {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 10px;
+    color: #0f172a;
+  }
 
-    .sub-title {
-        font-size: 15px;
-        font-weight: 600;
-        margin-bottom: 24px;
-        color: #0f172a;
-    }
+  .metric-group {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    width: 100%;
+  }
 
-    .chart-title {
-        font-size: 15px;
-        font-weight: 600;
-        margin-bottom: 10px;
-        color: #0f172a;
-    }
+  .metric-group-full {
+    height: 280px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
 
-    .metric-group {
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        width: 100%;
-    }
+  .metric-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 24px;
+  }
 
-    .metric-group-full {
-        height: 280px;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-    }
+  .metric-label {
+    width: 80px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #334155;
+  }
 
-    .metric-row {
-        display: flex;
-        align-items: center;
-        gap: 14px;
-        margin-bottom: 24px;
-    }
+  .metric-value {
+    min-width: 75px;
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -.5px;
+    color: #0f172a;
+  }
 
-    .metric-label {
-        width: 80px;
-        font-size: 14px;
-        font-weight: 600;
-        color: #334155;
-    }
+  .progress-custom {
+    flex: 1;
+    height: 38px;
+    background: #e2e8f0;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, .05);
+  }
 
-    .metric-value {
-        min-width: 75px;
-        font-size: 22px;
-        font-weight: 700;
-        letter-spacing: -.5px;
-        color: #0f172a;
-    }
+  .progress-custom .progress-bar {
+    border-radius: 10px;
+    box-shadow: inset 0 -1px 0 rgba(0, 0, 0, .08);
+    transition: all .25s ease;
+  }
 
-    .progress-custom {
-        flex: 1;
-        height: 38px;
-        background: #e2e8f0;
-        border-radius: 10px;
-        overflow: hidden;
-        box-shadow: inset 0 1px 2px rgba(0, 0, 0, .05);
-    }
+  .progress-custom:hover .progress-bar {
+    filter: brightness(1.08);
+    transform: scaleY(1.08);
+  }
 
-    .progress-custom .progress-bar {
-        border-radius: 10px;
-        box-shadow: inset 0 -1px 0 rgba(0, 0, 0, .08);
-        transition: all .25s ease;
-    }
+  .bg-in {
+    background: #9bc47c !important;
+  }
 
-    .progress-custom:hover .progress-bar {
-        filter: brightness(1.08);
-        transform: scaleY(1.08);
-    }
+  .bg-out {
+    background: #e6a775 !important;
+  }
 
-    .bg-in {
-        background: #9bc47c !important;
-    }
+  .bg-inventory {
+    background: #357ABD !important;
+  }
 
-    .bg-out {
-        background: #e6a775 !important;
-    }
+  .chart-container {
+    height: 280px;
+  }
 
-    .bg-inventory {
-        background: #357ABD !important;
-    }
+  .tooltip-inner {
+    background: #0f172a;
+    color: #ffffff;
+    font-size: 12px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-weight: 500;
+  }
 
-    .chart-container {
-        height: 280px;
-    }
+  .tooltip.bs-tooltip-top .tooltip-arrow::before {
+    border-top-color: #0f172a;
+  }
 
-    .tooltip-inner {
-        background: #0f172a;
-        color: #ffffff;
-        font-size: 12px;
-        padding: 8px 12px;
-        border-radius: 8px;
-        font-weight: 500;
-    }
+  .chart-scroll {
+    overflow-x: auto;
+    overflow-y: hidden;
+    width: 100%;
+  }
 
-    .tooltip.bs-tooltip-top .tooltip-arrow::before {
-        border-top-color: #0f172a;
-    }
+  .dashboard-card {
+    position: relative;
+    overflow: hidden;
+  }
 
-    .chart-scroll {
-        overflow-x: auto;
-        overflow-y: hidden;
-        width: 100%;
-    }
+  .dashboard-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 4px;
+    background: linear-gradient(to right,
+        #5f84ad,
+        #7aa37a);
+  }
 
-    .dashboard-card {
-        position: relative;
-        overflow: hidden;
-    }
+  .progress-bar {
+    position: relative;
+    overflow: hidden;
+  }
 
-    .dashboard-card::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 4px;
-        background: linear-gradient(to right,
-                #5f84ad,
-                #7aa37a);
-    }
+  .progress-bar::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -40%;
+    width: 40%;
+    height: 100%;
+    background: rgba(255, 255, 255, .18);
+    transform: skewX(-20deg);
+  }
 
-    .progress-bar {
-        position: relative;
-        overflow: hidden;
-    }
+  /* MODAL  */
+  .dashboard-detail-modal {
+    border: 0;
+    border-radius: 20px;
+  }
 
-    .progress-bar::after {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: -40%;
-        width: 40%;
-        height: 100%;
-        background: rgba(255, 255, 255, .18);
-        transform: skewX(-20deg);
-    }
+  .dashboard-modal-header {
+    border-bottom: 1px solid #e2e8f0;
+    padding: 20px 24px;
+  }
 
-    /* MODAL  */
-    .dashboard-detail-modal {
-        border: 0;
-        border-radius: 20px;
-    }
+  .dashboard-modal-footer {
+    border-top: 1px solid #e2e8f0;
+    padding: 16px 24px;
+  }
 
-    .dashboard-modal-header {
-        border-bottom: 1px solid #e2e8f0;
-        padding: 20px 24px;
-    }
+  .dashboard-modal-subtitle {
+    font-size: 13px;
+    color: #64748b;
+    margin-top: 2px;
+  }
 
-    .dashboard-modal-footer {
-        border-top: 1px solid #e2e8f0;
-        padding: 16px 24px;
-    }
+  .dashboard-detail-table thead th {
+    background: #f8fafc;
+    border-bottom: 1px solid #e2e8f0;
+    color: #334155;
+    font-size: 13px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
 
-    .dashboard-modal-subtitle {
-        font-size: 13px;
-        color: #64748b;
-        margin-top: 2px;
-    }
+  .dashboard-detail-table tbody td {
+    font-size: 13px;
+    color: #475569;
+    vertical-align: middle;
+    white-space: nowrap;
+  }
 
-    .dashboard-detail-table thead th {
-        background: #f8fafc;
-        border-bottom: 1px solid #e2e8f0;
-        color: #334155;
-        font-size: 13px;
-        font-weight: 700;
-        white-space: nowrap;
-    }
+  .dashboard-detail-table tbody tr:hover {
+    background: #f8fafc;
+  }
 
-    .dashboard-detail-table tbody td {
-        font-size: 13px;
-        color: #475569;
-        vertical-align: middle;
-        white-space: nowrap;
-    }
+  .btn-export {
+    background: #2f8a9e;
+    color: #ffffff;
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-weight: 600;
+  }
 
-    .dashboard-detail-table tbody tr:hover {
-        background: #f8fafc;
-    }
+  .btn-export:hover {
+    background: #256d7d;
+    color: #ffffff;
+  }
 
-    .btn-export {
-        background: #2f8a9e;
-        color: #ffffff;
-        border-radius: 10px;
-        padding: 8px 14px;
-        font-weight: 600;
-    }
+  /* DATATABLE */
 
-    .btn-export:hover {
-        background: #256d7d;
-        color: #ffffff;
-    }
+  .dashboard-detail-table {
+    width: 100% !important;
+  }
 
-    /* DATATABLE */
+  .dashboard-detail-table th,
+  .dashboard-detail-table td {
+    white-space: nowrap;
+    vertical-align: middle;
+  }
 
-    .dashboard-detail-table {
-        width: 100% !important;
-    }
+  .dataTables_scrollHeadInner,
+  .dataTables_scrollHeadInner table {
+    width: 100% !important;
+  }
 
-    .dashboard-detail-table th,
-    .dashboard-detail-table td {
-        white-space: nowrap;
-        vertical-align: middle;
-    }
+  table.dataTable {
+    width: 100% !important;
+  }
 
-    .dataTables_scrollHeadInner,
-    .dataTables_scrollHeadInner table {
-        width: 100% !important;
-    }
+  #componentList .list-group-item {
 
-    table.dataTable {
-        width: 100% !important;
-    }
+    border-left: 0;
+    border-right: 0;
 
-    .vendor-kpi-card {
-        cursor: pointer;
-        transition: all .2s ease;
-    }
+    font-size: 14px;
 
-    .vendor-kpi-card:hover {
-        transform: translateY(-2px);
-        border-color: #006aff !important;
-        box-shadow: 0 6px 14px rgba(15, 23, 42, .08);
-    }
+  }
 
-    .vendor-kpi-table-scroll {
-        width: 100%;
-        overflow-x: auto;
-        overflow-y: hidden;
-    }
+  #componentList .main-component {
 
-    #vendorKpiDetailTable {
-        width: max-content;
-        min-width: 100%;
-    }
+    font-weight: 700;
 
-    #vendorKpiDetailTable th,
-    #vendorKpiDetailTable td {
-        white-space: nowrap;
-        vertical-align: middle;
-    }
+    color: #198754;
 
-    #vendorKpiDetailTable th {
-        font-weight: 700;
-    }
-
-    #vendorKpiDetailModal .dataTables_length,
-    #vendorKpiDetailModal .dataTables_filter {
-        margin-bottom: 12px;
-    }
-
-    #vendorKpiDetailModal .dataTables_info,
-    #vendorKpiDetailModal .dataTables_paginate {
-        margin-top: 12px;
-    }
+  }
 </style>
 
 <!DOCTYPE html>
 <html lang="en">
 
 <head>
-    <meta charset="utf-8">
-    <meta content="width=device-width, initial-scale=1.0" name="viewport">
+  <meta charset="utf-8">
+  <meta content="width=device-width, initial-scale=1.0" name="viewport">
 
-    <title>iSubcont - Dashboards</title>
-    <meta content="" name="description">
-    <meta content="" name="keywords">
+  <title>iSubcont - Dashboards</title>
+  <meta content="" name="description">
+  <meta content="" name="keywords">
 
-    <!-- Favicons -->
-    <link href="../assets/img/Logo-Stg.png" rel="icon">
-    <link href="../assets/img/Logo-Stg.png" rel="apple-touch-icon">
+  <!-- Favicons -->
+  <link href="../assets/img/Logo-Stg.png" rel="icon">
+  <link href="../assets/img/Logo-Stg.png" rel="apple-touch-icon">
 
-    <!-- Google Fonts -->
-    <link href="https://fonts.gstatic.com" rel="preconnect">
-    <link href="https://fonts.googleapis.com/css?family=Open+Sans:300,300i,400,400i,600,600i,700,700i|Nunito:300,300i,400,400i,600,600i,700,700i|Poppins:300,300i,400,400i,500,500i,600,600i,700,700i" rel="stylesheet">
+  <!-- Google Fonts -->
+  <link href="https://fonts.gstatic.com" rel="preconnect">
+  <link href="https://fonts.googleapis.com/css?family=Open+Sans:300,300i,400,400i,600,600i,700,700i|Nunito:300,300i,400,400i,600,600i,700,700i|Poppins:300,300i,400,400i,500,500i,600,600i,700,700i" rel="stylesheet">
 
-    <!-- Vendor CSS Files -->
-    <link href="../assets/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
-    <link href="../assets/vendor/bootstrap-icons/bootstrap-icons.css" rel="stylesheet">
-    <link href="../assets/vendor/boxicons/css/boxicons.min.css" rel="stylesheet">
-    <link href="../assets/vendor/quill/quill.snow.css" rel="stylesheet">
-    <link href="../assets/vendor/quill/quill.bubble.css" rel="stylesheet">
-    <link href="../assets/vendor/remixicon/remixicon.css" rel="stylesheet">
-    <link href="../assets/vendor/simple-datatables/style.css" rel="stylesheet">
+  <!-- Vendor CSS Files -->
+  <link href="../assets/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+  <link href="../assets/vendor/bootstrap-icons/bootstrap-icons.css" rel="stylesheet">
+  <link href="../assets/vendor/boxicons/css/boxicons.min.css" rel="stylesheet">
+  <link href="../assets/vendor/quill/quill.snow.css" rel="stylesheet">
+  <link href="../assets/vendor/quill/quill.bubble.css" rel="stylesheet">
+  <link href="../assets/vendor/remixicon/remixicon.css" rel="stylesheet">
+  <link href="../assets/vendor/simple-datatables/style.css" rel="stylesheet">
 
-    <!-- Template Main CSS File -->
-    <link href="../assets/css/style.css" rel="stylesheet">
+  <!-- Template Main CSS File -->
+  <link href="../assets/css/style.css" rel="stylesheet">
 
-    <!-- Tambahkan pustaka Select2 di bagian <head> -->
-    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script> <!-- Pastikan jQuery ada -->
+  <!-- Tambahkan pustaka Select2 di bagian <head> -->
+  <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script> <!-- Pastikan jQuery ada -->
 
-    <!-- Select2 CSS & JS (CDN) -->
-    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+  <!-- Select2 CSS & JS (CDN) -->
+  <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
-    <!-- Datatables -->
-    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
-    <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.1/css/buttons.bootstrap5.min.css">
-    <link rel="stylesheet" href="https://cdn.datatables.net/responsive/2.5.0/css/responsive.bootstrap5.min.css">
+  <!-- Datatables -->
+  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+  <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.1/css/buttons.bootstrap5.min.css">
+  <link rel="stylesheet" href="https://cdn.datatables.net/responsive/2.5.0/css/responsive.bootstrap5.min.css">
 
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
-    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+  <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
 
 </head>
 
 <body>
 
-    <!-- Header -->
-    <?php
-    $page = 'wh_dashboard';
-    include_once __DIR__ . '/../includes/header.php';
-    ?>
-    <!-- End Header -->
+  <!-- Header -->
+  <?php
+  $page = 'wh_dashboard';
+  include_once __DIR__ . '/../includes/header.php';
+  ?>
+  <!-- End Header -->
 
-    <main id="main" class="main">
+  <main id="main" class="main">
 
-        <div class="pagetitle text-black" style="background-color: #f0e6d2; padding: 10px 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-            <h1 style="font-size: 1.8rem; font-weight: 700; font-family: 'Roboto', sans-serif;">
-                Warehouse Dashboard Monitoring
-            </h1>
+    <div class="pagetitle text-black" style="background-color: #f0e6d2; padding: 10px 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+      <h1 style="font-size: 1.8rem; font-weight: 700; font-family: 'Roboto', sans-serif;">
+        Warehouse Dashboard Monitoring
+      </h1>
+    </div>
+
+    <section class="section">
+
+      <div class="card shadow-sm mb-3">
+
+        <div class="card-body">
+
+          <div class="row align-items-end">
+
+            <div class="col-md-4">
+
+              <label class="form-label">
+
+                Date Range
+
+              </label>
+
+              <input
+                id="dateRange"
+                class="form-control"
+                type="text">
+
+            </div>
+
+            <div class="col-md-3 d-flex gap-2">
+
+              <button
+                id="btnResetDashboard"
+                class="btn btn-secondary">
+
+                <i class="bi bi-arrow-counterclockwise"></i>
+
+                Reset
+
+              </button>
+
+              <button
+                id="btnSearchDashboard"
+                class="btn btn-success">
+
+                <i class="bi bi-search"></i>
+
+                Search
+
+              </button>
+
+            </div>
+
+            <div class="col-md-5 text-end">
+
+              <span class="text-muted">
+
+                Period :
+
+              </span>
+
+              <strong id="currentPeriod">
+
+                Today
+
+              </strong>
+
+            </div>
+
+          </div>
+
         </div>
 
+      </div>
 
-        <section class="section">
+      <div class="row g-3">
 
+        <!-- RIGHT SIDE -->
 
+        <div class="col-lg-12">
 
-            <div class="row g-3">
+          <!-- PRE PROCESS -->
+          <div class="dashboard-card mb-3">
 
-                <!-- ====================================================== -->
-                <!-- WAREHOUSE OVERVIEW -->
-                <!-- ====================================================== -->
+            <div class="section-header">
+              <i class="bi bi-grid"></i>
+              <span>Warehouse Subcont Overview</span>
+            </div>
 
-                <div class="col-lg-8">
+            <div class="row align-items-center">
 
-                    <div class="dashboard-card h-100">
+              <!-- LEFT -->
+              <div class="col-lg-5">
 
-                        <div class="section-header">
-                            <i class="bi bi-box-seam"></i>
-                            <span>Warehouse Overview</span>
-                        </div>
+                <div class="sub-card mb-3">
 
-                        <div class="row g-3">
+                  <div class="metric-group metric-group-full">
 
-                            <!-- ===================================== -->
-                            <!-- READY TRANSFER TO VENDOR -->
-                            <!-- ===================================== -->
+                    <div class="sub-title">
+                      Ready to Vendor
+                    </div>
 
-                            <div class="col-lg-6">
+                    <!-- IN -->
+                    <div class="metric-row">
 
-                                <div class="sub-card h-100">
+                      <div class="metric-label">
+                        In
+                      </div>
 
-                                    <div class="metric-group">
+                      <div
+                        id="tooltipIncomingWHIn"
+                        class="progress progress-custom clickable-card"
+                        data-bs-toggle="tooltip"
+                        data-bs-placement="top"
+                        data-section="incoming_wh"
+                        data-type="in"
+                        title="">
 
-                                        <div class="sub-title">
-                                            Ready Transfer to Vendor
-                                        </div>
+                        <div
+                          id="barIncomingWHIn"
+                          class="progress-bar bg-in"
+                          style="width: 0%"></div>
 
-                                        <!-- RECEIVE -->
-                                        <div class="metric-row">
+                      </div>
 
-                                            <div class="metric-label">
-                                                Receive
-                                            </div>
-
-                                            <div
-                                                class="progress progress-custom clickable-card"
-                                                data-bs-toggle="tooltip"
-                                                data-bs-placement="top"
-                                                id="rtTooltipReceive"
-                                                data-section="ready_transfer"
-                                                data-type="receive"
-                                                title="">
-
-                                                <div
-                                                    id="rtBarReceive"
-                                                    class="progress-bar bg-in"
-                                                    style="width:0%">
-                                                </div>
-
-                                            </div>
-
-                                            <div
-                                                id="rtReceive"
-                                                class="metric-value">
-                                                0
-                                            </div>
-
-                                        </div>
-
-                                        <!-- TRANSFER -->
-                                        <div class="metric-row">
-
-                                            <div class="metric-label">
-                                                Transfer
-                                            </div>
-
-                                            <div
-                                                class="progress progress-custom clickable-card"
-                                                data-bs-toggle="tooltip"
-                                                data-bs-placement="top"
-                                                id="rtTooltipTransfer"
-                                                data-section="ready_transfer"
-                                                data-type="transfer"
-                                                title="">
-
-                                                <div
-                                                    id="rtBarTransfer"
-                                                    class="progress-bar bg-out"
-                                                    style="width:0%">
-                                                </div>
-
-                                            </div>
-
-                                            <div
-                                                id="rtTransfer"
-                                                class="metric-value">
-                                                0
-                                            </div>
-
-                                        </div>
-
-                                        <!-- INVENTORY -->
-                                        <div class="metric-row">
-
-                                            <div class="metric-label">
-                                                Inventory
-                                            </div>
-
-                                            <div
-                                                class="progress progress-custom clickable-card"
-                                                data-bs-toggle="tooltip"
-                                                data-bs-placement="top"
-                                                id="rtTooltipInventory"
-                                                data-section="ready_transfer"
-                                                data-type="inventory"
-                                                title="">
-
-                                                <div
-                                                    id="rtBarInventory"
-                                                    class="progress-bar bg-inventory"
-                                                    style="width:0%">
-                                                </div>
-
-                                            </div>
-
-                                            <div
-                                                id="rtInventory"
-                                                class="metric-value">
-                                                0
-                                            </div>
-
-                                        </div>
-
-                                        <hr>
-
-                                        <div>
-
-                                            <div class="chart-title">
-                                                Detail Inventory Per-Line
-                                            </div>
-
-                                            <div class="chart-scroll">
-
-                                                <div id="chartReadyTransferVendor" class="chart-container"></div>
-
-                                            </div>
-
-                                        </div>
-
-                                    </div>
-
-                                </div>
-
-
-                            </div>
-
-                            <!-- ===================================== -->
-                            <!-- RETURN FROM VENDOR -->
-                            <!-- ===================================== -->
-
-                            <div class="col-lg-6">
-
-                                <div class="sub-card h-100">
-
-                                    <div class="metric-group">
-
-                                        <div class="sub-title">
-                                            Return from Vendor
-                                        </div>
-
-                                        <!-- RECEIVE -->
-                                        <div class="metric-row">
-
-                                            <div class="metric-label">
-                                                Receive
-                                            </div>
-
-                                            <div
-                                                class="progress progress-custom clickable-card"
-                                                data-bs-toggle="tooltip"
-                                                data-bs-placement="top"
-                                                id="rvTooltipReceive"
-                                                data-section="return_vendor"
-                                                data-type="receive"
-                                                title="">
-
-                                                <div
-                                                    id="rvBarReceive"
-                                                    class="progress-bar bg-in"
-                                                    style="width:0%">
-                                                </div>
-
-                                            </div>
-
-                                            <div
-                                                id="rvReceive"
-                                                class="metric-value">
-                                                0
-                                            </div>
-
-                                        </div>
-
-                                        <!-- SEND PRODUCTION -->
-                                        <div class="metric-row">
-
-                                            <div class="metric-label">
-                                                Send Production
-                                            </div>
-
-                                            <div
-                                                class="progress progress-custom clickable-card"
-                                                data-bs-toggle="tooltip"
-                                                data-bs-placement="top"
-                                                id="rvTooltipSendProd"
-                                                data-section="return_vendor"
-                                                data-type="send_prod"
-                                                title="">
-
-                                                <div
-                                                    id="rvBarSendProd"
-                                                    class="progress-bar bg-out"
-                                                    style="width:0%">
-                                                </div>
-
-                                            </div>
-
-                                            <div
-                                                id="rvSendProd"
-                                                class="metric-value">
-                                                0
-                                            </div>
-
-                                        </div>
-
-                                        <!-- INVENTORY -->
-                                        <div class="metric-row">
-
-                                            <div class="metric-label">
-                                                Inventory
-                                            </div>
-
-                                            <div
-                                                class="progress progress-custom clickable-card"
-                                                data-bs-toggle="tooltip"
-                                                data-bs-placement="top"
-                                                id="rvTooltipInventory"
-                                                data-section="return_vendor"
-                                                data-type="inventory"
-                                                title="">
-
-                                                <div
-                                                    id="rvBarInventory"
-                                                    class="progress-bar bg-inventory"
-                                                    style="width:0%">
-                                                </div>
-
-                                            </div>
-
-                                            <div
-                                                id="rvInventory"
-                                                class="metric-value">
-                                                0
-                                            </div>
-
-                                        </div>
-
-                                        <hr>
-
-                                        <div>
-
-                                            <div class="chart-title">
-                                                Detail Inventory Per-Line
-                                            </div>
-
-                                            <div class="chart-scroll">
-
-                                                <div id="chartReturnVendor" class="chart-container"></div>
-
-                                            </div>
-
-                                        </div>
-
-                                    </div>
-
-                                </div>
-
-                            </div>
-
-                        </div>
+                      <div
+                        id="totalIncomingWHIn"
+                        class="metric-value">
+                        0
+                      </div>
 
                     </div>
+
+                    <!-- OUT -->
+                    <div class="metric-row">
+
+                      <div class="metric-label">
+                        Out
+                      </div>
+
+                      <div
+                        id="tooltipIncomingWHOut"
+                        class="progress progress-custom clickable-card"
+                        data-bs-toggle="tooltip"
+                        data-bs-placement="top"
+                        data-section="incoming_wh"
+                        data-type="out"
+                        title="">
+
+                        <div
+                          id="barIncomingWHOut"
+                          class="progress-bar bg-out"
+                          style="width: 0%"></div>
+
+                      </div>
+
+                      <div
+                        id="totalIncomingWHOut"
+                        class="metric-value">
+                        0
+                      </div>
+
+                    </div>
+
+                    <!-- INVENTORY -->
+                    <div class="metric-row mb-0">
+
+                      <div class="metric-label">
+                        Inventory
+                      </div>
+
+                      <div
+                        id="tooltipIncomingWHInventory"
+                        class="progress progress-custom clickable-card"
+                        data-bs-toggle="tooltip"
+                        data-bs-placement="top"
+                        data-section="incoming_wh"
+                        data-type="inventory"
+                        title="">
+
+                        <div
+                          id="barIncomingWHInventory"
+                          class="progress-bar bg-inventory"
+                          style="width: 0%"></div>
+
+                      </div>
+
+                      <div
+                        id="totalIncomingWHInventory"
+                        class="metric-value">
+                        0
+                      </div>
+
+                    </div>
+
+                  </div>
 
                 </div>
 
-                <!-- ====================================================== -->
-                <!-- VENDOR OVERVIEW -->
-                <!-- ====================================================== -->
+              </div>
 
-                <div class="col-lg-4">
+              <!-- RIGHT -->
+              <div class="col-lg-7">
 
-                    <div class="dashboard-card h-100">
+                <div class="chart-title">
+                  Detail Inventory Per-Line
+                </div>
 
-                        <div class="section-header">
-                            <i class="bi bi-people"></i>
-                            <span>Vendor Overview</span>
-                        </div>
+                <div class="chart-scroll">
 
-                        <div class="sub-card">
-
-                            <div class="w-100">
-
-                                <div class="sub-title">
-                                    Vendor Monitoring
-                                </div>
-
-                                <!-- ===================================== -->
-                                <!-- ACTIVE VENDOR -->
-                                <!-- ===================================== -->
-
-                                <div class="border rounded-3 p-3 mb-3 vendor-kpi-card"
-                                    data-kpi="active_vendor">
-
-                                    <div class="small text-muted">
-                                        Active Vendor
-                                    </div>
-
-                                    <div class="d-flex justify-content-between align-items-center">
-
-                                        <div
-                                            id="vendorActiveCount"
-                                            class="metric-value">
-                                            0
-                                        </div>
-
-                                        <span
-                                            id="vendorActiveBadge"
-                                            class="badge bg-secondary">
-                                            Idle
-                                        </span>
-
-                                    </div>
-
-                                </div>
-
-                                <!-- ===================================== -->
-                                <!-- INVENTORY AT VENDOR -->
-                                <!-- ===================================== -->
-
-                                <div class="border rounded-3 p-3 mb-3 vendor-kpi-card"
-                                    data-kpi="inventory_at_vendor">
-
-                                    <div class="small text-muted">
-                                        Outstanding at Vendor
-                                    </div>
-
-                                    <div class="d-flex justify-content-between align-items-center">
-
-                                        <div
-                                            id="vendorInventory"
-                                            class="metric-value">
-                                            0
-                                        </div>
-
-                                        <span
-                                            id="vendorInventoryBadge"
-                                            class="badge bg-secondary">
-                                            Clear
-                                        </span>
-
-                                    </div>
-
-                                </div>
-
-                                <!-- ===================================== -->
-                                <!-- RETURN ACHIEVEMENT -->
-                                <!-- ===================================== -->
-
-                                <div class="border rounded-3 p-3 mb-3 vendor-kpi-card"
-                                    data-kpi="return_achievement">
-
-                                    <div class="small text-muted">
-                                        Return Achievement
-                                    </div>
-
-                                    <div class="d-flex justify-content-between align-items-center">
-
-                                        <div
-                                            id="vendorAchievement"
-                                            class="metric-value">
-                                            0%
-                                        </div>
-
-                                        <span
-                                            id="vendorAchievementBadge"
-                                            class="badge bg-secondary">
-                                            No Data
-                                        </span>
-
-                                    </div>
-
-                                </div>
-
-                                <!-- ===================================== -->
-                                <!-- AVERAGE LEAD TIME -->
-                                <!-- ===================================== -->
-
-                                <div class="border rounded-3 p-3 mb-3 vendor-kpi-card"
-                                    data-kpi="average_lead_time">
-
-                                    <div class="small text-muted">
-                                        Average Lead Time
-                                    </div>
-
-                                    <div class="d-flex justify-content-between align-items-center">
-
-                                        <div
-                                            id="vendorLeadTime"
-                                            class="metric-value">
-                                            0 Days
-                                        </div>
-
-                                        <span
-                                            id="vendorLeadTimeBadge"
-                                            class="badge bg-secondary">
-                                            No Data
-                                        </span>
-
-                                    </div>
-
-                                </div>
-
-                                <!-- ===================================== -->
-                                <!-- OVERDUE VENDOR -->
-                                <!-- ===================================== -->
-
-                                <div class="border rounded-3 p-3 vendor-kpi-card"
-                                    data-kpi="overdue_vendor">
-
-                                    <div class="small text-muted">
-                                        Overdue Vendor
-                                    </div>
-
-                                    <div class="d-flex justify-content-between align-items-center">
-
-                                        <div
-                                            id="vendorOverdueCount"
-                                            class="metric-value">
-                                            0
-                                        </div>
-
-                                        <span
-                                            id="vendorOverdueBadge"
-                                            class="badge bg-success">
-                                            Clear
-                                        </span>
-
-                                    </div>
-
-                                </div>
-
-                            </div>
-
-                        </div>
-
-                    </div>
+                  <div
+                    id="chartIncomingWH"
+                    class="chart-container"></div>
 
                 </div>
 
-        </section>
+              </div>
 
-        <!-- DETAIL MODAL DASHBOARD WAREHOUSE -->
+            </div>
 
-        <div
-            class="modal fade"
-            id="dashboardDetailModal"
-            tabindex="-1">
+          </div>
 
-            <div class="modal-dialog modal-xl modal-dialog-scrollable">
+          <!-- AFTER PROCESS -->
+          <div class="dashboard-card">
 
-                <div class="modal-content dashboard-detail-modal">
+            <div class="row align-items-center">
 
-                    <!-- HEADER -->
-                    <div class="modal-header dashboard-modal-header">
+              <!-- LEFT -->
+              <div class="col-lg-5">
 
-                        <div>
+                <div class="sub-card">
 
-                            <h4
-                                id="dashboardModalTitle"
-                                class="modal-title">
-                                Detail Dashboard
-                            </h4>
-                        </div>
+                  <div class="metric-group metric-group-full">
 
-                        <button
-                            type="button"
-                            class="btn-close"
-                            data-bs-dismiss="modal"></button>
+                    <div class="sub-title">
+                      Return from Vendor
+                    </div>
+
+                    <!-- IN -->
+                    <div class="metric-row">
+
+                      <div class="metric-label">
+                        In
+                      </div>
+
+                      <div
+                        id="tooltipReturnWHIn"
+                        class="progress progress-custom clickable-card"
+                        data-bs-toggle="tooltip"
+                        data-bs-placement="top"
+                        data-section="return_wh"
+                        data-type="in"
+                        title="">
+
+                        <div
+                          id="barReturnWHIn"
+                          class="progress-bar bg-in"
+                          style="width: 0%"></div>
+
+                      </div>
+
+                      <div
+                        id="totalReturnWHIn"
+                        class="metric-value">
+                        0
+                      </div>
 
                     </div>
 
-                    <!-- BODY -->
-                    <div class="modal-body">
+                    <!-- OUT -->
+                    <div class="metric-row">
 
-                        <div class="table-responsive">
+                      <div class="metric-label">
+                        Out
+                      </div>
 
-                            <table
-                                id="dashboardDetailTable"
-                                class="
-                table
-                dashboard-detail-table
-                align-middle
+                      <div
+                        id="tooltipReturnWHOut"
+                        class="progress progress-custom clickable-card"
+                        data-bs-toggle="tooltip"
+                        data-bs-placement="top"
+                        data-section="return_wh"
+                        data-type="out"
+                        title="">
+
+                        <div
+                          id="barReturnWHOut"
+                          class="progress-bar bg-out"
+                          style="width: 0%"></div>
+
+                      </div>
+
+                      <div
+                        id="totalReturnWHOut"
+                        class="metric-value">
+                        0
+                      </div>
+
+                    </div>
+
+                    <!-- INVENTORY -->
+                    <div class="metric-row mb-0">
+
+                      <div class="metric-label">
+                        Inventory
+                      </div>
+
+                      <div
+                        id="tooltipReturnWHInventory"
+                        class="progress progress-custom clickable-card"
+                        data-bs-toggle="tooltip"
+                        data-bs-placement="top"
+                        data-section="return_wh"
+                        data-type="inventory"
+                        title="">
+
+                        <div
+                          id="barReturnWHInventory"
+                          class="progress-bar bg-inventory"
+                          style="width: 0%"></div>
+
+                      </div>
+
+                      <div
+                        id="totalReturnWHInventory"
+                        class="metric-value">
+                        0
+                      </div>
+
+                    </div>
+
+                  </div>
+
+                </div>
+
+              </div>
+
+              <!-- RIGHT -->
+              <div class="col-lg-7">
+
+                <div class="chart-title">
+                  Detail Inventory Per-Line
+                </div>
+
+                <div class="chart-scroll">
+
+                  <div
+                    id="chartReturnWH"
+                    class="chart-container"></div>
+
+                </div>
+
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </section>
+
+    <!-- DETAIL MODAL -->
+
+    <div
+      class="modal fade"
+      id="dashboardDetailModal"
+      tabindex="-1">
+
+      <div class="modal-dialog modal-xl modal-dialog-scrollable">
+
+        <div class="modal-content dashboard-detail-modal">
+
+          <!-- HEADER -->
+          <div class="modal-header dashboard-modal-header">
+
+            <div>
+
+              <h4
+                id="dashboardModalTitle"
+                class="modal-title">
+                Detail Dashboard
+              </h4>
+            </div>
+
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"></button>
+
+          </div>
+
+          <!-- BODY -->
+          <div class="modal-body">
+
+            <div class="table-responsive">
+
+              <table
+                id="dashboardDetailTable"
+                class="
+                  table
+                  table-bordered
+                  table-striped
+                  table-hover
+                  dashboard-detail-table
+                  align-middle
               ">
-                            </table>
+              </table>
 
-                        </div>
+            </div>
 
-                    </div>
+          </div>
 
-                    <!-- FOOTER -->
-                    <div class="modal-footer dashboard-modal-footer">
+          <!-- FOOTER -->
+          <div class="modal-footer dashboard-modal-footer">
 
-                        <button
-                            type="button"
+            <button
+              type="button"
 
-                            class="
+              class="
                   btn
                   btn-secondary
                   px-4
                 "
 
-                            data-bs-dismiss="modal">
+              data-bs-dismiss="modal">
 
-                            Close
-                        </button>
+              Close
+            </button>
 
-                        <button
-                            type="button"
-                            id="btnExportDashboardDetail"
-                            class="btn btn-success">
-                            <i class="bi bi-file-earmark-excel"></i>
-                            Export
-                        </button>
+            <button
+              type="button"
+              id="btnExportDashboardDetail"
+              class="btn btn-success">
+              <i class="bi bi-file-earmark-excel"></i>
+              Export
+            </button>
 
-                    </div>
-
-                </div>
-
-            </div>
+          </div>
 
         </div>
 
-        <!-- VENDOR KPI DETAIL MODAL -->
+      </div>
 
-        <div
-            class="modal fade"
-            id="vendorKpiDetailModal"
-            tabindex="-1"
-            aria-hidden="true">
+    </div>
 
-            <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <!-- ========================================= -->
+    <!-- COMPONENT DETAIL MODAL -->
+    <!-- ========================================= -->
 
-                <div class="modal-content">
+    <div class="modal fade"
+      id="componentDetailModal"
+      tabindex="-1"
+      aria-hidden="true">
 
-                    <div class="modal-header">
+      <div class="modal-dialog modal-lg modal-dialog-scrollable">
 
-                        <div>
+        <div class="modal-content border-0 shadow">
 
-                            <h5
-                                id="vendorKpiModalTitle"
-                                class="modal-title">
-                                Vendor Detail
-                            </h5>
+          <div class="modal-header">
 
-                            <div
-                                id="vendorKpiModalSubtitle"
-                                class="small text-muted mt-1">
-                            </div>
+            <h5 class="modal-title">
+              <i class="bi bi-diagram-3 me-2"></i>
+              Component Detail
+            </h5>
 
-                        </div>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal">
+            </button>
 
-                        <button
-                            type="button"
-                            class="btn-close"
-                            data-bs-dismiss="modal">
-                        </button>
+          </div>
 
-                    </div>
+          <div class="modal-body">
 
-                    <div class="modal-body">
+            <!-- HEADER INFO -->
 
-                        <div
-                            id="vendorKpiLoading"
-                            class="text-center py-5 d-none">
+            <div class="border rounded p-3 mb-3">
 
-                            <div class="spinner-border text-primary"></div>
+              <div class="row">
 
-                            <div class="mt-2 text-muted">
-                                Loading data...
-                            </div>
+                <div class="col-md-6">
 
-                        </div>
+                  <div>
+                    <strong>NCVS :</strong>
+                    <span id="cd_ncvs">-</span>
+                  </div>
 
-                        <div id="vendorKpiTableContainer">
+                  <div>
+                    <strong>Bucket :</strong>
+                    <span id="cd_bucket">-</span>
+                  </div>
 
-                            <div class="vendor-kpi-table-scroll">
-
-                                <table
-                                    id="vendorKpiDetailTable"
-                                    class="
-                                        table
-                                        table-bordered
-                                        table-hover
-                                        align-middle
-                                        text-nowrap
-                                        mb-0
-                                    ">
-
-                                    <thead id="vendorKpiTableHead"></thead>
-
-                                    <tbody id="vendorKpiTableBody"></tbody>
-
-                                </table>
-
-                            </div>
-
-                        </div>
-
-                    </div>
-
-                    <div class="modal-footer">
-
-                        <button
-                            type="button"
-                            class="btn btn-secondary px-4"
-                            data-bs-dismiss="modal">
-
-                            Close
-
-                        </button>
-
-                        <button
-                            type="button"
-                            id="btnExportVendorKpiDetail"
-                            class="btn btn-success px-4"
-                            disabled>
-
-                            <i class="bi bi-file-earmark-excel"></i>
-                            Export
-
-                        </button>
-
-                    </div>
+                  <div>
+                    <strong>PO - PO Item :</strong>
+                    <span id="cd_po">-</span>
+                  </div>
 
                 </div>
 
+                <div class="col-md-6">
+
+                  <div>
+                    <strong>Style :</strong>
+                    <span id="cd_style">-</span>
+                  </div>
+
+                  <div>
+                    <strong>Model :</strong>
+                    <span id="cd_model">-</span>
+                  </div>
+
+                  <div>
+                    <strong>Main Component :</strong>
+                    <span id="cd_component">-</span>
+                  </div>
+
+                </div>
+
+              </div>
+
             </div>
+
+            <hr>
+
+            <h6 class="fw-bold mb-3">
+
+              List Component
+
+            </h6>
+
+            <div class="table-responsive">
+
+              <table
+                class="table table-bordered table-striped align-middle"
+                id="componentTable">
+
+                <thead class="table-secondary">
+
+                  <tr>
+                    <th width="10%">No</th>
+                    <th>Component</th>
+                  </tr>
+
+                </thead>
+
+                <tbody id="componentList">
+
+                  <tr>
+
+                    <td colspan="2" class="text-center text-muted">
+
+                      No data
+
+                    </td>
+
+                  </tr>
+
+                </tbody>
+
+              </table>
+
+            </div>
+
+          </div>
 
         </div>
 
-    </main><!-- End #main -->
+      </div>
 
-    <!-- ======= Footer ======= -->
-    <?php include_once __DIR__ . '/../includes/footer.php' ?>
-    <!-- End Footer -->
+    </div>
 
-    <a href="#" class="back-to-top d-flex align-items-center justify-content-center"><i class="bi bi-arrow-up-short"></i></a>
+  </main><!-- End #main -->
 
-    <!-- Vendor JS Files -->
-    <script src="../assets/vendor/apexcharts/apexcharts.min.js"></script>
-    <script src="../assets/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
-    <script src="../assets/vendor/chart.js/chart.umd.js"></script>
-    <script src="../assets/vendor/echarts/echarts.min.js"></script>
-    <script src="../assets/vendor/quill/quill.min.js"></script>
-    <script src="../assets/vendor/simple-datatables/simple-datatables.js"></script>
-    <script src="../assets/vendor/tinymce/tinymce.min.js"></script>
-    <script src="../assets/vendor/php-email-form/validate.js"></script>
+  <!-- ======= Footer ======= -->
+  <?php include_once __DIR__ . '/../includes/footer.php' ?>
+  <!-- End Footer -->
 
-    <!-- Template Main JS File -->
-    <script src="../assets/js/main.js"></script>
+  <a href="#" class="back-to-top d-flex align-items-center justify-content-center"><i class="bi bi-arrow-up-short"></i></a>
 
-    <!-- Select2 CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-    <!-- jQuery -->
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <!-- Select2 JS -->
-    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+  <!-- Vendor JS Files -->
+  <script src="../assets/vendor/apexcharts/apexcharts.min.js"></script>
+  <script src="../assets/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+  <script src="../assets/vendor/chart.js/chart.umd.js"></script>
+  <script src="../assets/vendor/echarts/echarts.min.js"></script>
+  <script src="../assets/vendor/quill/quill.min.js"></script>
+  <script src="../assets/vendor/simple-datatables/simple-datatables.js"></script>
+  <script src="../assets/vendor/tinymce/tinymce.min.js"></script>
+  <script src="../assets/vendor/php-email-form/validate.js"></script>
 
-    <!-- DataTables core -->
-    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
-    <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap4.min.js"></script>
+  <!-- Template Main JS File -->
+  <script src="../assets/js/main.js"></script>
 
-    <!-- Responsive extension -->
-    <script src="https://cdn.datatables.net/responsive/2.5.0/js/dataTables.responsive.min.js"></script>
-    <script src="https://cdn.datatables.net/responsive/2.5.0/js/responsive.bootstrap5.min.js"></script>
+  <!-- Select2 CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+  <!-- jQuery -->
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <!-- Select2 JS -->
+  <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
-    <!-- Buttons extension -->
-    <script src="https://cdn.datatables.net/buttons/2.4.1/js/dataTables.buttons.min.js"></script>
-    <script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.bootstrap4.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
-    <script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.html5.min.js"></script>
-    <script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.print.min.js"></script>
-    <script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.colVis.min.js"></script>
+  <!-- DataTables core -->
+  <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+  <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap4.min.js"></script>
 
-    <?php include_once __DIR__ . '/../includes/notification.php'; ?>
+  <!-- Responsive extension -->
+  <script src="https://cdn.datatables.net/responsive/2.5.0/js/dataTables.responsive.min.js"></script>
+  <script src="https://cdn.datatables.net/responsive/2.5.0/js/responsive.bootstrap5.min.js"></script>
 
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const toastEl = document.getElementById('liveToast');
-            if (toastEl) {
-                const toast = new bootstrap.Toast(toastEl, {
-                    delay: 5000
-                });
-                toast.show();
-            }
+  <!-- Buttons extension -->
+  <script src="https://cdn.datatables.net/buttons/2.4.1/js/dataTables.buttons.min.js"></script>
+  <script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.bootstrap4.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
+  <script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.html5.min.js"></script>
+  <script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.print.min.js"></script>
+  <script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.colVis.min.js"></script>
+
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.css">
+  <script src="https://cdn.jsdelivr.net/momentjs/latest/moment.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.min.js"></script>
+
+  <?php include_once __DIR__ . '/../includes/notification.php'; ?>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const toastEl = document.getElementById('liveToast');
+      if (toastEl) {
+        const toast = new bootstrap.Toast(toastEl, {
+          delay: 5000
         });
-    </script>
+        toast.show();
+      }
+    });
+  </script>
 
-    <script>
-        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+  <script>
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
 
-        var tooltipList = tooltipTriggerList.map(function(tooltipTriggerEl) {
-            return new bootstrap.Tooltip(tooltipTriggerEl);
-        });
-    </script>
+    var tooltipList = tooltipTriggerList.map(function(tooltipTriggerEl) {
+      return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+  </script>
 
-    <script>
-        var warehouseCharts = {};
+  <script>
+    var dashboardCharts = {};
 
-        const warehouseChartColor = {
-            inventory: '#5f84ad'
-        };
+    const chartColor = {
 
-        $(document).ready(function() {
+      cutting: '#5f84ad',
+      incoming_wh: '#5f84ad',
+      return_wh: '#5f84ad'
 
-            loadWarehouseDashboard();
+    };
 
-            setInterval(function() {
+    const dashboardConfig = {
 
-                loadWarehouseDashboard();
+      cutting: {
 
-            }, 60000);
+        prefix: "",
 
-        });
+        chartId: "#chartCutting",
 
-        function loadWarehouseDashboard() {
+        chartKey: "chartCutting",
 
-            $.ajax({
+        color: chartColor.cutting,
 
-                url: './../config/get_warehouse_dashboard.php',
+        unit: "Prs"
 
-                type: 'GET',
+      },
 
-                dataType: 'json',
+      incoming_wh: {
 
-                success: function(response) {
+        prefix: "IncomingWH",
 
-                    console.log(response);
+        chartId: "#chartIncomingWH",
 
-                    renderWarehouseSummary(
-                        response.ready_transfer.summary, {
-                            receiveText: '#rtReceive',
-                            outText: '#rtTransfer',
-                            inventoryText: '#rtInventory',
+        chartKey: "chartIncomingWH",
 
-                            receiveBar: '#rtBarReceive',
-                            outBar: '#rtBarTransfer',
-                            inventoryBar: '#rtBarInventory',
+        color: chartColor.incoming_wh,
 
-                            receiveTooltip: '#rtTooltipReceive',
-                            outTooltip: '#rtTooltipTransfer',
-                            inventoryTooltip: '#rtTooltipInventory',
+        unit: "Prs"
 
-                            receiveLabel: 'Receive',
-                            outLabel: 'Transfer to Vendor'
-                        }
-                    );
+      },
 
-                    renderWarehouseSummary(
-                        response.return_vendor.summary, {
-                            receiveText: '#rvReceive',
-                            outText: '#rvSendProd',
-                            inventoryText: '#rvInventory',
+      return_wh: {
 
-                            receiveBar: '#rvBarReceive',
-                            outBar: '#rvBarSendProd',
-                            inventoryBar: '#rvBarInventory',
+        prefix: "ReturnWH",
 
-                            receiveTooltip: '#rvTooltipReceive',
-                            outTooltip: '#rvTooltipSendProd',
-                            inventoryTooltip: '#rvTooltipInventory',
+        chartId: "#chartReturnWH",
 
-                            receiveLabel: 'Receive',
-                            outLabel: 'Send Production'
-                        }
-                    );
+        chartKey: "chartReturnWH",
 
-                    renderWarehouseChart(
-                        'chartReadyTransfer',
-                        '#chartReadyTransferVendor',
-                        response.ready_transfer.chart,
-                        'ready_transfer'
-                    );
+        color: chartColor.return_wh,
 
-                    renderWarehouseChart(
-                        'chartReturnVendor',
-                        '#chartReturnVendor',
-                        response.return_vendor.chart,
-                        'return_vendor'
-                    );
+        unit: "Pairs"
 
-                    renderVendorOverview(
-                        response.vendor_overview
-                    );
+      }
 
-                    initTooltip();
+    };
 
-                },
+    $(function() {
 
-                error: function(xhr) {
+      initDateRange();
 
-                    console.log(xhr.responseText);
+      loadDashboard();
 
-                }
+      setInterval(loadDashboard, 60000);
 
-            });
+    });
+
+    function initDateRange() {
+
+      const today = moment();
+
+      $("#dateRange").daterangepicker({
+
+        autoApply: true,
+
+        opens: "left",
+
+        startDate: today,
+
+        endDate: today,
+
+        locale: {
+
+          format: "YYYY-MM-DD"
 
         }
 
-        function initTooltip() {
+      });
 
-            $('[data-bs-toggle="tooltip"]').tooltip('dispose');
+      updateCurrentPeriod();
 
-            document
-                .querySelectorAll('[data-bs-toggle="tooltip"]')
-                .forEach(function(el) {
+    }
 
-                    new bootstrap.Tooltip(el);
+    function updateCurrentPeriod() {
 
-                });
+      let picker = $("#dateRange").data("daterangepicker");
 
+      let start = picker.startDate.format("YYYY-MM-DD");
+
+      let end = picker.endDate.format("YYYY-MM-DD");
+
+      $("#currentPeriod").text(
+
+        start == end
+
+        ?
+
+        start
+
+        :
+
+        start + " s/d " + end
+
+      );
+
+    }
+
+    $("#btnSearchDashboard").on("click", function() {
+
+      updateCurrentPeriod();
+
+      loadDashboard();
+
+    });
+
+    $("#btnResetDashboard").on("click", function() {
+
+      let picker = $("#dateRange").data("daterangepicker");
+
+      picker.setStartDate(moment());
+
+      picker.setEndDate(moment());
+
+      updateCurrentPeriod();
+
+      loadDashboard();
+
+    });
+
+    function loadDashboard() {
+
+      let picker = $("#dateRange").data("daterangepicker");
+
+      let dateFrom =
+
+        picker.startDate.format("YYYY-MM-DD");
+
+      let dateTo =
+
+        picker.endDate.format("YYYY-MM-DD");
+
+      $.ajax({
+        url: './../config/get_warehouse_dashboard.php',
+        type: 'GET',
+        dataType: 'json',
+        data: {
+
+          date_from: dateFrom,
+
+          date_to: dateTo
+
+        },
+
+        success: function(response) {
+
+          // renderSection("cutting", response.cutting);
+
+          renderSection("incoming_wh", response.incoming_wh);
+
+          renderSection("return_wh", response.return_wh);
+
+          initTooltip();
+
+        },
+
+        error: function(xhr) {
+          console.log(xhr.responseText);
         }
 
-        function renderWarehouseSummary(
-            data,
-            config
-        ) {
-
-            let receive =
-                parseInt(data.receive) || 0;
-
-            let out =
-                parseInt(
-                    data.transfer ??
-                    data.send_prod
-                ) || 0;
-
-            let inventory =
-                parseInt(data.inventory) || 0;
-
-            let maxValue = Math.max(
-                receive,
-                out,
-                inventory,
-                1
-            );
-
-            let receivePercent =
-                (receive / maxValue) * 100;
-
-            let outPercent =
-                (out / maxValue) * 100;
-
-            let inventoryPercent =
-                (inventory / maxValue) * 100;
-
-            $(config.receiveText)
-                .text(receive.toLocaleString());
-
-            $(config.outText)
-                .text(out.toLocaleString());
-
-            $(config.inventoryText)
-                .text(inventory.toLocaleString());
-
-            $(config.receiveBar)
-                .css(
-                    'width',
-                    receivePercent + '%'
-                );
-
-            $(config.outBar)
-                .css(
-                    'width',
-                    outPercent + '%'
-                );
-
-            $(config.inventoryBar)
-                .css(
-                    'width',
-                    inventoryPercent + '%'
-                );
-
-            $(config.receiveTooltip)
-                .attr(
-                    'data-bs-original-title',
-                    config.receiveLabel +
-                    ' : ' +
-                    receive.toLocaleString() +
-                    ' Pairs'
-                )
-                .attr(
-                    'data-value',
-                    receive
-                );
-
-            $(config.outTooltip)
-                .attr(
-                    'data-bs-original-title',
-                    config.outLabel +
-                    ' : ' +
-                    out.toLocaleString() +
-                    ' Pairs'
-                )
-                .attr(
-                    'data-value',
-                    out
-                );
-
-            $(config.inventoryTooltip)
-                .attr(
-                    'data-bs-original-title',
-                    'Inventory : ' +
-                    inventory.toLocaleString() +
-                    ' Pairs'
-                )
-                .attr(
-                    'data-value',
-                    inventory
-                );
-
-        }
-
-        /* ===================================== */
-        /* RENDER VENDOR OVERVIEW */
-        /* ===================================== */
-
-        function renderVendorOverview(data) {
-
-            data =
-                data ?? {};
-
-            let activeVendor =
-                parseInt(
-                    data.active_vendor
-                ) || 0;
-
-            let inventoryAtVendor =
-                parseInt(
-                    data.inventory_at_vendor
-                ) || 0;
-
-            let returnAchievement =
-                parseFloat(
-                    data.return_achievement
-                ) || 0;
-
-            let averageLeadTime =
-                parseFloat(
-                    data.average_lead_time
-                ) || 0;
-
-            let overdueVendor =
-                parseInt(
-                    data.overdue_vendor
-                ) || 0;
-
-            let slaDays =
-                parseInt(
-                    data.sla_days
-                ) || 4;
-
-            /* ===================================== */
-            /* VALUE */
-            /* ===================================== */
-
-            $('#vendorActiveCount')
-                .text(
-                    activeVendor.toLocaleString()
-                );
-
-            $('#vendorInventory')
-                .text(
-                    inventoryAtVendor.toLocaleString() +
-                    ' prs'
-                );
-
-            $('#vendorAchievement')
-                .text(
-                    returnAchievement.toLocaleString() +
-                    '%'
-                );
-
-            $('#vendorLeadTime')
-                .text(
-                    averageLeadTime.toLocaleString() +
-                    ' Days'
-                );
-
-            $('#vendorOverdueCount')
-                .text(
-                    overdueVendor.toLocaleString()
-                );
-
-            /* ===================================== */
-            /* ACTIVE VENDOR BADGE */
-            /* ===================================== */
-
-            updateBadge(
-                '#vendorActiveBadge',
-
-                activeVendor > 0 ?
-                'Online' :
-                'Idle',
-
-                activeVendor > 0 ?
-                'bg-success' :
-                'bg-secondary'
-            );
-
-            /* ===================================== */
-            /* INVENTORY BADGE */
-            /* ===================================== */
-
-            updateBadge(
-                '#vendorInventoryBadge',
-
-                inventoryAtVendor > 0 ?
-                'On Process' :
-                'Clear',
-
-                inventoryAtVendor > 0 ?
-                'bg-warning text-dark' :
-                'bg-success'
-            );
-
-            /* ===================================== */
-            /* ACHIEVEMENT BADGE */
-            /* ===================================== */
-
-            let achievementText =
-                'Attention';
-
-            let achievementClass =
-                'bg-danger';
-
-            if (
-                returnAchievement >= 90
-            ) {
-
-                achievementText =
-                    'Good';
-
-                achievementClass =
-                    'bg-success';
-
-            } else if (
-                returnAchievement >= 75
-            ) {
-
-                achievementText =
-                    'Monitor';
-
-                achievementClass =
-                    'bg-warning text-dark';
-
-            }
-
-            updateBadge(
-                '#vendorAchievementBadge',
-                achievementText,
-                achievementClass
-            );
+      });
 
-            /* ===================================== */
-            /* LEAD TIME BADGE */
-            /* ===================================== */
+    }
 
-            updateBadge(
-                '#vendorLeadTimeBadge',
+    function initTooltip() {
 
-                averageLeadTime <= slaDays ?
-                'Stable' :
-                'Monitor',
+      $('[data-bs-toggle="tooltip"]').tooltip('dispose');
 
-                averageLeadTime <= slaDays ?
-                'bg-primary' :
-                'bg-warning text-dark'
-            );
+      const tooltipTriggerList = [].slice.call(
+        document.querySelectorAll('[data-bs-toggle="tooltip"]')
+      );
 
-            /* ===================================== */
-            /* OVERDUE BADGE */
-            /* ===================================== */
+      tooltipTriggerList.map(function(tooltipTriggerEl) {
 
-            updateBadge(
-                '#vendorOverdueBadge',
-
-                overdueVendor > 0 ?
-                'Attention' :
-                'Clear',
-
-                overdueVendor > 0 ?
-                'bg-warning text-dark' :
-                'bg-success'
-            );
-
-        }
-
-        /* ===================================== */
-        /* UPDATE BADGE */
-        /* ===================================== */
+        return new bootstrap.Tooltip(tooltipTriggerEl);
 
-        function updateBadge(
-            selector,
-            text,
-            className
-        ) {
+      });
 
-            $(selector)
-                .removeClass(
-                    'bg-success ' +
-                    'bg-secondary ' +
-                    'bg-warning ' +
-                    'bg-danger ' +
-                    'bg-primary ' +
-                    'text-dark'
-                )
-                .addClass(
-                    className
-                )
-                .text(
-                    text
-                );
+    }
 
-        }
+    function calculateProgress(summary) {
 
-        function renderReadyTransferChart(response) {
+      const max = Math.max(
 
-            let categories =
-                response.ready_transfer.chart.categories ?? [];
+        summary.in,
 
-            let seriesData =
-                response.ready_transfer.chart.series ?? [];
+        summary.out,
 
-            let dynamicChartWidth =
-                categories.length * 70;
+        summary.inventory,
 
-            dynamicChartWidth =
-                Math.max(dynamicChartWidth, 350);
+        1
 
-            if (
-                warehouseCharts.chartReadyTransfer
-            ) {
+      );
 
-                warehouseCharts
-                    .chartReadyTransfer
-                    .destroy();
+      return {
 
-            }
+        in: (summary.in / max) * 100,
 
-            var chartOptions = {
+        out: (summary.out / max) * 100,
 
-                chart: {
+        inventory: (summary.inventory / max) * 100
 
-                    type: 'bar',
+      };
 
-                    height: 280,
+    }
 
-                    width: dynamicChartWidth,
+    function setMetric(prefix, name, value, width, unit) {
 
-                    toolbar: {
-                        show: false
-                    },
+      $("#total" + prefix + name)
 
-                    animations: {
-                        enabled: true,
-                        easing: 'easeinout',
-                        speed: 700
-                    },
+        .text(value.toLocaleString());
 
-                    events: {
+      $("#bar" + prefix + name)
 
-                        dataPointSelection: function(
-                            event,
-                            chartContext,
-                            config
-                        ) {
+        .css("width", width + "%");
 
-                            let selectedNcvs =
-                                categories[
-                                    config.dataPointIndex
-                                ];
+      $("#tooltip" + prefix + name)
 
-                            let selectedValue =
-                                seriesData[
-                                    config.dataPointIndex
-                                ];
+        .attr(
 
-                            if (
-                                selectedValue <= 0
-                            ) {
-                                return;
-                            }
+          "data-bs-original-title",
 
-                            openWarehouseDashboardDetail({
+          name + " : " + value.toLocaleString() + " " + unit
 
-                                section: 'ready_transfer',
+        )
 
-                                type: 'inventory',
+        .attr(
 
-                                ncvs: selectedNcvs
+          "data-value",
 
-                            });
+          value
 
-                        }
-
-                    }
-
-                },
-
-                legend: {
-                    show: false
-                },
-
-                series: [{
-
-                    name: 'Inventory',
-
-                    data: seriesData
-
-                }],
-
-                xaxis: {
-                    categories: categories
-                },
-
-                colors: [
-                    warehouseChartColor.readyTransfer
-                ],
-
-                plotOptions: {
-
-                    bar: {
-
-                        borderRadius: 6,
-
-                        columnWidth: '35%'
-
-                    }
-
-                },
-
-                tooltip: {
-
-                    theme: 'light',
-
-                    y: {
-
-                        formatter: function(val) {
-
-                            return val
-                                .toLocaleString() +
-                                ' prs';
-
-                        }
-
-                    }
-
-                },
-
-                dataLabels: {
-                    enabled: true
-                },
-
-                grid: {
-                    borderColor: '#e2e8f0'
-                }
-
-            };
-
-            warehouseCharts.chartReadyTransfer =
-                new ApexCharts(
-
-                    document.querySelector(
-                        "#chartReadyTransferVendor"
-                    ),
-
-                    chartOptions
-
-                );
-
-            warehouseCharts
-                .chartReadyTransfer
-                .render();
-
-        }
-
-        function renderWarehouseChart(
-            chartKey,
-            elementId,
-            chartData,
-            section
-        ) {
-
-            let categories =
-                chartData.categories ?? [];
-
-            let seriesData =
-                chartData.series ?? [];
-
-            let dynamicChartWidth =
-                Math.max(
-                    categories.length * 90,
-                    350
-                );
-
-            if (
-                warehouseCharts[chartKey]
-            ) {
-
-                warehouseCharts[
-                    chartKey
-                ].destroy();
-
-            }
-
-            let options = {
-
-                chart: {
-
-                    type: 'bar',
-
-                    height: 280,
-
-                    width: dynamicChartWidth,
-
-                    toolbar: {
-                        show: false
-                    },
-
-                    animations: {
-
-                        enabled: true,
-
-                        easing: 'easeinout',
-
-                        speed: 700
-
-                    },
-
-                    events: {
-
-                        dataPointSelection: function(
-                            event,
-                            chartContext,
-                            config
-                        ) {
-
-                            let selectedNcvs =
-                                categories[
-                                    config.dataPointIndex
-                                ];
-
-                            let selectedValue =
-                                seriesData[
-                                    config.dataPointIndex
-                                ];
-
-                            if (
-                                selectedValue <= 0
-                            ) {
-                                return;
-                            }
-
-                            openDashboardDetail({
-
-                                section: section,
-
-                                type: 'inventory',
-
-                                ncvs: selectedNcvs
-
-                            });
-
-                        }
-
-                    }
-
-                },
-
-                series: [{
-
-                    name: 'Inventory',
-
-                    data: seriesData
-
-                }],
-
-                colors: [
-                    warehouseChartColor.inventory
-                ],
-
-                legend: {
-                    show: false
-                },
-
-                dataLabels: {
-
-                    enabled: true,
-
-                    formatter: function(val) {
-
-                        return val
-                            .toLocaleString();
-
-                    }
-
-                },
-
-                xaxis: {
-                    categories: categories
-                },
-
-                plotOptions: {
-
-                    bar: {
-
-                        borderRadius: 6,
-
-                        columnWidth: '35%'
-
-                    }
-
-                },
-
-                tooltip: {
-
-                    theme: 'light',
-
-                    y: {
-
-                        formatter: function(val) {
-
-                            return val
-                                .toLocaleString() +
-                                ' Pairs';
-
-                        }
-
-                    }
-
-                },
-
-                grid: {
-
-                    borderColor: '#e2e8f0'
-
-                }
-
-            };
-
-            warehouseCharts[chartKey] =
-                new ApexCharts(
-                    document.querySelector(
-                        elementId
-                    ),
-                    options
-                );
-
-            warehouseCharts[
-                chartKey
-            ].render();
-
-        }
-
-        /* OPEN MODAL */
-
-        $(document).on(
-            'click',
-            '.progress-custom',
-            function() {
-
-                let value =
-                    parseInt(
-                        $(this).attr('data-value')
-                    ) || 0;
-
-                /* PREVENT ZERO CLICK */
-
-                if (value <= 0) {
-                    return;
-                }
-
-                let type =
-                    $(this).data('type');
-
-                let section =
-                    $(this).data('section');
-
-                openDashboardDetail({
-                    section: section,
-                    type: type
-                });
-
-            }
         );
 
-        function openDashboardDetail(params) {
+    }
 
-            currentDetailParams = params;
+    function renderOverview(section, data) {
 
-            $.ajax({
+      const cfg = dashboardConfig[section];
 
-                url: './../config/get_warehouse_dashboard_detail.php',
+      const {
+        summary
+      } = data;
 
-                type: 'GET',
+      const progress = calculateProgress(summary);
 
-                dataType: 'json',
+      setMetric(
 
-                data: params,
+        cfg.prefix,
 
-                success: function(response) {
+        "In",
 
-                    console.log(response);
+        summary.in,
 
-                    renderDashboardDetailTable(
-                        response
-                    );
+        progress.in,
 
-                    $('#dashboardModalTitle')
-                        .text('Detail Warehouse Dashboard Monitoring');
+        cfg.unit
 
-                    $('#dashboardModalSubtitle')
-                        .text(
-                            params.section
-                            .replaceAll('_', ' ')
-                            .toUpperCase()
-                        );
+      );
 
-                    $('#dashboardDetailModal')
-                        .modal('show');
+      setMetric(
 
-                }
+        cfg.prefix,
 
-            });
+        "Out",
 
-        }
+        summary.out,
 
-        /* RENDER DETAIL TABLE */
+        progress.out,
 
-        function renderDashboardDetailTable(response) {
+        cfg.unit
 
-            /* DESTROY DATATABLE */
+      );
 
-            if ($.fn.DataTable.isDataTable(
-                    '#dashboardDetailTable'
-                )) {
+      setMetric(
 
-                $('#dashboardDetailTable')
-                    .DataTable()
-                    .destroy();
+        cfg.prefix,
+
+        "Inventory",
+
+        summary.inventory,
+
+        progress.inventory,
+
+        cfg.unit
+
+      );
+
+    }
+
+    function renderSection(section, data) {
+
+      if (!data) {
+
+        console.warn(section + " not found");
+
+        return;
+
+      }
+
+      renderOverview(section, data);
+
+      renderChart(section, data);
+
+    }
+
+    function renderChart(section, data) {
+
+      const cfg = dashboardConfig[section];
+
+      const categories = data.chart.categories ?? [];
+
+      const seriesData = data.chart.series ?? [];
+
+      let dynamicChartWidth = Math.max(categories.length * 70, 350);
+
+      if (dashboardCharts[cfg.chartKey]) {
+        dashboardCharts[cfg.chartKey].destroy();
+      }
+
+      dashboardCharts[cfg.chartKey] = new ApexCharts(
+
+        document.querySelector(cfg.chartId),
+
+        {
+
+          chart: {
+
+            type: "bar",
+
+            height: 280,
+
+            width: dynamicChartWidth,
+
+            toolbar: {
+              show: false
+            },
+
+            animations: {
+              enabled: true,
+              easing: "easeinout",
+              speed: 700
+            },
+
+            events: {
+
+              dataPointSelection: function(event, chartContext, config) {
+
+                let ncvs = categories[config.dataPointIndex];
+
+                let value = seriesData[config.dataPointIndex];
+
+                if (value <= 0) return;
+
+                openDashboardDetail({
+
+                  section: section,
+
+                  type: "inventory",
+
+                  ncvs: ncvs
+
+                });
+
+              }
 
             }
 
-            /* DATA */
+          },
 
-            let sizes = response.sizes ?? [];
-            let rows = response.rows ?? [];
+          legend: {
+            show: false
+          },
 
-            /* HEADER */
+          series: [
 
-            let headerHtml = `
+            {
+
+              name: "Inventory",
+
+              data: seriesData
+
+            }
+
+          ],
+
+          xaxis: {
+
+            categories: categories
+
+          },
+
+          colors: [
+
+            cfg.color
+
+          ],
+
+          plotOptions: {
+
+            bar: {
+
+              borderRadius: 6,
+
+              columnWidth: "35%"
+
+            }
+
+          },
+
+          tooltip: {
+
+            theme: "light",
+
+            y: {
+
+              formatter: function(val) {
+
+                return val.toLocaleString() + " " + cfg.unit;
+
+              }
+
+            }
+
+          },
+
+          dataLabels: {
+
+            enabled: true
+
+          },
+
+          grid: {
+
+            borderColor: "#e2e8f0"
+
+          }
+
+        }
+
+      );
+
+      dashboardCharts[cfg.chartKey].render();
+
+    }
+
+    /* OPEN MODAL */
+
+    $(document).on(
+      'click',
+      '.progress-custom',
+      function() {
+
+        let value =
+          parseInt(
+            $(this).attr('data-value')
+          ) || 0;
+
+        /* PREVENT ZERO CLICK */
+
+        if (value <= 0) {
+          return;
+        }
+
+        let type =
+          $(this).data('type');
+
+        let section =
+          $(this).data('section');
+
+        openDashboardDetail({
+          section: section,
+          type: type
+        });
+
+      }
+    );
+
+    function openDashboardDetail(params) {
+
+      currentDetailParams = params;
+
+      let picker = $("#dateRange").data("daterangepicker");
+
+      $.ajax({
+
+        url: "./../config/get_warehouse_dashboard_detail.php",
+
+        type: "GET",
+
+        dataType: "json",
+
+        data: {
+
+          section: params.section,
+
+          type: params.type,
+
+          ncvs: params.ncvs ?? "",
+
+          date_from: picker.startDate.format("YYYY-MM-DD"),
+
+          date_to: picker.endDate.format("YYYY-MM-DD")
+
+        },
+
+        success: function(response) {
+
+          renderDashboardDetailTable(response);
+
+          $("#dashboardModalTitle")
+            .text("Detail Warehouse Dashboard Monitoring");
+
+          $("#dashboardModalSubtitle")
+            .text(params.section.replaceAll("_", " ").toUpperCase());
+
+          $("#dashboardDetailModal").modal("show");
+
+        }
+
+      });
+
+    }
+
+    /* RENDER DETAIL TABLE */
+
+    function renderDashboardDetailTable(response) {
+
+      /* DESTROY DATATABLE */
+
+      if ($.fn.DataTable.isDataTable(
+          '#dashboardDetailTable'
+        )) {
+
+        $('#dashboardDetailTable')
+          .DataTable()
+          .destroy();
+
+      }
+
+      /* DATA */
+
+      let sizes = response.sizes ?? [];
+      let rows = response.rows ?? [];
+
+      /* HEADER */
+
+      let headerHtml = `
 
         <tr>
             <th>NCVS</th>
@@ -2007,18 +1608,18 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
             <th>Component</th>
     `;
 
-            /* SIZE HEADER */
-            sizes.forEach(function(size) {
+      /* SIZE HEADER */
+      sizes.forEach(function(size) {
 
-                headerHtml += `
+        headerHtml += `
             <th>${size}</th>
         `;
 
-            });
+      });
 
-            /* TOTAL HEADER */
+      /* TOTAL HEADER */
 
-            headerHtml += `
+      headerHtml += `
 
             <th>Total</th>
 
@@ -2026,14 +1627,14 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
 
     `;
 
-            /* BODY */
-            let bodyHtml = '';
+      /* BODY */
+      let bodyHtml = '';
 
-            rows.forEach(function(row) {
+      rows.forEach(function(row) {
 
-                let totalQty = 0;
+        let totalQty = 0;
 
-                bodyHtml += `
+        bodyHtml += `
 
             <tr>
 
@@ -2043,28 +1644,46 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
                 <td>${row.model ?? ''}</td>
                 <td>${row.po ?? ''}</td>
                 <td>${row.po_item ?? ''}</td>
-                <td>${row.component ?? ''}</td>
+                <td>
+
+    <a href="#"
+       class="component-detail text-decoration-none fw-semibold"
+
+       data-id_group="${row.id_group ?? ''}"
+       data-ncvs="${row.ncvs ?? ''}"
+       data-bucket="${row.bucket ?? ''}"
+       data-style="${row.style ?? ''}"
+       data-model="${row.model ?? ''}"
+       data-po="${row.po ?? ''}"
+       data-po_item="${row.po_item ?? ''}"
+       data-component="${row.component ?? ''}">
+
+        ${row.component ?? ''}
+
+    </a>
+
+</td>
 
         `;
 
-                /* SIZE QTY */
-                sizes.forEach(function(size) {
+        /* SIZE QTY */
+        sizes.forEach(function(size) {
 
-                    let qty =
-                        row.sizes[size] ?? 0;
+          let qty =
+            row.sizes[size] ?? 0;
 
-                    totalQty += qty;
+          totalQty += qty;
 
-                    /* EMPTY STYLE */
-                    let qtyDisplay =
-                        qty > 0 ? qty : '0';
+          /* EMPTY STYLE */
+          let qtyDisplay =
+            qty > 0 ? qty : '0';
 
-                    let tdClass =
-                        qty > 0 ?
-                        '' :
-                        'empty-size';
+          let tdClass =
+            qty > 0 ?
+            '' :
+            'empty-size';
 
-                    bodyHtml += `
+          bodyHtml += `
 
                 <td class="${tdClass}">
                     ${qtyDisplay}
@@ -2072,10 +1691,10 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
 
             `;
 
-                });
+        });
 
-                /* TOTAL */
-                bodyHtml += `
+        /* TOTAL */
+        bodyHtml += `
 
                 <td class="fw-bold">
                     ${totalQty}
@@ -2085,13 +1704,13 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
 
         `;
 
-            });
+      });
 
-            /* RENDER FULL TABLE */
-            $('#dashboardDetailTable')
-                .html(
+      /* RENDER FULL TABLE */
+      $('#dashboardDetailTable')
+        .html(
 
-                    `
+          `
 
         <thead>
             ${headerHtml}
@@ -2103,412 +1722,182 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
 
         `
 
-                );
-
-            /* INIT DATATABLE */
-
-            setTimeout(function() {
-
-                let table =
-                    $('#dashboardDetailTable')
-                    .DataTable({
-
-                        pageLength: 10,
-
-                        lengthMenu: [
-
-                            [10, 15, 20, 50, 100, -1],
-
-                            [10, 15, 20, 50, 100, 'All']
-
-                        ],
-
-                        responsive: false,
-                        ordering: false,
-                        searching: true,
-                        paging: true,
-                        info: true,
-                        autoWidth: true,
-                        language: {
-                            search: '',
-                            searchPlaceholder: 'Search...'
-                        }
-
-                    });
-
-                /* ADJUST */
-
-                table.columns.adjust();
-
-            }, 100);
-
-        }
-
-        /* EXPORT DETAIL */
-
-        $(document).on(
-            'click',
-            '#btnExportDashboardDetail',
-            function() {
-
-                let query =
-                    $.param(
-                        currentDetailParams
-                    );
-
-                window.open(
-
-                    './../config/export_dashboard_detail.php?' +
-                    query,
-
-                    '_blank'
-
-                );
-
-            }
-        );
-    </script>
-
-    <script>
-        /* ===================================== */
-        /* VENDOR KPI DETAIL */
-        /* ===================================== */
-
-        $(document).on(
-            'click',
-            '.vendor-kpi-card',
-            function() {
-
-                const kpi =
-                    $(this).attr('data-kpi');
-
-                console.log(
-                    'KPI CLICKED =',
-                    kpi
-                );
-
-                if (!kpi) {
-
-                    console.error(
-                        'data-kpi tidak ditemukan pada card'
-                    );
-
-                    return;
-                }
-
-                openVendorKpiDetail(
-                    kpi
-                );
-
-            }
         );
 
-        function openVendorKpiDetail(kpi) {
+      /* INIT DATATABLE */
 
-            currentVendorKpi =
-                kpi;
+      setTimeout(function() {
 
-            const modalElement =
-                document.getElementById(
-                    'vendorKpiDetailModal'
-                );
+        let table =
+          $('#dashboardDetailTable')
+          .DataTable({
 
-            const modal =
-                bootstrap.Modal.getOrCreateInstance(
-                    modalElement
-                );
+            pageLength: 10,
 
-            $('#vendorKpiLoading')
-                .removeClass('d-none');
+            lengthMenu: [
 
-            $('#vendorKpiTableContainer')
-                .addClass('d-none');
+              [10, 15, 20, 50, 100, -1],
 
-            $('#btnExportVendorKpiDetail')
-                .prop(
-                    'disabled',
-                    true
-                );
+              [10, 15, 20, 50, 100, 'All']
 
-            modal.show();
+            ],
 
-            $.ajax({
-
-                url: './../config/get_vendor_dashboard_detail.php',
-
-                type: 'GET',
-
-                dataType: 'json',
-
-                data: {
-                    kpi: kpi
-                },
-
-                success: function(response) {
-
-                    if (
-                        response.status !== 'success'
-                    ) {
-
-                        alert(
-                            response.message ??
-                            'Gagal mengambil data'
-                        );
-
-                        return;
-                    }
-
-                    const rows =
-                        response.rows ?? [];
-
-                    $('#vendorKpiModalTitle')
-                        .text(
-                            response.title ??
-                            'Vendor Detail'
-                        );
-
-                    $('#vendorKpiModalSubtitle')
-                        .text(
-                            response.subtitle ??
-                            ''
-                        );
-
-                    $('#btnExportVendorKpiDetail')
-                        .prop(
-                            'disabled',
-                            rows.length === 0
-                        );
-
-                    renderVendorKpiTable(
-                        response.columns ?? [],
-                        rows
-                    );
-
-                },
-
-                error: function(xhr) {
-
-                    console.error(
-                        xhr.responseText
-                    );
-
-                    alert(
-                        'Gagal mengambil detail vendor'
-                    );
-
-                },
-
-                complete: function() {
-
-                    $('#vendorKpiLoading')
-                        .addClass('d-none');
-
-                    $('#vendorKpiTableContainer')
-                        .removeClass('d-none');
-
-                }
-
-            });
-
-        }
-
-        /* ===================================== */
-        /* VENDOR KPI TABLE INSTANCE */
-        /* ===================================== */
-
-        let vendorKpiTable = null;
-        let currentVendorKpi = '';
-
-        /* ===================================== */
-        /* RENDER VENDOR KPI TABLE */
-        /* ===================================== */
-
-        function renderVendorKpiTable(
-            columns,
-            rows
-        ) {
-
-            if (
-                $.fn.DataTable.isDataTable(
-                    '#vendorKpiDetailTable'
-                )
-            ) {
-
-                $('#vendorKpiDetailTable')
-                    .DataTable()
-                    .destroy();
-
+            responsive: false,
+            ordering: false,
+            searching: true,
+            paging: true,
+            info: true,
+            autoWidth: true,
+            language: {
+              search: '',
+              searchPlaceholder: 'Search...'
             }
 
-            let headerHtml =
-                '<tr>';
+          });
 
-            columns.forEach(
-                function(column) {
+        /* ADJUST */
 
-                    headerHtml += `
-        <th>
-          ${escapeHtml(column.label)}
-        </th>
-      `;
+        table.columns.adjust();
 
-                }
-            );
+      }, 100);
 
-            headerHtml +=
-                '</tr>';
+    }
 
-            $('#vendorKpiTableHead')
-                .html(
-                    headerHtml
-                );
+    /* EXPORT DETAIL */
 
-            let bodyHtml = '';
+    $(document).on(
+      'click',
+      '#btnExportDashboardDetail',
+      function() {
 
-            rows.forEach(
-                function(row) {
+        let picker = $("#dateRange").data("daterangepicker");
 
-                    bodyHtml +=
-                        '<tr>';
+        let query = $.param({
 
-                    columns.forEach(
-                        function(column) {
+          ...currentDetailParams,
 
-                            const value =
-                                row[column.key] ??
-                                '';
+          date_from: picker.startDate.format("YYYY-MM-DD"),
 
-                            bodyHtml += `
-            <td>
-              ${escapeHtml(value)}
+          date_to: picker.endDate.format("YYYY-MM-DD")
+
+        });
+
+        window.open(
+
+          './../config/export_dashboard_detail.php?' +
+          query,
+
+          '_blank'
+
+        );
+
+      }
+    );
+
+    $(document).on(
+      'click',
+      '.component-detail',
+      function(e) {
+
+        e.preventDefault();
+
+        openComponentModal({
+
+          id_group: $(this).data("id_group"),
+          ncvs: $(this).data('ncvs'),
+          bucket: $(this).data('bucket'),
+          style: $(this).data('style'),
+          model: $(this).data('model'),
+          po: $(this).data('po'),
+          po_item: $(this).data('po_item'),
+          component: $(this).data('component')
+
+        });
+
+      }
+    );
+
+    function openComponentModal(data) {
+
+      $("#cd_ncvs").text(data.ncvs);
+
+      $("#cd_bucket").text(data.bucket);
+
+      $("#cd_style").text(data.style);
+
+      $("#cd_model").text(data.model);
+
+      $("#cd_po").text(data.po + " - " + data.po_item);
+
+      $("#cd_component").text(data.component);
+
+      $("#componentList").html(`
+          <tr>
+              <td colspan="2" class="text-center py-3">
+                  Loading component...
+              </td>
+          </tr>
+      `);
+
+      $.ajax({
+
+        url: './../config/get_production_dashboard_component.php',
+
+        type: 'GET',
+
+        dataType: 'json',
+
+        data: {
+
+          id_group: data.id_group
+
+        },
+
+        success: function(response) {
+
+          let html = '';
+
+          response.data.forEach(function(item, index) {
+
+            html += `
+        <tr>
+
+            <td class="text-center">
+                ${index + 1}
             </td>
-          `;
 
-                        }
-                    );
+            <td>
+                ${item.nama_komponen}
+                ${item.is_main == 1 ? ' *' : ''}
+            </td>
 
-                    bodyHtml +=
-                        '</tr>';
+        </tr>
+    `;
 
-                }
-            );
+          });
 
-            $('#vendorKpiTableBody')
-                .html(
-                    bodyHtml
-                );
+          if (html === '') {
 
-            vendorKpiTable =
-                $('#vendorKpiDetailTable')
-                .DataTable({
+            html = `
+        <tr>
+            <td colspan="2" class="text-center text-muted">
+                No component found
+            </td>
+        </tr>
+    `;
 
-                    pageLength: 10,
+          }
 
-                    lengthMenu: [
-                        [10, 20, 25, 50, -1],
-                        [10, 20, 25, 50, 'All']
-                    ],
-
-                    searching: true,
-
-                    paging: true,
-
-                    ordering: false,
-
-                    info: true,
-
-                    responsive: false,
-
-                    autoWidth: false,
-
-                    language: {
-
-                        search: '',
-
-                        searchPlaceholder: 'Search...',
-
-                        zeroRecords: 'Data tidak ditemukan',
-
-                        info: 'Showing _START_ to _END_ of _TOTAL_ data',
-
-                        infoEmpty: 'Showing 0 data',
-
-                        paginate: {
-
-                            previous: 'Previous',
-
-                            next: 'Next'
-
-                        }
-
-                    }
-
-                });
+          $("#componentList").html(html);
 
         }
 
-        /* ===================================== */
-        /* ESCAPE HTML */
-        /* ===================================== */
+      });
 
-        function escapeHtml(value) {
+      $("#componentDetailModal").modal("show");
 
-            return String(
-                    value ?? ''
-                )
-                .replace(
-                    /&/g,
-                    '&amp;'
-                )
-                .replace(
-                    /</g,
-                    '&lt;'
-                )
-                .replace(
-                    />/g,
-                    '&gt;'
-                )
-                .replace(
-                    /"/g,
-                    '&quot;'
-                )
-                .replace(
-                    /'/g,
-                    '&#039;'
-                );
-
-        }
-
-        /* ===================================== */
-        /* EXPORT VENDOR KPI DETAIL */
-        /* ===================================== */
-
-        $(document).on(
-            'click',
-            '#btnExportVendorKpiDetail',
-            function() {
-
-                if (!currentVendorKpi) {
-
-                    alert(
-                        'KPI vendor tidak ditemukan'
-                    );
-
-                    return;
-                }
-
-                const query =
-                    $.param({
-                        kpi: currentVendorKpi
-                    });
-
-                window.location.href =
-                    './../config/export_vendor_detail.php?' +
-                    query;
-
-            }
-        );
-    </script>
+    }
+  </script>
 
 </body>
 

@@ -50,18 +50,6 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
     padding: 8px 18px;
   }
 
-  .daterangepicker .drp-calendar.left {
-    border-right: none !important;
-  }
-
-  .daterangepicker .drp-calendar.right {
-    display: none !important;
-  }
-
-  .daterangepicker {
-    width: auto !important;
-  }
-
   .dataTables_empty {
     text-align: center !important;
     vertical-align: middle !important;
@@ -479,7 +467,7 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
                     </th> -->
 
                     <th colspan="4">
-                      SM Subcont
+                      SM Subcont Plant 3
                     </th>
 
                     <th colspan="4">
@@ -495,7 +483,7 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
                     </th>
 
                     <th colspan="4">
-                      Return SM
+                      Return SM Plant 3
                     </th>
 
                   </tr>
@@ -1412,11 +1400,11 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
                 <c t="inlineStr" r="H1"><is><t>Vendor</t></is></c>
                 <c t="inlineStr" r="I1"><is><t>Total Order</t></is></c>
 
-                <c t="inlineStr" r="J1"><is><t>SM Subcont</t></is></c>
+                <c t="inlineStr" r="J1"><is><t>SM Subcont Plant 3</t></is></c>
                 <c t="inlineStr" r="N1"><is><t>WH Subcont</t></is></c>
                 <c t="inlineStr" r="R1"><is><t>Vendor</t></is></c>
                 <c t="inlineStr" r="V1"><is><t>Return WH</t></is></c>
-                <c t="inlineStr" r="Z1"><is><t>Return SM</t></is></c>
+                <c t="inlineStr" r="Z1"><is><t>Return SM Plant 3</t></is></c>
 
                 </row>
                 `;

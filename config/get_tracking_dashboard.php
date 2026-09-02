@@ -21,7 +21,8 @@ $data = [
 ];
 
 // FILTER
-$where = "WHERE barcode_status = 'ACTIVE'";
+$where = "WHERE barcode_status = 'ACTIVE'
+          AND is_main_komponen = 1";
 
 $params = [];
 $types = "";

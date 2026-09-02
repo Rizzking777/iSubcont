@@ -43,62 +43,22 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
     align-items: center;
   }
 
-  #addKomponenBtn {
-    margin-top: 0px;
-    /* atau sesuai kebutuhan */
-    margin-bottom: 5px;
+  .card {
+    border: none !important;
+    border-radius: 16px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
   }
 
-  .komponen-row .form-label {
-    display: block;
+  .form-control,
+  .select2-container--default .select2-selection--single {
+    height: 40px !important;
+    border-radius: 10px !important;
+    border: 1px solid #dbe2ea !important;
   }
 
-  .komponen-row .form-control {
-    width: 100%;
-  }
-
-  .qr-center {
-    text-align: center;
-    margin-top: 10px;
-  }
-
-  .match-height {
-    height: calc(1.5em + 0.75rem + 2px);
-    /* Cocokkan dengan .form-control Bootstrap */
-    display: flex;
-    justify-content: center;
-    align-items: center;
-  }
-
-  @media print {
-    @page {
-      size: 50mm auto;
-      /* Lebar 50mm, tinggi otomatis */
-      margin: 0;
-      /* Hilangkan margin default browser */
-    }
-
-    body {
-      width: 50mm;
-      font-size: 10px;
-      /* Bisa kecilkan font supaya pas */
-    }
-
-    /* Hanya print konten modal */
-    body * {
-      visibility: hidden;
-    }
-
-    #barcodeContent<?= $row['id_trans']; ?>,
-    #barcodeContent<?= $row['id_trans']; ?>* {
-      visibility: visible;
-    }
-
-    #barcodeContent<?= $row['id_trans']; ?> {
-      position: absolute;
-      left: 0;
-      top: 0;
-    }
+  .btn {
+    border-radius: 10px !important;
+    padding: 8px 18px;
   }
 </style>
 
@@ -329,6 +289,11 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
       initSelect2("#po_code", "searchPOCode", "PO Code");
       initSelect2("#job_order", "searchJobOrder", "Job Order");
 
+      // Auto focus search ketika Select2 dibuka
+      $(document).on('select2:open', function() {
+        document.querySelector('.select2-container--open .select2-search__field').focus();
+      });
+
       // ================================
       // DataTables
       // ================================
@@ -342,20 +307,34 @@ $username = $_SESSION['username']; // Query ringkasan per job_order
             url: "./../config/get_data_lot_basis.php",
             type: "POST",
             data: function(d) {
+              d.type = "sm";
               d.bucket = $("#bucket").val();
               d.ncvs = $("#ncvs").val();
               d.po_code = $("#po_code").val();
               d.job_order = $("#job_order").val();
             }
           },
-          columns: [
-            { data: "job_order" },
-            { data: "ncvs" },
-            { data: "bucket" },
-            { data: "po_code" },
-            { data: "po_item" },
-            { data: "model" },
-            { data: "style" }
+          columns: [{
+              data: "job_order"
+            },
+            {
+              data: "ncvs"
+            },
+            {
+              data: "bucket"
+            },
+            {
+              data: "po_code"
+            },
+            {
+              data: "po_item"
+            },
+            {
+              data: "model"
+            },
+            {
+              data: "style"
+            }
           ]
         });
 

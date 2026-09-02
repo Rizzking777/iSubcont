@@ -30,6 +30,22 @@ $gateMap = [
 
         "out" => "SM_SUBCONT_TO_PROD"
 
+    ],
+
+    "incoming_wh" => [
+
+        "in" => "WH_SUBCONT_FROM_SM_SUBCONT",
+
+        "out" => "WH_SUBCONT_TO_VENDOR"
+
+    ],
+
+    "return_wh" => [
+
+        "in" => "WH_SUBCONT_FROM_VENDOR",
+
+        "out" => "WH_SUBCONT_TO_SM_SUBCONT"
+
     ]
 
 ];
@@ -45,7 +61,6 @@ if (!empty($ncvs)) {
         AND t.ncvs='$ncvs'
 
     ";
-
 }
 
 $gate = "";
@@ -53,7 +68,6 @@ $gate = "";
 if ($type != "inventory") {
 
     $gate = $gateMap[$section][$type] ?? "";
-
 }
 
 /* QUERY */
